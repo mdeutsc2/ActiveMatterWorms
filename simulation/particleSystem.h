@@ -49,6 +49,7 @@ class ParticleSystem
         void dumpSolventGrid();
         void dumpParticles(uint start, uint count);
         void writeOutputs(const std::string& fileName, int iteration, float timeDelta);
+        void writeOutputs_xyzv(const std::string& fileName, int iteration, float timeDelta);
 
         void setDamping(float x)
         {
@@ -165,6 +166,7 @@ class ParticleSystem
         float *m_hPos;              // particle positions
         float *m_hVel;              // particle velocities
         float *m_hForce;            // particle forces
+        float *m_hvForce;           // solvent particle forces
         float *m_hTangent;          // tangent of filament at particle position
 
         uint  *m_hParticleHash;
@@ -176,7 +178,9 @@ class ParticleSystem
         float *m_dVel;
         float *m_dTangent;
         float *m_dForce;
+        float *m_dvForce;
         float *m_dForceOld;
+        float *m_dvForceOld;
         float *m_dRandom;
 
         float *m_dSortedPos;
