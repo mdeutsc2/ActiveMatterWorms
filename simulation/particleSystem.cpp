@@ -45,12 +45,15 @@ ParticleSystem::ParticleSystem(uint numFilaments, uint filamentSize, uint3 gridS
     m_hPos(0),
     m_hVel(0),
     m_hForce(0),
+    m_hvForce(0),
     m_hTangent(0),
     m_dPos(0),
     m_dVel(0),
     m_dTangent(0),
     m_dForce(0),
+    m_dvForce(0),
     m_dForceOld(0),
+    m_dvForceOld(0),
     m_dRandom(0),
     m_gridSize(gridSize),
     m_solventEnabled(srdSolvent),
@@ -67,6 +70,7 @@ ParticleSystem::ParticleSystem(uint numFilaments, uint filamentSize, uint3 gridS
     m_params.numParticles = m_numParticles;
     m_params.particleRadius = 0.5f;
     m_params.particleMass = 1.0f;
+    m_params.solSigma = 3.4f; // sigma for LJ r_cutoff interaction
 
     // System size/boundaries
     m_gridSortBits = 18;    // increase this for larger grids
@@ -126,6 +130,7 @@ ParticleSystem::_initSolventParams()
 {
     if (m_solventEnabled)
     {
+        // TODO: add solvent radius 
         m_solvent.enabled = m_solventEnabled;
         m_solvent.alpha = 2.26893f; // 130 deg TODO: make settings
         // m_solvent.gridSize = make_uint3(m_params.gridSize.x, m_params.gridSize.y, max(m_params.gridSize.z, 1));
@@ -137,8 +142,8 @@ ParticleSystem::_initSolventParams()
         m_solvent.particleMass = 1.0f;
         m_solvent.kbT = m_params.kbT;
 
-        float density2D = 10.f; // TODO: make setting
-        m_solventUpdateGap = 5; // TODO: make settings
+        float density2D = 5.f; // TODO: make setting
+        m_solventUpdateGap = 1; // TODO: make settings
         m_numSolvent =  uint(density2D * m_solvent.numCells);
         m_numSolventCells = m_solvent.numCells;
         m_solvent.numParticles = m_numSolvent;
@@ -181,10 +186,12 @@ ParticleSystem::_initialize(int numParticles, int numSolvent)
     m_hPos     = new float[N*4];
     m_hVel     = new float[N*4];
     m_hForce   = new float[m_numParticles*4];
+    m_hvForce  = new float[numSolvent*4];
     m_hTangent = new float[m_numParticles*4];
     memset(m_hPos, 0, N*4*sizeof(float));
     memset(m_hVel, 0, N*4*sizeof(float));
     memset(m_hForce, 0, m_numParticles*4*sizeof(float));
+    memset(m_hvForce, 0, numSolvent*4*sizeof(float));
     memset(m_hTangent, 0, m_numParticles*4*sizeof(float));
 
     m_hCellStart = new uint[m_numGridCells];
@@ -195,12 +202,15 @@ ParticleSystem::_initialize(int numParticles, int numSolvent)
 
     // allocate GPU data
     unsigned int memSize = sizeof(float) * 4 * m_numParticles;
+    unsigned int memSizeS = sizeof(float) * 4 * numSolvent;
     unsigned int memSizeN = sizeof(float) * 4 * N;
     allocateArray((void **)&m_dPos, memSizeN);
     allocateArray((void **)&m_dVel, memSizeN);
     allocateArray((void **)&m_dTangent, memSize);
     allocateArray((void **)&m_dForce, memSize);
+    allocateArray((void **)&m_dvForce, memSizeS);
     allocateArray((void **)&m_dForceOld, memSize);
+    allocateArray((void **)&m_dvForceOld, memSizeS);
     allocateArray((void **)&m_dRandom, memSize);
     allocateArray((void **)&m_dSortedPos, memSizeN);
     allocateArray((void **)&m_dSortedVel, memSizeN);
@@ -395,8 +405,9 @@ ParticleSystem::_solventUpdate(float dt)
     collideSolvent(
         m_dPos,
         m_dVel,
-        m_dSolventCellCOM,
-        m_dRandom,
+        m_dvForce,
+        m_dCellStart,
+        m_dCellEnd,
         m_numSolventCells,
         m_numParticles + m_numSolvent
     );
@@ -480,6 +491,94 @@ ParticleSystem::dumpParticles(uint start, uint count)
 
 void
 ParticleSystem::writeOutputs(const std::string& fileName, int iteration, float timeDelta)
+{
+    const int N = m_numParticles + m_numSolvent;
+    copyArrayFromDevice(m_hPos, m_dPos, 0, sizeof(float)*4*N);
+    copyArrayFromDevice(m_hVel, m_dVel, 0, sizeof(float)*4*N);
+    
+    // Write SimParams as json object
+    auto p = this->m_params;
+    if (iteration == 0) {
+        std::ofstream fout_params;
+        fout_params.open("parameters.json",std::ios::out | std::ios::app);
+        fout_params << "{"
+         << "\"iteration\":"                 << iteration << ","
+         << "\"dt\":"                        << timeDelta << ","
+         << "\"time\":"                      << iteration * timeDelta << ","
+         << "\"num_particles\":"             << p.numParticles << ","
+         << "\"num_filaments\":"             << p.numFilaments << ","
+         << "\"filament_size\":"             << p.filamentSize << ","
+         << "\"bond_spring_coef\":"          << p.bondSpringK << ","
+         << "\"bond_spring_length\":"        << p.bondSpringL << ","
+         << "\"bond_bending_coef\":"         << p.bondBendingK << ","
+         << "\"activity\":"                  << p.activity << ","
+         << "\"kbT\":"                       << p.kbT << ","
+         << "\"gamma\":"                     << p.gamma << ","
+         << "\"particle_radius\":"           << p.particleRadius << ","
+         << "\"particle_mass\":"             << p.particleMass << ","
+         << "\"num_cells\":"                 << p.numCells << ","
+         << "\"grid_size\":"          << "[" << p.gridSize.x << "," << p.gridSize.y << "," << p.gridSize.z << "],"
+         << "\"box_size\":"           << "[" << p.boxSize.x << "," << p.boxSize.y << "," << p.boxSize.z << "],"
+         << "\"cell_size\":"          << "[" << p.cellSize.x << "," << p.cellSize.y << "," << p.cellSize.z << "],"
+         << "\"boundaries\":"         << "[" << p.boundaryX << "," << p.boundaryY << "," << p.boundaryZ << "],"
+         << "\"reverse_probability\":"       << p.reverseProbability << ","
+         << "\"collision_spring_coef\":"     << p.spring << ","
+         << "\"collision_damping_coef\":"    << p.damping << ","
+         << "\"collision_shear_coef\":"      << p.shear << ","
+         << "\"collision_attraction_coef\":" << p.attraction << ","
+         << "\"boundary_damping_coef\":"     << p.boundaryDamping
+         << "}" << std::endl;
+         fout_params.close();
+    }
+
+    std::ofstream fout;
+    fout.open(fileName, std::ios::out | std::ios::app);
+    fout << N << std::endl;
+
+
+    fout << "# iteration "<< iteration << ", dt "<< timeDelta << std::endl;
+
+    const char * type = "A";
+    for (int i = 0; i < N; i++)
+    {
+        type = i < m_numParticles ? "A" : "B";
+        fout << type << " " << m_hPos[i*4] << " " << m_hPos[i*4+1] << " " << m_hPos[i*4+2]
+                     << std::endl;
+    }
+
+    fout.close();
+
+    // writing out a velocity .vtk file
+    std::string insertedString = "_vel";
+    std::string fileType = ".xyz";
+    std::string vel_fileName;
+    std::stringstream sstm;
+    char delimiter = '.';
+
+    std::size_t pos = fileName.find(delimiter);
+    std::string prefix = fileName.substr(0, pos);
+    sstm << prefix << insertedString << iteration << fileType;
+    vel_fileName = sstm.str();
+    // std::cout << iteration << "\n";
+    // std::cout << vel_fileName << "\n";
+
+    std::ofstream fout_vel;
+    fout_vel.open(vel_fileName, std::ios::out | std::ios::app);
+    fout_vel << "# iteration "<< iteration << ", dt "<< timeDelta << std::endl;
+    //const char * type = "A";
+    for (int i = 0; i < N; i++)
+    {
+        type = i < m_numParticles ? "A" : "B";
+        fout_vel << type << " " << m_hVel[i*4] << " " << m_hVel[i*4+1] << " " << m_hVel[i*4+2]
+                    << std::endl;
+    }
+
+    fout_vel.close();
+}
+
+
+void
+ParticleSystem::writeOutputs_xyzv(const std::string& fileName, int iteration, float timeDelta)
 {
     const int N = m_numParticles + m_numSolvent;
     copyArrayFromDevice(m_hPos, m_dPos, 0, sizeof(float)*4*N);

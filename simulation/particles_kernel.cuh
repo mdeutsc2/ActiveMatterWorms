@@ -28,6 +28,7 @@ struct SimParams
     float3 gravity;
     float particleRadius;
     float particleMass;
+    float solSigma;
 
     uint3 gridSize;
     uint numCells;

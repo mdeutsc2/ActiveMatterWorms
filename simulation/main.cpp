@@ -19,12 +19,12 @@
 #define THRESHOLD         0.30f
 
 // Simulation parameters
-std::string outFile = "nw.xyzv";
+std::string outFile = "nw.xyz";
 uint numFilaments	= 6000;
 uint filamentSize 	= 35;
 float timestep 		= 0.002f;
-int printRate 		= 5000;
-int iterations 		= 5000000;
+int printRate 		= 2500;
+int iterations 		= 5000;//000;
 float gravity 		= 0.0f;
 float kBend			= 200.f;
 float kBond			= 57.146436f;

@@ -70,8 +70,9 @@ extern "C"
 
     void collideSolvent(float *pos,
                         float *vel,
-                        float *solventCellCOM,
-                        float *random,
+                        float *vforces,
+                        uint *cellStart,
+                        uint *cellEnd,
                         uint   numSolventCells,
                         uint   numParticles);
 

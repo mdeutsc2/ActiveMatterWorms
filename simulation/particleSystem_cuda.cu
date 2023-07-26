@@ -236,12 +236,13 @@ extern "C"
 
     void collideSolvent(float *pos,
                         float *vel,
-                        float *solventCellCOM,
-                        float *random,
+                        float *vforces,
+                        uint *cellStart,
+                        uint *cellEnd,
                         uint   numSolventCells,
                         uint   numParticles)
     {
-        randomizeUniform(random, numSolventCells);
+        //randomizeUniform(random, numSolventCells);
 
         // thread per particle
         uint numThreads, numBlocks;
@@ -250,8 +251,9 @@ extern "C"
         // execute the kernel
         collideSolventKernel<<< numBlocks, numThreads >>>((float4 *)pos,
                                                           (float4 *)vel,
-                                                          (float4 *)solventCellCOM,
-                                                          random,
+                                                          (float4 *)vforces,
+                                                          cellStart,
+                                                          cellEnd,
                                                           numParticles);
     }
 

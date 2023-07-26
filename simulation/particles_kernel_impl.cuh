@@ -272,6 +272,7 @@ __device__ uint calcGridHashSRD(int3 gridPos)
     {
         gridPos.z = gridPos.z & (srd.gridSize.z-1);
     }
+    // TODO: change __umul24->__umul32 for CC>2.0
     return __umul24(__umul24(gridPos.z, srd.gridSize.y), srd.gridSize.x) + __umul24(gridPos.y, srd.gridSize.x) + gridPos.x;
 }
 
@@ -651,7 +652,62 @@ __device__ float3 rotate2D(float3 v, const float alpha)
 // Launch one for ALL particles (filaments + solvent)
 // 2D-XY only!
 __global__
-void collideSolventKernel(float4 *pos,
+void collideSolventKernel(float4 *pos,float4 *vel, float4 *vforces, uint *cellStart, uint *cellEnd, uint numParticles) {
+    //TODO: add cellStart, cellEnd, gridParticleIndex
+    uint index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
+
+    if (index >= numParticles) return;
+    if (index < params.numParticles) return; // only update solvent particles
+
+    // read particle data from sorted arrays
+    float3 r1 = make_float3(pos[index]);
+    float3 v = make_float3(vel[index]);
+    int3 gridPos = calcGridPos(r1);
+    float3 force = make_float3(0.0f);
+
+    //pre-calculating some coefficients
+    float eps = 1.3806e-16;
+    float sigma = 3.4;
+    float constA = (48*eps)/(sigma*sigma);
+
+    for (int z=-1;z<=1;z++) {
+        for (int y=-1;y<=1;y++) {
+            for (int x=-1;x<=1;x++) {
+                int3 neighborPos = gridPos + make_int3(x,y,z);
+                // handling collisions within cell and neighboring cells
+                uint gridHash = calcGridHash(neighborPos);
+                // get start of bucked for this cell
+                uint startIndex = cellStart[gridHash];
+                if (startIndex != 0xffffffff){
+                    // iterate over particles in this cell
+                    uint endIndex = cellEnd[gridHash];
+                    for (uint j = startIndex; j<=endIndex; j++){
+                        if (j!=index) {
+                            // not colliding with self
+                            float3 r2 = make_float3(pos[j]);
+                            float3 v2 = make_float3(vel[j]);
+                            // colliding particles
+                            float3 rel_pos = r2 - r1;
+                            float dist = lengthPeriodic(rel_pos);
+                            float collide_dist = 2*params.particleRadius;
+                            if (dist < collide_dist) {
+                                float sorij = sigma/dist;
+                                force += constA*dist*(pow(sorij,14.0) - 0.5*pow(sorij,8.0));
+                            }
+
+
+                        }
+                    }
+                }
+                force += 0.0f; // collideSolvent
+            }
+        }
+    }
+    // write velocity back
+    
+}
+__global__
+void collideSolventKernel_old(float4 *pos,
                           float4 *vel,
                           float4 *cellCOM,
                           float  *uniform,
