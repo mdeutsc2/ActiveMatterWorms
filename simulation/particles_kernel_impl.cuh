@@ -431,17 +431,22 @@ float3 collideParticles(float3 posA, float3 posB,
                       float radiusA, float radiusB,
                       float attraction)
 {
+    //pre-calculating some coefficients
+    float eps = 1.3806e-16;
+    float sigma = 1; //TODO: what should sigma be?
+    float constA = (48*eps)/(sigma*sigma);
+
     // calculate relative position
     float3 relPos = posB - posA;
 
     float dist = lengthPeriodic(relPos);
-    float collideDist = radiusA + radiusB;
+    float collideDist = 2.5*sigma;
 
     float3 force = make_float3(0.0f);
 
     if (dist < collideDist)
     {
-        float3 norm = relPos / dist;
+        float3 norm = relPos / dist; //unit normal vector pointing from particle A to particle B
 
         // relative velocity
         float3 relVel = velB - velA;
@@ -449,9 +454,11 @@ float3 collideParticles(float3 posA, float3 posB,
         // relative tangential velocity
         float3 tanVel = relVel - (dot(relVel, norm) * norm);
 
-        // spring force
-        force = -params.spring*(collideDist - dist) * norm;
-        // dashpot (damping) force
+        // spring force (TODO: replace with LJ that has attractive component)
+        force = -params.spring*(collideDist - dist) * norm; // old spring force (pure repulsive)
+        //float sorij = sigma/dist;
+        //force = constA*dist*(pow(sorij,14.0) - 0.5*pow(sorij,8.0));
+        // dashpot (damping) force (part of langevin thermostat)
         force += params.damping*relVel;
         // tangential shear force
         force += params.shear*tanVel;
@@ -669,6 +676,7 @@ void collideSolventKernel(float4 *pos,float4 *vel, float4 *vforces, uint *cellSt
     float eps = 1.3806e-16;
     float sigma = 3.4;
     float constA = (48*eps)/(sigma*sigma);
+    float twop6 = pow(2,1/6);
 
     for (int z=-1;z<=1;z++) {
         for (int y=-1;y<=1;y++) {
@@ -689,7 +697,9 @@ void collideSolventKernel(float4 *pos,float4 *vel, float4 *vforces, uint *cellSt
                             // colliding particles
                             float3 rel_pos = r2 - r1;
                             float dist = lengthPeriodic(rel_pos);
-                            float collide_dist = 2*params.particleRadius;
+                            //float collide_dist = 2*params.particleRadius;
+                            float collide_dist = 2.5*sigma; //Lennard-Jones
+                            float collide_dist = sigma*twop6; //WCA
                             if (dist < collide_dist) {
                                 float sorij = sigma/dist;
                                 force += constA*dist*(pow(sorij,14.0) - 0.5*pow(sorij,8.0));
