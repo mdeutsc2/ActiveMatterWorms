@@ -393,14 +393,14 @@ ParticleSystem::_solventUpdate(float dt)
         m_numSolventCells
     );
 
-    solventCellCentorOfMomentum(
-        m_dSolventCellCOM,
-        m_dSortedVel,
-        m_dCellStart,
-        m_dCellEnd,
-        m_dGridParticleIndex,
-        m_numSolventCells
-    );
+    // solventCellCentorOfMomentum(
+    //     m_dSolventCellCOM,
+    //     m_dSortedVel,
+    //     m_dCellStart,
+    //     m_dCellEnd,
+    //     m_dGridParticleIndex,
+    //     m_numSolventCells
+    // );
 
     collideSolvent(
         m_dPos,
@@ -408,13 +408,15 @@ ParticleSystem::_solventUpdate(float dt)
         m_dvForce,
         m_dCellStart,
         m_dCellEnd,
-        m_numSolventCells,
+        m_dGridParticleIndex,
         m_numParticles + m_numSolvent
     );
 
     integrateSolvent(
         m_dPos,
         m_dVel,
+        m_dvForce,
+        m_dvForceOld,
         dt,
         m_numParticles,
         m_numSolvent

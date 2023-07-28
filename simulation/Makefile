@@ -382,7 +382,7 @@ run: build
 clean-run: clean build run
 
 clean:
-	rm -f nw particleSystem.o particleSystem_cuda.o main.o nw.xyzv
+	rm -f nw particleSystem.o particleSystem_cuda.o main.o *.xyz
 
 clobber: clean
 

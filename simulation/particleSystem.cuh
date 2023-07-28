@@ -35,6 +35,8 @@ extern "C"
 
     void integrateSolvent(float *pos,
                           float *vel,
+                          float *f,
+                          float *f_old,
                           float deltaTime,
                           uint startIndex,
                           uint numSolvent);
@@ -73,7 +75,7 @@ extern "C"
                         float *vforces,
                         uint *cellStart,
                         uint *cellEnd,
-                        uint   numSolventCells,
+                        uint *gridParticleIndex,
                         uint   numParticles);
 
     void filamentForces(float *force,

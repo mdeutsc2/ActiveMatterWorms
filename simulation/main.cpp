@@ -20,11 +20,11 @@
 
 // Simulation parameters
 std::string outFile = "nw.xyz";
-uint numFilaments	= 6000;
+uint numFilaments	= 60;
 uint filamentSize 	= 35;
 float timestep 		= 0.002f;
-int printRate 		= 2500;
-int iterations 		= 5000;//000;
+int printRate 		= 10;
+int iterations 		= 500;//000;
 float gravity 		= 0.0f;
 float kBend			= 200.f;
 float kBond			= 57.146436f;
@@ -36,8 +36,8 @@ float drag			= 0.01f;
 BoundaryType boundX = BoundaryType::PERIODIC;
 BoundaryType boundY = BoundaryType::WALL_NO_SLIP;
 BoundaryType boundZ = BoundaryType::WALL;
-uint3 gridSize 		= make_uint3(1024, 128, 1);
-bool srdSolvent		= false;
+uint3 gridSize 		= make_uint3(128, 16, 1);
+bool srdSolvent		= true;
 
 extern "C" void cudaInit(int argc, char **argv);
 
