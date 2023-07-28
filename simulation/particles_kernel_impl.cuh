@@ -155,10 +155,20 @@ struct solvent_integrator
     {
         volatile float4 posData = thrust::get<0>(t);
         volatile float4 velData = thrust::get<1>(t);
-        float3 pos = make_float3(posData);
-        float3 vel = make_float3(velData);
+        volatile float4 forceData = thrust::get<2>(t);
+        volatile float4 forceOldData = thrust::get<3>(t);
+        float3 pos   = make_float3(posData);
+        float3 vel   = make_float3(velData);
+        float3 f     = make_float3(forceData);
+        float3 f_old = make_float3(forceOldData);
 
-        float3 dr = dt * vel;
+        // float3 dr = dt * vel;
+        // pos += dr;
+
+        // Velocity Verlet update
+        float3 dv = 0.5f * (f + f_old) * dt;
+        vel += dv;
+        float3 dr = vel * dt + 0.5f * f * dt * dt;
         pos += dr;
 
         if (params.boundaryX == BoundaryType::PERIODIC)
@@ -201,6 +211,8 @@ struct solvent_integrator
         // store new position, velocity, and forces
         thrust::get<0>(t) = make_float4(pos, posData.w);
         thrust::get<1>(t) = make_float4(vel, velData.w);
+        thrust::get<2>(t) = make_float4(0.f);
+        thrust::get<3>(t) = make_float4(f, forceOldData.w);
     }
 };
 
@@ -659,8 +671,7 @@ __device__ float3 rotate2D(float3 v, const float alpha)
 // Launch one for ALL particles (filaments + solvent)
 // 2D-XY only!
 __global__
-void collideSolventKernel(float4 *pos,float4 *vel, float4 *vforces, uint *cellStart, uint *cellEnd, uint numParticles) {
-    //TODO: add cellStart, cellEnd, gridParticleIndex
+void collideSolventKernel(float4 *pos,float4 *vel, float4 *vforces, uint *cellStart, uint *cellEnd, uint   *gridParticleIndex, uint numParticles) {
     uint index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
 
     if (index >= numParticles) return;
@@ -699,7 +710,7 @@ void collideSolventKernel(float4 *pos,float4 *vel, float4 *vforces, uint *cellSt
                             float dist = lengthPeriodic(rel_pos);
                             //float collide_dist = 2*params.particleRadius;
                             float collide_dist = 2.5*sigma; //Lennard-Jones
-                            float collide_dist = sigma*twop6; //WCA
+                            //float collide_dist = sigma*twop6; //WCA
                             if (dist < collide_dist) {
                                 float sorij = sigma/dist;
                                 force += constA*dist*(pow(sorij,14.0) - 0.5*pow(sorij,8.0));
@@ -713,8 +724,9 @@ void collideSolventKernel(float4 *pos,float4 *vel, float4 *vforces, uint *cellSt
             }
         }
     }
-    // write velocity back
-    
+        // write new velocity back to original unsorted location
+    //uint originalIndex = gridParticleIndex[index];
+    //vforces[originalIndex] += make_float4(force, 0.0f);
 }
 __global__
 void collideSolventKernel_old(float4 *pos,

@@ -135,15 +135,19 @@ extern "C"
 
     void integrateSolvent(float *pos,
                           float *vel,
+                          float *f,
+                          float *f_old,
                           float deltaTime,
                           uint startIndex,
                           uint numSolvent)
     {
         thrust::device_ptr<float4> d_pos4((float4 *)pos);
         thrust::device_ptr<float4> d_vel4((float4 *)vel);
+        thrust::device_ptr<float4> d_f4((float4 *)f);
+        thrust::device_ptr<float4>d_f_old4((float4 *)f_old);
 
-        auto start = thrust::make_tuple(d_pos4 + startIndex, d_vel4 + startIndex);
-        auto end = thrust::make_tuple(d_pos4 + startIndex + numSolvent, d_vel4 + startIndex + numSolvent);
+        auto start = thrust::make_tuple(d_pos4 + startIndex, d_vel4 + startIndex, d_f4 + startIndex, d_f_old4 + startIndex);
+        auto end = thrust::make_tuple(d_pos4 + startIndex + numSolvent, d_vel4 + startIndex + numSolvent, d_f4+startIndex + numSolvent, d_f_old4 + startIndex + numSolvent);
 
         thrust::for_each(thrust::make_zip_iterator(start),thrust::make_zip_iterator(end), solvent_integrator(deltaTime));
     }
@@ -239,7 +243,7 @@ extern "C"
                         float *vforces,
                         uint *cellStart,
                         uint *cellEnd,
-                        uint   numSolventCells,
+                        uint  *gridParticleIndex,
                         uint   numParticles)
     {
         //randomizeUniform(random, numSolventCells);
@@ -254,6 +258,7 @@ extern "C"
                                                           (float4 *)vforces,
                                                           cellStart,
                                                           cellEnd,
+                                                          gridParticleIndex,
                                                           numParticles);
     }
 
