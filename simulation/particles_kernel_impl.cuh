@@ -531,6 +531,8 @@ float3 collideCell(int3    gridPos,
     uint  chainIndex     = gridParticleIndex[index] % filamentSize;
     uint  filamentIndex2, chainIndex2;
     bool  sameFilament;
+    float3 zoffset = make_float3(0.0f);
+    zoffset.z = 1.0;
 
     float3 force = make_float3(0.0f);
 
@@ -557,6 +559,13 @@ float3 collideCell(int3    gridPos,
                 }
                 else // collide particles
                 {
+                    //adding a z-offset for the solvent particles
+                    if (index > params.numParticles) {
+                        r = r + zoffset;
+                    }
+                    if (gridParticleIndex[j] > params.numParticles) {
+                        r2 =r2 + zoffset;
+                    }
                     force += collideParticles(r, r2, v, v2, params.particleRadius, params.particleRadius, params.attraction);
                 }
                 // if (!sameFilament || (chainIndex > chainIndex2 + 1) || (chainIndex < chainIndex2 - 1))
