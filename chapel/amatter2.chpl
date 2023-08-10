@@ -272,9 +272,6 @@ proc update_pos(itime:int) {
 
 proc calc_forces() {
     var rsq:real,rand1:real,rand2:real,v1:real,v2:real,fac:real,g1:real,th:real;
-    var dx:real,dy:real,r:real,ff:real, ffx:real, ffy:real, dot:real, f2x:real, f2y:real, f3x:real, f3y:real, f4x:real, f4y:real;
-    var x2:real, y2:real, x3:real, y3:real, x4:real, y4:real, y23:real, y34:real, x23:real, x34:real, r23:real, r34:real, cosvalue:real, sinvalue:real;
-    var ip1:int, i2:int, i3:int, i4:int;
     //zero out the force arrays and add Gaussian noise
     rsq = 0.0;
     for iw in 1..nworms {
@@ -296,6 +293,7 @@ proc calc_forces() {
     }
     //first set of springs nearest neighbor springs
     forall iw in 1..nworms {
+        var ip1:int,r:real,ff:real,ffx:real,ffy:real,dx:real,dy:real;
         for i in 1..np-1 {
             ip1 = i + 1;
             dx = x[iw, ip1] - x[iw, i];
@@ -313,6 +311,8 @@ proc calc_forces() {
     }
     //bond bending terms
     forall iw in 1..nworms {
+        var i3:int,i4:int,x2:real,x3:real,x4:real,y2:real,y3:real,y4:real,y23:real,y34:real,x23:real,x34:real,r23:real,r34:real,cosvalue:real;
+	    var sinvalue:real,ff:real,dot:real,fac:real,f2x:real,f2y:real,f3x:real,f3y:real,f4x:real,f4y:real;
         for i2 in 1..(np-2) {
             i3 = i2 + 1;
             i4 = i2 + 2;
@@ -455,12 +455,12 @@ proc worm_wall_old() {
 }
 
 proc worm_wall() {
-    var dx:real, dy:real, r:real, r2:real, th:real, 
-           xwall:real, ywall:real, rr2:real, ffor:real, 
-           dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
-    var ip1:int;
     //put worm-wall interactions here, and dissipation force proportional to velocity
     forall iw in 1..nworms{
+        var dx:real, dy:real, r:real, r2:real, th:real, 
+           xwall:real, ywall:real, rr2:real, ffor:real, 
+           dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
+        var ip1:int;
         for i in 1..np{
             //dissipation proportional to v relative to local average
             // TODO swap vxave with intvx
