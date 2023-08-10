@@ -1,0 +1,17 @@
+! ACTIVE MATTER INPUT FILE
+np	40
+nworms	2250
+nsteps	250000
+fdogic 0.06d0
+fdogicwall 0.00d0
+fdep	1.0d0
+fdepwall 0.0d0
+diss	0.08d0
+dt	0.02d0
+kspring	57.146436d0
+kbend	40.0d0
+length0	0.8d0
+rcut	2.5d0
+rcutsmall 2.0d0**(1.0d0/6.0d0)
+fluid_cpl .false.
+save_interval 1000

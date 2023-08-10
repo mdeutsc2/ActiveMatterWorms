@@ -1,0 +1,3 @@
+/home/matt/Dropbox/Research/codes/active_matter/CMakeFiles/amatter.dir
+/home/matt/Dropbox/Research/codes/active_matter/CMakeFiles/edit_cache.dir
+/home/matt/Dropbox/Research/codes/active_matter/CMakeFiles/rebuild_cache.dir
