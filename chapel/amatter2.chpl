@@ -5,7 +5,7 @@ use IO.FormattedIO;
 use Time; // for stopwatch
 // configuration
 config const np = 40,
-             nworms = 1125,
+             nworms = 125,
              nsteps = 25000,
              fdogic = 0.06,
              fdogicwall = 0.0,
@@ -17,7 +17,7 @@ config const np = 40,
              kbend = 40.0,
              length0 = 0.8,
              rcut = 2.5,
-             save_interval = 100,
+             save_interval = 1000,
              boundary = 1, // 1 = circle, 2 = cardiod, 3 = channel
              fluid_cpl = false;
 
@@ -25,7 +25,7 @@ config const np = 40,
 const r2cut = rcut*rcut,
       rcutsmall = 2.0**(1.0/6.0),
       r2cutsmall = rcutsmall*rcutsmall,
-      rwall = 125.0*rcutsmall*sqrt(2.0),
+      rwall = 75,//125.0*rcutsmall*sqrt(2.0),
       pi = 4.0*atan(1.0),
       twopi = 2*pi,
       pio4 = pi*0.25,
@@ -288,8 +288,8 @@ proc calc_forces() {
             fac = sqrt(-2.0*log(rsq)/rsq);
             g1 = v1*fac*gnoise;
             th = rand1*twopi;
-            fx[iw, i] = g1*cos(th);
-            fy[iw, i] = g1*sin(th);
+            fx[iw, i] = g1*cos(th) - diss*vx[iw,i];
+            fy[iw, i] = g1*sin(th) - diss*vy[iw,i];
         }
     }
     //first set of springs nearest neighbor springs
@@ -549,9 +549,13 @@ proc cell_sort(itime:int) {
         ipointto[ii] = hhead[scell];
         hhead[scell] = ii;
     }
-    for icell in 1..nxcell {
-        for jcell in 1..nycell {
-            scell = icell + (jcell-1)*nxcell;
+    // for icell in 1..nxcell {
+    //     for jcell in 1..nycell {
+    //scell = icell + (jcell-1)*nxcell;
+
+    for scell in 1..ncells {
+        icell = scell%nxcell;
+        jcell = (scell-icell)/nxcell + 1;
             if (hhead[scell] != -1){
                 //there are particles in the cell called scell so
                 //lets check all the neighbor cells
@@ -712,7 +716,6 @@ proc cell_sort(itime:int) {
                     }
                 }
             }
-        }
     }
 }
 
