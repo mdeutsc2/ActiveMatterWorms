@@ -1,15 +1,14 @@
 use Math;
 use Random;
 use IO;
-use IO.FormattedIO;
 use Time; // for stopwatch
 // configuration
 config const np = 40,
-             nworms = 125,
+             nworms = 1125,
              nsteps = 25000,
              fdogic = 0.06,
              fdogicwall = 0.0,
-             fdep = 1.0, // TODO: change to 4.0?
+             fdep = 1.0,
              fdepwall = 0.0,
              diss = 0.08,
              dt = 0.02, //0.02
@@ -17,15 +16,14 @@ config const np = 40,
              kbend = 40.0,
              length0 = 0.8,
              rcut = 2.5,
-             save_interval = 1000,
-             boundary = 1, // 1 = circle, 2 = cardiod, 3 = channel
+             save_interval = 100,
              fluid_cpl = false;
 
 // variables
 const r2cut = rcut*rcut,
       rcutsmall = 2.0**(1.0/6.0),
       r2cutsmall = rcutsmall*rcutsmall,
-      rwall = 75,//125.0*rcutsmall*sqrt(2.0),
+      rwall = 125.0*rcutsmall*sqrt(2.0),
       pi = 4.0*atan(1.0),
       twopi = 2*pi,
       pio4 = pi*0.25,
@@ -45,17 +43,14 @@ const r2cut = rcut*rcut,
       length2 = 2.0*length0,
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
-      a = 0.24, // layer spacing of worms in init_worms?
-      iwalldrive = 1,
-      numPoints = 500; // number of boundary points
+      a = 0.24,
+      iwalldrive = 1;
 
 const numTasks = here.numPUs();
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
 var x : [wormsDomain] real(64);
 var y : [wormsDomain] real(64);
-var boundX : [1..numPoints] real(64); // x positions of boundary particles
-var boundY : [1..numPoints] real(64); // y positions of boundary particles
 var vx: [wormsDomain] real(64);
 var vy: [wormsDomain] real(64);
 var vxave: [wormsDomain] real(64);
@@ -69,11 +64,11 @@ var savey: [1..np] real(64);
 var ireverse: [1..nworms] int;
 var ddx: [1..9] int;
 var ddy: [1..9] int;
-var hhead: [1..ncells] int; //
-var ipointto: [1..nworms*np+numPoints] int; // linked list, every particle points to another particle
+var hhead: [1..504*504] int; //
+var ipointto: [1..nworms*np] int; // linked list, every particle poitns to another particle
 var nnab: [wormsDomain] int;
 
-var randStream = new RandomStream(real); // creating random number generator
+var randStream = new RandomStream(real);
 
 var t = 0.0;
 var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
@@ -98,7 +93,7 @@ proc main() {
         // first update positions and store old forces
         update_pos(itime);
         calc_forces();
-        //worm_wall();
+        worm_wall();
         for i in 1..ncells {
             hhead[i] = -1; // 
         }
@@ -124,6 +119,7 @@ proc main() {
     xt.stop();
     writeln("Total Time:",xt.elapsed()," s");
 }
+
 //functions
 proc init_worms() {
     //array for locating neighbor cells
@@ -156,90 +152,30 @@ proc init_worms() {
     writeln("density\t", density);
     writeln("dt\t",dt);
     //setting up the worms
-    if (boundary == 1){
-        // circular bound
-        var equidistantThetaValues: [1..numPoints] real = 0.0;
-        var deltaTheta = 2 * pi / numPoints;
-
-        for i in 1..numPoints {
-            equidistantThetaValues[i] = i * deltaTheta;
+    for iw in 1..nworms {
+        ireverse[iw] = 0;
+        rand1 = randStream.getNext();
+        if (rand1 <= 0.5) {
+            ireverse(iw) = 1;
         }
-        
-        for i in 1..numPoints {
-            boundX[i] = rwall * cos(equidistantThetaValues[i])+hxo2;
-            boundY[i] = rwall * sin(equidistantThetaValues[i])+hyo2;
+        for i in 1..np {
+            r = a*thetanow;
+            dth = length0/r;
+            thetanow += dth;
+            x[iw,i] = hxo2 + r*cos(thetanow);
+            y[iw,i] = hyo2 + r*sin(thetanow);
+            xangle = atan2(y[iw,i] - hyo2, x[iw,i] - hxo2);
+            //TODO give them an initial velocity going around the circle
+            vx[iw,i] = 0.0;
+            vy[iw,i] = 0.0;
+            vxave[iw,i] = 0.0;
+            vyave[iw,i] = 0.0;
+            fx[iw,i] = 0.0;
+            fy[iw,i] = 0.0;
+            fxold[iw,i] = 0.0;
+            fyold[iw,i] = 0.0;
         }
-        for iw in 1..nworms {
-            ireverse[iw] = 0;
-            rand1 = randStream.getNext();
-            if (rand1 <= 0.5) {
-                ireverse(iw) = 1;
-            }
-            for i in 1..np {
-                r = a*thetanow;
-                dth = length0/r;
-                thetanow += dth;
-                x[iw,i] = hxo2 + r*cos(thetanow);
-                y[iw,i] = hyo2 + r*sin(thetanow);
-                xangle = atan2(y[iw,i] - hyo2, x[iw,i] - hxo2);
-                //TODO give them an initial velocity going around the circle
-                vx[iw,i] = 0.0;
-                vy[iw,i] = 0.0;
-                vxave[iw,i] = 0.0;
-                vyave[iw,i] = 0.0;
-                fx[iw,i] = 0.0;
-                fy[iw,i] = 0.0;
-                fxold[iw,i] = 0.0;
-                fyold[iw,i] = 0.0;
-            }
-            thetanow += 4.0*dth;
-        }
-    } else if (boundary == 2) {
-        // cardioid boundary
-        var equidistantArcLengths: [1..numPoints] real;
-        var thetaValues: [1..numPoints] real;
-        var ca = rwall/2;
-        var totalArcLength = 8 * ca;
-        for i in 1..numPoints {
-            equidistantArcLengths[i] = totalArcLength * (i - 1) / (numPoints - 1);
-            thetaValues[i] = 4 * asin(sqrt(equidistantArcLengths[i] / totalArcLength));
-        }
-        
-        for i in 1..numPoints {
-            boundX[i] = ca * (1 - cos(thetaValues[i])) * cos(thetaValues[i]) + hxo2;
-            boundY[i] = ca * (1 - cos(thetaValues[i])) * sin(thetaValues[i]) + hyo2;
-        }
-        //now place worm particles
-        for iw in 1..nworms {
-            ireverse[iw] = 0;
-            rand1 = randStream.getNext();
-            if (rand1 <= 0.5) {
-                ireverse(iw) = 1;
-            }
-            for i in 1..np {
-                r = (0.9*a)*thetanow;
-                dth = length0/r;
-                thetanow += dth;
-                x[iw,i] = hxo2 + r*cos(thetanow);
-                y[iw,i] = hyo2 + r*sin(thetanow);
-                xangle = atan2(y[iw,i] - hyo2, x[iw,i] - hxo2);
-                //TODO give them an initial velocity going around the circle
-                vx[iw,i] = 0.0;
-                vy[iw,i] = 0.0;
-                vxave[iw,i] = 0.0;
-                vyave[iw,i] = 0.0;
-                fx[iw,i] = 0.0;
-                fy[iw,i] = 0.0;
-                fxold[iw,i] = 0.0;
-                fyold[iw,i] = 0.0;
-            }
-            thetanow += 4.0*dth;
-        }
-
-    } else if (boundary == 3) {
-        // channel boundary
-        writeln("channel boundary not implemented");
-        halt();
+        thetanow += 4.0*dth;
     }
     //reverse some of the worms and give them crazy colors
     for iw in 1..nworms {
@@ -259,8 +195,8 @@ proc init_worms() {
 
 proc update_pos(itime:int) {
     //forall iw in 1..nworms {
-    forall iw in 1..nworms {
-       foreach i in 1..np {
+    for iw in 1..nworms {
+       for i in 1..np {
             x[iw, i] = x[iw,i] + vx[iw, i]*dt + fx[iw, i]*dt2o2;
             y[iw, i] = y[iw,i] + vy[iw, i]*dt + fy[iw, i]*dt2o2;
             fxold[iw, i] = fx[iw, i];
@@ -273,6 +209,9 @@ proc update_pos(itime:int) {
 
 proc calc_forces() {
     var rsq:real,rand1:real,rand2:real,v1:real,v2:real,fac:real,g1:real,th:real;
+    var dx:real,dy:real,r:real,ff:real, ffx:real, ffy:real, dot:real, f2x:real, f2y:real, f3x:real, f3y:real, f4x:real, f4y:real;
+    var x2:real, y2:real, x3:real, y3:real, x4:real, y4:real, y23:real, y34:real, x23:real, x34:real, r23:real, r34:real, cosvalue:real, sinvalue:real;
+    var ip1:int, i2:int, i3:int, i4:int;
     //zero out the force arrays and add Gaussian noise
     rsq = 0.0;
     for iw in 1..nworms {
@@ -288,13 +227,12 @@ proc calc_forces() {
             fac = sqrt(-2.0*log(rsq)/rsq);
             g1 = v1*fac*gnoise;
             th = rand1*twopi;
-            fx[iw, i] = g1*cos(th) - diss*vx[iw,i];
-            fy[iw, i] = g1*sin(th) - diss*vy[iw,i];
+            fx[iw, i] = g1*cos(th);
+            fy[iw, i] = g1*sin(th);
         }
     }
     //first set of springs nearest neighbor springs
-    forall iw in 1..nworms {
-        var ip1:int,r:real,ff:real,ffx:real,ffy:real,dx:real,dy:real;
+    for iw in 1..nworms {
         for i in 1..np-1 {
             ip1 = i + 1;
             dx = x[iw, ip1] - x[iw, i];
@@ -311,9 +249,7 @@ proc calc_forces() {
         }
     }
     //bond bending terms
-    forall iw in 1..nworms {
-        var i3:int,i4:int,x2:real,x3:real,x4:real,y2:real,y3:real,y4:real,y23:real,y34:real,x23:real,x34:real,r23:real,r34:real,cosvalue:real;
-	    var sinvalue:real,ff:real,dot:real,fac:real,f2x:real,f2y:real,f3x:real,f3y:real,f4x:real,f4y:real;
+    for iw in 1..nworms {
         for i2 in 1..(np-2) {
             i3 = i2 + 1;
             i4 = i2 + 2;
@@ -371,7 +307,7 @@ proc calc_forces() {
     }
 }
 
-proc worm_wall_old() {
+proc worm_wall() {
     var dx:real, dy:real, r:real, r2:real, th:real, 
            xwall:real, ywall:real, rr2:real, ffor:real, 
            dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
@@ -424,7 +360,7 @@ proc worm_wall_old() {
                     dxi = dxi/ri;
                     dyi = dyi/ri;
                     //calculate the unit vector along the wall
-                    dxj = -sin(th); //for cardioid, make this a vector pointing to the next wall particle
+                    dxj = -sin(th);
                     dyj = cos(th);
 
                     //if the vectors are not antiparallel, reverse the vector along the wall
@@ -455,51 +391,13 @@ proc worm_wall_old() {
     }
 }
 
-proc worm_wall() {
-    //put worm-wall interactions here, and dissipation force proportional to velocity
-    forall iw in 1..nworms{
-        var dx:real, dy:real, r:real, r2:real, th:real, 
-           xwall:real, ywall:real, rr2:real, ffor:real, 
-           dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
-        var ip1:int;
-        for i in 1..np{
-            //dissipation proportional to v relative to local average
-            // TODO swap vxave with intvx
-            fx[iw, i] = fx[iw, i] - diss*(vx[iw, i] - vxave[iw, i]);
-            fy[iw, i] = fy[iw, i] - diss*(vy[iw, i] - vyave[iw, i]);
-            //now that we have used them, zero out vxave and vyave, recalculate below
-            vxave[iw, i] = vx[iw, i];
-            vyave[iw, i] = vy[iw, i];
-            nnab[iw, i] = 1;
-            /*
-            // calculate the force on the boundaries.
-            for ib in 1..numPoints  {
-                //calculate distance to the wall
-                dx = x[iw,i]-boundX[ib];
-                dy = y[iw,i]-boundY[ib];
-                r2 = (dx*dx + dy*dy);
-                //if close enough to the wall, calculate wall forces
-                //use the short cut-off
-                if (r2 <= r2cut) {
-                    //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
-                    ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-                    fx[iw, i] = fx[iw, i] + ffor*dx;
-                    fy[iw, i] = fy[iw, i] + ffor*dy;
-                }
-            }
-            */
-        }
-    }
-}
-
 proc cell_sort(itime:int) {
     var dddx:real,dddy:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,dxi:real,dxj:real,
         ri:real,rj:real,r:real,dx:real,dy:real,dyi:real,dyj:real;
     var iworm:int,jworm:int,ip:int,jp:int,ii:int,jj:int,kk:int,i:int,ip1:int,
-        jp1:int,scell:int,scnab:int,inogo:int,icnab:int,jcnab:int,icell:int,jcell:int,
-        iiboolworm:int,jjboolworm:int,ib:int,jb:int;
+        jp1:int,scell:int,scnab:int,inogo:int,icnab:int,jcnab:int,icell:int,jcell:int;
     
-    for iworm in 1..nworms{ //sorting of worm particles into cells
+    for iworm in 1..nworms{
         for ip in 1..np {
             ii = (iworm-1)*np+ip; //unique particle id 1<=ii<=nworms*np
             icell = 1+floor(x[iworm,ip]/dcell):int; //finds where particle is in grid
@@ -513,7 +411,7 @@ proc cell_sort(itime:int) {
                 halt();
             }
             if ((jcell > nycell) || (jcell < 1)) {
-                writeln("nycell=",nycell," jcell=",jcell);
+                writeln("nxcell=",nycell," icell=",jcell);
                 writeln(y[iworm,ip]/dcell);
                 writeln(floor(y[iworm,ip]/dcell));
                 writeln("jcell out of bounds\t",iworm," ",ip," ",x[iworm,ip]," ",vx[iworm,ip]," ",fx[iworm,ip]);
@@ -527,35 +425,9 @@ proc cell_sort(itime:int) {
             hhead[scell] = ii;
         }
     }
-    var total_worm_particles = np*nworms;
-    for ib in 1..numPoints { // sorting wall particles into cells
-        ii = total_worm_particles + ib; // unique id
-        icell = 1 + floor(boundX[ib]/dcell):int; // finds which cell particle is in
-        jcell = 1 + floor(boundY[ib]/dcell):int;
-        if ((icell > nxcell) || (icell < 1)) {
-                writeln("boundary particle out of cell bounds");
-                writeln("nxcell=",nxcell," icell=",icell);
-                halt();
-            }
-        if ((jcell > nycell) || (jcell < 1)) {
-            writeln("boundary particle out of cell bounds");
-            writeln("nycell=",nycell," jcell=",jcell);
-            halt();
-        }
-        scell = icell + (jcell-1)*nxcell; // 1-d "street-address" for 2d cells
-        if ((scell > ncells) || (scell < 1)) {
-            writeln("scell out of bounds",scell,"\t",icell,"\t",jcell);
-        }
-        ipointto[ii] = hhead[scell];
-        hhead[scell] = ii;
-    }
-    // for icell in 1..nxcell {
-    //     for jcell in 1..nycell {
-    //scell = icell + (jcell-1)*nxcell;
-
-    for scell in 1..ncells {
-        icell = scell%nxcell;
-        jcell = (scell-icell)/nxcell + 1;
+    for icell in 1..nxcell {
+        for jcell in 1..nycell {
+            scell = icell + (jcell-1)*nxcell;
             if (hhead[scell] != -1){
                 //there are particles in the cell called scell so
                 //lets check all the neighbor cells
@@ -572,142 +444,100 @@ proc cell_sort(itime:int) {
                         //there are particles in the cell called scnab
                         ii = hhead[scell]; // ii is the # of the head particle
                         while (ii > 0) {
-                            if (ii > total_worm_particles) {
-                                iiboolworm = 0; // is ii a worm?
-                                ib = ii - total_worm_particles;
-                            } else {
-                                iiboolworm = 1;
-                                iworm = 1 + ((ii - 1)/np):int; // find which worm ii is in
-                                ip = ii - np*(iworm - 1); // which particle in the worm is ii?
-                            }
-                            jj = hhead[scnab];//  head particle of neighboring cell
-                            while (jj > 0) {
-                                if (jj >  total_worm_particles) {
-                                    jjboolworm = 0; // is jj a worm?
-                                    jb = jj - total_worm_particles;
-                                } else {
-                                    jjboolworm = 1;
-                                    jworm = 1 + ((jj - 1)/np):int;
-                                    jp = jj - np*(jworm - 1);
-                                }
-                                // worm-worm, worm-wall, wall-wall
-                                if((jjboolworm == 1) && ( iiboolworm == 1)) {
-                                    inogo = 0;
-                                    if ((iworm == jworm) && (abs(ip-jp) <= 2)) {
-                                        // on the same worm and close means no interaction calculated here
-                                        inogo = 1;
-                                    }
 
-                                    if ((ii < jj) && (inogo == 0)) {
-                                        dddx = x[jworm, jp] - x[iworm, ip];
-                                        dddy = y[jworm, jp] - y[iworm, ip];
-                                        r2 = dddx**2 + dddy**2;
-                                        riijj = sqrt(r2);
-                                        //add attractive force fdep between all pairs
-                                        if (r2 <= r2cutsmall) {
-                                            ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
-                                            ffx = ffor*dddx;
-                                            ffy = ffor*dddy;
+                            iworm = 1 + ((ii - 1)/np):int; // find which worm ii is in
+                            ip = ii - np*(iworm - 1); // which particle in the worm is ii?
+                            jj = hhead[scnab];//  head particle of neighboring cell
+
+                            while (jj > 0) {
+                                jworm = 1 + ((jj - 1)/np):int;
+                                jp = jj - np*(jworm - 1);
+                                inogo = 0;
+                                if ((iworm == jworm) && (abs(ip-jp) <= 2)) {
+                                    // on the same worm and close means no interaction calculated here
+                                    inogo = 1;
+                                }
+
+                                if ((ii < jj) && (inogo == 0)) {
+                                    dddx = x[jworm, jp] - x[iworm, ip];
+                                    dddy = y[jworm, jp] - y[iworm, ip];
+                                    r2 = dddx**2 + dddy**2;
+                                    riijj = sqrt(r2);
+                                    //add attractive force fdep between all pairs
+                                    if (r2 <= r2cutsmall) {
+                                        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
+                                        ffx = ffor*dddx;
+                                        ffy = ffor*dddy;
+                                        fx[iworm, ip] = fx[iworm, ip] + ffx;
+                                        fx[jworm, jp] = fx[jworm, jp] - ffx;
+                                        fy[iworm, ip] = fy[iworm, ip] + ffy;
+                                        fy[jworm, jp] = fy[jworm, jp] - ffy;
+
+                                        //take these neighbors into account in calculating vxave and vyave
+                                        vxave[iworm, ip] = vxave[iworm, ip] + vx[jworm, jp];
+                                        vyave[iworm, ip] = vyave[iworm, ip] + vy[jworm, jp];
+                                        nnab[iworm, ip] = nnab[iworm, ip] + 1;
+                                        vxave[jworm, jp] = vxave[jworm, jp] + vx[iworm, ip];
+                                        vyave[jworm, jp] = vyave[jworm, jp] + vy[iworm, ip];
+                                        nnab[jworm, jp] = nnab[jworm, jp] + 1;
+
+                                        //add 'dogic drive' to interacting pairs
+                                        //first calculate unit vectors along each worm
+                                        ip1 = ip + 1;
+                                        if (ip1 <= np) {
+                                            dxi = x[iworm, ip1] - x[iworm, ip];
+                                            dyi = y[iworm, ip1] - y[iworm, ip];
+                                        } else {
+                                            dxi = x[iworm, ip] - x[iworm, ip - 1];
+                                            dyi = y[iworm, ip] - y[iworm, ip - 1];
+                                        }
+
+                                        jp1 = jp + 1;
+                                        if (jp1 <= np) {
+                                            dxj = x[jworm, jp1] - x[jworm, jp];
+                                            dyj = y[jworm, jp1] - y[jworm, jp];
+                                        } else {
+                                            dxj = x[jworm, jp] - x[jworm, jp - 1];
+                                            dyj = y[jworm, jp] - y[jworm, jp - 1];
+                                        }
+
+
+                                        //if the two vectors have any component pointing in opposite directions
+                                        if (dxi*dxj + dyi*dyj <= 0.0) {
+                                            //normalize those vectors to make them unit vectors
+                                            ri = sqrt(dxi*dxi + dyi*dyi);
+                                            dxi = dxi/ri;
+                                            dyi = dyi/ri;
+
+                                            rj = sqrt(dxj*dxj + dyj*dyj);
+                                            dxj = dxj/rj;
+                                            dyj = dyj/rj;
+                                            //now they are both unit vectors. Find the direction for the force...
+
+                                            dx = (dxi - dxj)/2.0;
+                                            dy = (dyi - dyj)/2.0;
+
+                                            //normalize
+
+                                            r = sqrt(dx*dx + dy*dy);
+                                            dx = dx/r;
+                                            dy = dy/r;
+
+                                            //add an extra attractive component where kinesin drive is present
+
+                                            ffx = fdogic*(dx) + 0.7*dddx/riijj;
+                                            ffy = fdogic*(dy) + 0.7*dddy/riijj;
+
+                                            //ffx=fdogic*(dx)
+                                            //ffy=fdogic*(dy)
+
                                             fx[iworm, ip] = fx[iworm, ip] + ffx;
                                             fx[jworm, jp] = fx[jworm, jp] - ffx;
                                             fy[iworm, ip] = fy[iworm, ip] + ffy;
                                             fy[jworm, jp] = fy[jworm, jp] - ffy;
 
-                                            //take these neighbors into account in calculating vxave and vyave
-                                            //vxave[iworm, ip] = vxave[iworm, ip] + vx[jworm, jp];
-                                            //vyave[iworm, ip] = vyave[iworm, ip] + vy[jworm, jp];
-                                            //nnab[iworm, ip] = nnab[iworm, ip] + 1;
-                                            //vxave[jworm, jp] = vxave[jworm, jp] + vx[iworm, ip];
-                                            //vyave[jworm, jp] = vyave[jworm, jp] + vy[iworm, ip];
-                                            //nnab[jworm, jp] = nnab[jworm, jp] + 1;
-
-                                            //add 'dogic drive' to interacting pairs
-                                            //first calculate unit vectors along each worm
-                                            ip1 = ip + 1;
-                                            if (ip1 <= np) {
-                                                dxi = x[iworm, ip1] - x[iworm, ip];
-                                                dyi = y[iworm, ip1] - y[iworm, ip];
-                                            } else {
-                                                dxi = x[iworm, ip] - x[iworm, ip - 1];
-                                                dyi = y[iworm, ip] - y[iworm, ip - 1];
-                                            }
-
-                                            jp1 = jp + 1;
-                                            if (jp1 <= np) {
-                                                dxj = x[jworm, jp1] - x[jworm, jp];
-                                                dyj = y[jworm, jp1] - y[jworm, jp];
-                                            } else {
-                                                dxj = x[jworm, jp] - x[jworm, jp - 1];
-                                                dyj = y[jworm, jp] - y[jworm, jp - 1];
-                                            }
-
-
-                                            //if the two vectors have any component pointing in opposite directions
-                                            if (dxi*dxj + dyi*dyj <= 0.0) {
-                                                //normalize those vectors to make them unit vectors
-                                                ri = sqrt(dxi*dxi + dyi*dyi);
-                                                dxi = dxi/ri;
-                                                dyi = dyi/ri;
-
-                                                rj = sqrt(dxj*dxj + dyj*dyj);
-                                                dxj = dxj/rj;
-                                                dyj = dyj/rj;
-                                                //now they are both unit vectors. Find the direction for the force...
-
-                                                dx = (dxi - dxj)/2.0;
-                                                dy = (dyi - dyj)/2.0;
-
-                                                //normalize
-
-                                                r = sqrt(dx*dx + dy*dy);
-                                                dx = dx/r;
-                                                dy = dy/r;
-
-                                                //add an extra attractive component where kinesin drive is present
-
-                                                ffx = fdogic*(dx) + 0.7*dddx/riijj;
-                                                ffy = fdogic*(dy) + 0.7*dddy/riijj;
-
-                                                //ffx=fdogic*(dx)
-                                                //ffy=fdogic*(dy)
-
-                                                fx[iworm, ip] = fx[iworm, ip] + ffx;
-                                                fx[jworm, jp] = fx[jworm, jp] - ffx;
-                                                fy[iworm, ip] = fy[iworm, ip] + ffy;
-                                                fy[jworm, jp] = fy[jworm, jp] - ffy;
-
-                                            }
                                         }
                                     }
-                                } else if ((iiboolworm == 1)&&(jjboolworm == 0)) {
-                                    // worm-wall (ii = worm, jj = wall)
-                                    dddx = x[iworm,ip] - boundX[jb];
-                                    dddy = y[iworm,ip] - boundY[jb];
-                                    r2 = dddx**2 + dddy**2;
-                                    riijj = sqrt(r2);
-                                    //add attractive force fdep between all pairs
-                                    if (r2 <= r2cutsmall) {
-                                        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //fdep is attractive forceTODO: shoudl fdep = -?
-                                        ffx = ffor*dddx;
-                                        ffy = ffor*dddy;
-                                        fx[iworm, ip] = fx[iworm, ip] + ffx;
-                                        fy[iworm, ip] = fy[iworm, ip] + ffy;
-                                    }
-                                } else if ((iiboolworm == 0)&&(jjboolworm == 1)){
-                                    // wall-worm (ii = wall, jj = worm)
-                                    dddx = boundX[ib] - x[jworm,jp];
-                                    dddy = boundY[ib] - y[jworm,jp];
-                                    r2 = dddx**2 + dddy**2;
-                                    riijj = sqrt(r2);
-                                    if (r2 <= r2cutsmall) {
-                                        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //fdep is attractive forceTODO: shoudl fdep = -?
-                                        ffx = ffor*dddx;
-                                        ffy = ffor*dddy;
-                                        fx[jworm, jp] = fx[jworm, jp] + ffx;
-                                        fy[jworm, jp] = fy[jworm, jp] + ffy;
-                                    }
-                                } else {
-                                    // wall-wall interaction
                                 }
                                 jj = ipointto[jj];
                                 }
@@ -716,16 +546,17 @@ proc cell_sort(itime:int) {
                     }
                 }
             }
+        }
     }
 }
 
 proc update_vel() {
-    forall iw in 1..nworms {
-        foreach i in 1..np {
+    for iw in 1..nworms {
+        for i in 1..np {
             vx[iw, i] = vx[iw, i] + dto2*(fx[iw, i] + fxold[iw, i]);
             vy[iw, i] = vy[iw, i] + dto2*(fy[iw, i] + fyold[iw, i]);
-            //vxave[iw, i] = vxave[iw, i]/nnab[iw, i];
-            //vyave[iw, i] = vyave[iw, i]/nnab[iw, i];
+            vxave[iw, i] = vxave[iw, i]/nnab[iw, i];
+            vyave[iw, i] = vyave[iw, i]/nnab[iw, i];
         }
     }
 }
@@ -733,12 +564,11 @@ proc update_vel() {
 proc write_xyz(istep:int) {
     var dx :real, dy:real, xang:real, rx:real,ry:real,dot:real;
     var ic:int;
-    var filename:string = "amatter%{07u}.xyz".format(istep);
-    //var filename = "amatter" + (istep:string) + ".xyz";
+    var filename = "amatter" + (istep:string) + ".xyz";
     try {
     var xyzfile = open(filename, ioMode.cw);
     var myFileWriter = xyzfile.writer();
-    myFileWriter.writeln(nworms * np + 4 + numPoints);
+    myFileWriter.writeln(nworms * np + 4);
     myFileWriter.writeln("# 0");
     ic = 2;
     for iw in 1..nworms {
@@ -762,15 +592,11 @@ proc write_xyz(istep:int) {
             }
         }
     }
-    for i in 1..numPoints {
-        myFileWriter.writeln("I ",boundX[i]," ",boundY[i]," ",0.0);
-        ic += 1;
-    }
     myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0);
     myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0);
     myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0);
     myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0);
-    //ic += 4;
+
     // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
     // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
     // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);

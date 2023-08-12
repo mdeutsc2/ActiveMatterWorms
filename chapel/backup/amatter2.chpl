@@ -5,7 +5,7 @@ use IO.FormattedIO;
 use Time; // for stopwatch
 // configuration
 config const np = 40,
-             nworms = 250,
+             nworms = 125,
              nsteps = 250000,
              fdogic = 0.06,
              fdogicwall = 0.0,
@@ -17,7 +17,7 @@ config const np = 40,
              kbend = 40.0,
              length0 = 0.8,
              rcut = 2.5,
-             save_interval = 100,
+             save_interval = 100000,
              boundary = 1, // 1 = circle, 2 = cardiod, 3 = channel
              fluid_cpl = false;
 
@@ -47,7 +47,7 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       iwalldrive = 1,
-      numPoints = 840; // number of boundary points
+      numPoints = 420; // number of boundary points
 
 const numTasks = here.numPUs();
 

@@ -196,3 +196,5 @@ ModelManifest.xml
 *.xyzv
 *.zip
 *.mp4
+# executables
+*.x
