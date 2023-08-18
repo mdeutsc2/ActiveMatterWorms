@@ -15,7 +15,7 @@ config const np = 40,
              dt = 0.02, //0.02
              kspring = 57.146436,
              kbend = 40.0,
-             length0 = 0.8,
+             length0 = 0.8, //particle spacing on worms
              rcut = 2.5,
              save_interval = 100,
              boundary = 1, // 1 = circle, 2 = cardiod, 3 = channel
@@ -510,6 +510,7 @@ proc cell_sort(itime:int) {
                 writeln(floor(x[iworm,ip]/dcell):int);
                 writeln(1+floor(x[iworm,ip]/dcell):int);
                 writeln("icell out of bounds\t",iworm," ",ip," ",x[iworm,ip]," ",vx[iworm,ip]," ",fx[iworm,ip]);
+                write_xyz(itime);
                 halt();
             }
             if ((jcell > nycell) || (jcell < 1)) {
@@ -517,6 +518,7 @@ proc cell_sort(itime:int) {
                 writeln(y[iworm,ip]/dcell);
                 writeln(floor(y[iworm,ip]/dcell));
                 writeln("jcell out of bounds\t",iworm," ",ip," ",x[iworm,ip]," ",vx[iworm,ip]," ",fx[iworm,ip]);
+                write_xyz(itime);
                 halt();
             }
             scell = icell + (jcell-1)*nxcell; // 1d-ndexing for 2d cells
