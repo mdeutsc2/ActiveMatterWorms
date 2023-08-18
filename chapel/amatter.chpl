@@ -704,8 +704,8 @@ proc cell_sort(itime:int) {
                                         ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //fdep is attractive forceTODO: shoudl fdep = -?
                                         ffx = ffor*dddx;
                                         ffy = ffor*dddy;
-                                        fx[jworm, jp] = fx[jworm, jp] + ffx;
-                                        fy[jworm, jp] = fy[jworm, jp] + ffy;
+                                        fx[jworm, jp] = fx[jworm, jp] - ffx;
+                                        fy[jworm, jp] = fy[jworm, jp] - ffy;
                                     }
                                 } else {
                                     // wall-wall interaction
