@@ -47,7 +47,7 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       iwalldrive = 1,
-      numPoints = 840; // number of boundary points
+      numPoints = 590; // number of boundary points
 
 const numTasks = here.numPUs();
 
@@ -515,7 +515,7 @@ proc cell_sort_old(itime:int) {
                 writeln("nxcell=",nycell," icell=",jcell);
                 writeln(y[iworm,ip]/dcell);
                 writeln(floor(y[iworm,ip]/dcell));
-                writeln("jcell out of bounds\t",iworm," ",ip," ",x[iworm,ip]," ",vx[iworm,ip]," ",fx[iworm,ip]);
+                writeln("jcell out of bounds\t",iworm," ",ip," ",y[iworm,ip]," ",vy[iworm,ip]," ",fy[iworm,ip]);
                 write_xyz(itime);
                 halt();
             }
