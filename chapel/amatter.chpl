@@ -693,6 +693,7 @@ proc cell_sort(itime:int) {
                                         ffy = ffor*dddy;
                                         fx[iworm, ip] = fx[iworm, ip] + ffx;
                                         fy[iworm, ip] = fy[iworm, ip] + ffy;
+                                        writeln("worm-wall");
                                     }
                                 } else if ((iiboolworm == 0)&&(jjboolworm == 1)){
                                     // wall-worm (ii = wall, jj = worm)
@@ -706,6 +707,7 @@ proc cell_sort(itime:int) {
                                         ffy = ffor*dddy;
                                         fx[jworm, jp] = fx[jworm, jp] - ffx;
                                         fy[jworm, jp] = fy[jworm, jp] - ffy;
+                                        writeln("wall-worm");
                                     }
                                 } else {
                                     // wall-wall interaction
