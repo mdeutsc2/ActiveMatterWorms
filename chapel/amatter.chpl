@@ -64,6 +64,14 @@ var fx: [wormsDomain] real(64);
 var fy: [wormsDomain] real(64);
 var fxold: [wormsDomain] real(64);
 var fyold: [wormsDomain] real(64);
+
+var solx : [1..numPoints] real(64);
+var soly : [1..numPoints] real(64);
+var solvx: [1..numPoints] real(64);
+var solvy: [1..numPoints] real(64);
+var solfx: [1..numPoints] real(64);
+var solfy: [1..numPoints] real(64);
+
 var savex: [1..np] real(64);
 var savey: [1..np] real(64);
 var ireverse: [1..nworms] int;
@@ -76,11 +84,13 @@ var nnab: [wormsDomain] int;
 var randStream = new RandomStream(real); // creating random number generator
 
 var t = 0.0;
+var total_time = 0.0;
 var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
 //main
 proc main() {
     writeln("starting...",numTasks);
     init_worms();
+    if (fluid_cpl) {init_fluid();}
     write_xyz(0);
     //setting up stopwatch
     xt.start();
@@ -89,27 +99,27 @@ proc main() {
         t = (itime:real) *dt;
 
         if (itime % 100 == 0) {
-	    xt.stop();
-	    var total_time = xt.elapsed();
+            xt.stop();
+            total_time = xt.elapsed();
             writeln("Step: ",itime,"\t",itime/total_time,"iter/s\tCalc:",(ct.elapsed()/total_time)*100,"%\tIO:",(wt.elapsed()/total_time)*100," %\tElapsed:",total_time," s\tEst:",(nsteps/itime)*total_time," s");
-	    xt.start();
+            xt.start();
         }
-	ct.start();
+	    ct.start();
         // first update positions and store old forces
         update_pos(itime);
         calc_forces();
-        worm_wall();
+        //worm_wall();
         for i in 1..ncells {
             hhead[i] = -1; // 
         }
         for iw in 1..nworms*np{
             ipointto[iw] = 0;
         }
-        cell_sort(itime);
+        cell_sort_new(itime);
         //
 
 
-        //fluid_step
+        if (fluid_cpl) {fluid_step();}
         
         update_vel();
 	ct.stop();
@@ -858,20 +868,20 @@ proc cell_sort_new(itime:int) {
                                         fy[iworm, ip] = fy[iworm, ip] + ffy;
                                         writeln("worm-wall");
                                     }
-                                } else if ((iiboolworm == 0)&&(jjboolworm == 1)){
-                                    // wall-worm (ii = wall, jj = worm)
-                                    dddx = boundX[ib] - x[jworm,jp];
-                                    dddy = boundY[ib] - y[jworm,jp];
-                                    r2 = dddx**2 + dddy**2;
-                                    riijj = sqrt(r2);
-                                    if (r2 <= r2cutsmall) {
-                                        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //fdep is attractive forceTODO: shoudl fdep = -?
-                                        ffx = ffor*dddx;
-                                        ffy = ffor*dddy;
-                                        fx[jworm, jp] = fx[jworm, jp] - ffx;
-                                        fy[jworm, jp] = fy[jworm, jp] - ffy;
-                                        writeln("wall-worm");
-                                    }
+                                // } else if ((iiboolworm == 0)&&(jjboolworm == 1)){
+                                //     // wall-worm (ii = wall, jj = worm)
+                                //     dddx = boundX[ib] - x[jworm,jp];
+                                //     dddy = boundY[ib] - y[jworm,jp];
+                                //     r2 = dddx**2 + dddy**2;
+                                //     riijj = sqrt(r2);
+                                //     if (r2 <= r2cutsmall) {
+                                //         ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //fdep is attractive forceTODO: shoudl fdep = -?
+                                //         ffx = ffor*dddx;
+                                //         ffy = ffor*dddy;
+                                //         fx[jworm, jp] = fx[jworm, jp] - ffx;
+                                //         fy[jworm, jp] = fy[jworm, jp] - ffy;
+                                //         writeln("wall-worm");
+                                //     }
                                 } else {
                                     // wall-wall interaction
                                 }
@@ -897,6 +907,28 @@ proc update_vel() {
     }
 }
 
+//Fluid Functions
+proc init_fluid() {
+    for i in 1..numPoints {
+        // put the solvent particles in a random x and random y (monte carlo/dla placement)
+    }
+
+}
+
+proc fluid_step() {
+    // fluid-fluid
+
+    // fluid-boundary
+
+    // fluid-worms
+
+    // thermostat
+
+    // update velocity and positions
+
+}
+
+//IO Functions
 proc write_xyz(istep:int) {
     var dx :real, dy:real, xang:real, rx:real,ry:real,dot:real;
     var ic:int;
