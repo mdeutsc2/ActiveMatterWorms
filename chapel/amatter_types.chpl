@@ -29,6 +29,7 @@ record Particle {
     var vxave,vyave,vzave: real;
     var fx,fy,fz: real;
     var fxold,fyold,fzold: real;
+    var m: real; //mass
     var ptype: int; //  ptype=1 (active), ptype=2(solvent), ptype=3 (boundary), ptype=-1 (unassigned) 
     proc init() {
         this.id = ptc_init_counter;
@@ -61,7 +62,7 @@ record Particle {
         } else {
             typestring = "unassigned";
         }
-        var s:string = "id# %i \t type: %s \n pos: %r \t %r \t %r \n vel: %r \t %r \t %r \n force: %r \t %r \t %r".format(this.id,typestring,this.x,this.y,this.z,this.vx,this.vy,this.vz,this.fx,this.fy,this.fz);
+        var s:string = "id# %i \t type: %s \t mass: %s \n pos: %r \t %r \t %r \n vel: %r \t %r \t %r \n force: %r \t %r \t %r".format(this.id,typestring,this.m,this.x,this.y,this.z,this.vx,this.vy,this.vz,this.fx,this.fy,this.fz);
         return s;
     }
     proc p(px: real, py: real, pz: real) {
