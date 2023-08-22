@@ -110,14 +110,14 @@ proc main() {
         // first update positions and store old forces
         update_pos(itime);
         calc_forces();
-        //worm_wall();
+        worm_wall();
         for i in 1..ncells {
             hhead[i] = -1; // 
         }
         for iw in 1..nworms*np{
             ipointto[iw] = 0;
         }
-        cell_sort_new(itime);
+        cell_sort_old(itime);
         //
 
 
