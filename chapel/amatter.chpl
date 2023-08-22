@@ -19,7 +19,7 @@ config const np = 40,
              rcut = 2.5,
              save_interval = 100,
              boundary = 1, // 1 = circle, 2 = cardiod, 3 = channel
-             fluid_cpl = false;
+             fluid_cpl = true;
 
 // variables
 const r2cut = rcut*rcut,
@@ -47,7 +47,8 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       iwalldrive = 1,
-      numPoints = 590; // number of boundary points
+      numPoints = 590, // number of boundary points
+      numSol = 1600; // number of solution particles
 
 const numTasks = here.numPUs();
 
@@ -65,12 +66,13 @@ var fy: [wormsDomain] real(64);
 var fxold: [wormsDomain] real(64);
 var fyold: [wormsDomain] real(64);
 
-var solx : [1..numPoints] real(64);
-var soly : [1..numPoints] real(64);
-var solvx: [1..numPoints] real(64);
-var solvy: [1..numPoints] real(64);
-var solfx: [1..numPoints] real(64);
-var solfy: [1..numPoints] real(64);
+var solDomain: domain(1) = {1..numSol};
+var solx : [solDomain] real(64);
+var soly : [solDomain] real(64);
+var solvx: [solDomain] real(64);
+var solvy: [solDomain] real(64);
+var solfx: [solDomain] real(64);
+var solfy: [solDomain] real(64);
 
 var savex: [1..np] real(64);
 var savey: [1..np] real(64);
@@ -909,23 +911,102 @@ proc update_vel() {
 
 //Fluid Functions
 proc init_fluid() {
-    for i in 1..numPoints {
+    var random_placement = false;
+    if (random_placement) {
         // put the solvent particles in a random x and random y (monte carlo/dla placement)
+    } else {
+        // place particles in a square lattice centered in the boundary
+        if (boundary == 1) {
+            // circular boundary
+            var fluid_a = sqrt(2)*(0.95*rwall); // box size of fluid
+            var fluid_px = fluid_a + hxo2;
+            var fluid_mx = fluid_a - hxo2;
+            var fluid_py = fluid_a + hxo2;
+            var fluid_my = fluid_a - hyo2;
+            var spacing = 1.0;
+            var row_length = numSol/floor(fluid_a/(rcutsmall*spacing)):int;
+            writeln("Row:",row_length,"\t",row_length**2,"\t",fluid_a,"\t",fluid_a/(rcutsmall*spacing));
+            if (row_length**2 > numSol) {
+                writeln("fluid density too high, fixme!");
+                halt();
+            }
+            var row,col:real;
+            for i in 1..numSol {
+                row = i % row_length;
+                col = ((i - row)/row_length)-1;
+                solx[i] = fluid_mx + spacing*rcutsmall*row;
+                soly[i] = fluid_my + spacing*rcutsmall*col;
+                solvx[i] = 0.0;
+                solvy[i] = 0.0;
+                solfx[i] = 0.0;
+                solfy[i] = 0.0;
+            }
+        } else if (boundary == 2) {
+            writeln("haven't put in cardiod fluid yet");
+            halt();
+        } else if (boundary == 3) {
+            writeln("haven't put in channel fluid");
+            halt();
+        } else {
+            writeln("invalid boundary");
+        }
     }
 
 }
 
 proc fluid_step() {
     // fluid-fluid
+    var dx,dy,rx,ry,r2,ffor:real;
+    for i in 1..numSol {
+        // calculating the force
+        for j in (i+1)..numSol {
+            rx = solx[j] - solx[i];
+            ry = soly[j] - soly[i];
+            r2 = rx**2 + ry**2;
+            if (r2 <= r2cut) {
+                ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+                solfx[i] += ffor;
+                solfy[i] += ffor;
+                solfx[j] -= ffor;
+                solfy[j] -= ffor;
+            }
+        }
+    }
 
     // fluid-boundary
-
+    for i in 1..numSol {
+        // calculate the force on the boundaries.
+        for ib in 1..numPoints  {
+            //calculate distance to the wall
+            dx = solx[i]-boundX[ib];
+            dy = soly[i]-boundY[ib];
+            r2 = (dx*dx + dy*dy);
+            //if close enough to the wall, calculate wall forces
+            //use the short cut-off
+            if (r2 <= r2cut) {
+                //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
+                ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+                solfx[i] = solfx[i] + ffor*dx;
+                solfy[i] = solfy[i] + ffor*dy;
+            }
+        }
+    }
     // fluid-worms
 
     // thermostat
 
     // update velocity and positions
-
+    forall i in 1..numSol {
+        // updating velocity and position
+        solvx[i] += solfx[i] * dto2;
+        solvy[i] += solfy[i] * dto2;
+        solx[i] += solvx[i] * dt;
+        soly[i] += solvy[i] * dt;
+        solvx[i] = 0.0;
+        solvy[i] = 0.0;
+        solfx[i] = 0.0;
+        solfy[i] = 0.0;
+    }
 }
 
 //IO Functions
@@ -937,7 +1018,12 @@ proc write_xyz(istep:int) {
     try {
     var xyzfile = open(filename, ioMode.cw);
     var myFileWriter = xyzfile.writer();
-    myFileWriter.writeln(nworms * np + 4 + numPoints);
+    // number of active particles + 4 edge-defining particles + boundary + solvent (optional)
+    if (fluid_cpl) {
+        myFileWriter.writeln(nworms * np + 4 + numPoints + numSol);
+    } else {
+        myFileWriter.writeln(nworms*np + 4 + numPoints);
+    }
     myFileWriter.writeln("# 0");
     ic = 2;
     for iw in 1..nworms {
@@ -964,6 +1050,12 @@ proc write_xyz(istep:int) {
     for i in 1..numPoints {
         myFileWriter.writeln("I ",boundX[i]," ",boundY[i]," ",0.0);
         ic += 1;
+    }
+    if (fluid_cpl) {
+        for i in 1..numSol {
+            myFileWriter.writeln("S ",solx[i]," ",soly[i]," ",0.0);
+            ic += 1;
+        }
     }
     myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0);
     myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0);
