@@ -14,5 +14,6 @@ module load cuda/11.8.0
 
 #executable section
 source ~/chapel-1.31.0/util/setupchplenv.bash
+make clean
 make
 make run

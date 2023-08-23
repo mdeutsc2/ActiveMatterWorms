@@ -998,14 +998,14 @@ proc fluid_step() {
     // update velocity and positions
     forall i in 1..numSol {
         // updating velocity and position
-        solvx[i] += solfx[i] * dto2;
-        solvy[i] += solfy[i] * dto2;
+        solvx[i] += solfx[i] * dt;
+        solvy[i] += solfy[i] * dt;
         solx[i] += solvx[i] * dt;
         soly[i] += solvy[i] * dt;
-        solvx[i] = 0.0;
-        solvy[i] = 0.0;
-        solfx[i] = 0.0;
-        solfy[i] = 0.0;
+        // solvx[i] = 0.0;
+        // solvy[i] = 0.0;
+        // solfx[i] = 0.0;
+        // solfy[i] = 0.0;
     }
 }
 
