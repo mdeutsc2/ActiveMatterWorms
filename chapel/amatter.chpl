@@ -1002,10 +1002,12 @@ proc fluid_step() {
         solvy[i] += solfy[i] * dt;
         solx[i] += solvx[i] * dt;
         soly[i] += solvy[i] * dt;
-        // solvx[i] = 0.0;
-        // solvy[i] = 0.0;
-        // solfx[i] = 0.0;
-        // solfy[i] = 0.0;
+    }
+    forall i in 1..numSol {
+        solvx[i] = 0.0;
+        solvy[i] = 0.0;
+        solfx[i] = 0.0;
+        solfy[i] = 0.0;
     }
 }
 
