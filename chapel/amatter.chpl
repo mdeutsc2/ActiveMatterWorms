@@ -1014,7 +1014,7 @@ proc init_fluid() {
 
 }
 proc fluid_multistep() {
-    var iterations = 2;
+    var iterations = 4;
     var timestep = dt/iterations;
     for i in 1..iterations {
         fluid_step(timestep);
@@ -1024,7 +1024,7 @@ proc fluid_multistep() {
 
 proc fluid_step(dt_fluid:real) {
     // update positions
-    forall j in 1..numSol {
+    for j in 1..numSol {
         solx[j] = solx[j] + solvx[j]*dt_fluid + (solfx[j]/2)*(dt_fluid**2);
         soly[j] = soly[j] + solvy[j]*dt_fluid + (solfy[j]/2)*(dt_fluid**2);
         // updating velocity and position
