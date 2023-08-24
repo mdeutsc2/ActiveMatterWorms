@@ -6,7 +6,7 @@ use Time; // for stopwatch
 // configuration
 config const np = 40,
              nworms = 250,
-             nsteps = 250000,
+             nsteps = 2500,//00,
              fdogic = 0.06,
              fdogicwall = 0.0,
              fdep = 1.0, // TODO: change to 4.0?
@@ -17,7 +17,7 @@ config const np = 40,
              kbend = 40.0,
              length0 = 0.8, //particle spacing on worms
              rcut = 2.5,
-             save_interval = 100,
+             save_interval = 25,
              boundary = 1, // 1 = circle, 2 = cardiod, 3 = channel
              fluid_cpl = true;
 
@@ -47,7 +47,7 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       iwalldrive = 1,
-      numPoints = 590, // number of boundary points
+      numPoints = 590*2, // number of boundary points
       numSol = 1600; // number of solution particles
 
 const numTasks = here.numPUs();
@@ -73,6 +73,8 @@ var solvx: [solDomain] real(64);
 var solvy: [solDomain] real(64);
 var solfx: [solDomain] real(64);
 var solfy: [solDomain] real(64);
+var solfxold: [solDomain] real(64);
+var solfyold: [solDomain] real(64);
 
 var savex: [1..np] real(64);
 var savey: [1..np] real(64);
@@ -121,7 +123,7 @@ proc main() {
         //
 
 
-        if (fluid_cpl) {fluid_step();}
+        if (fluid_cpl) {fluid_multistep();}
         
         update_vel();
 	ct.stop();
@@ -911,9 +913,64 @@ proc update_vel() {
 
 //Fluid Functions
 proc init_fluid() {
-    var random_placement = false;
+    var random_placement = true;
     if (random_placement) {
         // put the solvent particles in a random x and random y (monte carlo/dla placement)
+        if (boundary == 1) {
+            // circular boundary
+            var numTries = 1000;
+            var rand1,rand2,alpha,x,y,r,r2,dx,dy : real;
+            for i in 1..numSol {
+                var valid = false;
+                var try_count = 0;
+                while (valid == false) {
+                    rand1 = randStream.getNext();
+                    rand2 = randStream.getNext();
+                    // random angle
+                    alpha = 2*pi*rand1;
+                    // random radius
+                    r = rwall*0.95 * sqrt(rand2);
+                    // calculating coordinates
+                    x = r * cos(alpha) + hxo2;
+                    y = r * sin(alpha) + hyo2;
+                    var valid_count = 0;
+                    for j in (i-1)..1 by -1 {
+                        dx = abs(x - solx[j]);
+                        dy = abs(y - soly[j]);
+                        r2 = (dx*dx + dy*dy);
+                        if (r2 <= r2cutsmall) {
+                            valid_count += 1;
+                        }
+                    }
+                    if (valid_count == 0) {
+                        // no conflicts found with any of the existing particles
+                        valid = true;
+                        //writeln(i,"\t",x,"\t",y);
+                        solx[i] = x;
+                        soly[i] = y;
+                        //add small gaussian velocity here
+                        break;
+                    }
+                    try_count += 1;
+                    if (try_count > numTries+1) {
+                        writeln(i,"\t",try_count,"\t",x,"\t",y);
+                        writeln("particle placement failed, increase numTries");
+                        halt();
+                    }
+                }
+            }
+        } else if (boundary == 2) {
+            // cardiod boundary
+            writeln("haven't put in cardiod fluid yet");
+            halt();
+        } else if (boundary == 3) {
+            // channel boundary
+            writeln("haven't put in channel fluid");
+            halt();
+        } else {
+            writeln("something went wrong in solven init. invalid boundary value");
+            halt();
+        }
     } else {
         // place particles in a square lattice centered in the boundary
         if (boundary == 1) {
@@ -940,6 +997,8 @@ proc init_fluid() {
                 solvy[i] = 0.0;
                 solfx[i] = 0.0;
                 solfy[i] = 0.0;
+                solfxold[i] = 0.0;
+                solfyold[i] = 0.0;
             }
         } else if (boundary == 2) {
             writeln("haven't put in cardiod fluid yet");
@@ -949,12 +1008,35 @@ proc init_fluid() {
             halt();
         } else {
             writeln("invalid boundary");
+            halt();
         }
     }
 
 }
+proc fluid_multistep() {
+    var iterations = 2;
+    var timestep = dt/iterations;
+    for i in 1..iterations {
+        fluid_step(timestep);
+    }
 
-proc fluid_step() {
+}
+
+proc fluid_step(dt_fluid:real) {
+    // update positions
+    forall j in 1..numSol {
+        solx[j] = solx[j] + solvx[j]*dt_fluid + (solfx[j]/2)*(dt_fluid**2);
+        soly[j] = soly[j] + solvy[j]*dt_fluid + (solfy[j]/2)*(dt_fluid**2);
+        // updating velocity and position
+        // solvx[i] += solfx[i] * dt;
+        // solvy[i] += solfy[i] * dt;
+        // solx[i] += solvx[i] * dt;
+        // soly[i] += solvy[i] * dt;
+        // solvx[j] = 0.0;
+        // solvy[j] = 0.0;
+        solfx[j] = 0.0;
+        solfy[j] = 0.0;
+    }
     // fluid-fluid
     var dx,dy,rx,ry,r2,ffor:real;
     for i in 1..numSol {
@@ -986,8 +1068,8 @@ proc fluid_step() {
             if (r2 <= r2cut) {
                 //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
                 ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-                solfx[i] = solfx[i] + ffor*dx;
-                solfy[i] = solfy[i] + ffor*dy;
+                solfx[i] += ffor*dx;
+                solfy[i] += ffor*dy;
             }
         }
     }
@@ -995,19 +1077,12 @@ proc fluid_step() {
 
     // thermostat
 
-    // update velocity and positions
-    forall i in 1..numSol {
-        // updating velocity and position
-        solvx[i] += solfx[i] * dt;
-        solvy[i] += solfy[i] * dt;
-        solx[i] += solvx[i] * dt;
-        soly[i] += solvy[i] * dt;
-    }
-    forall i in 1..numSol {
-        solvx[i] = 0.0;
-        solvy[i] = 0.0;
-        solfx[i] = 0.0;
-        solfy[i] = 0.0;
+    //update velocities
+    for i in 1..numSol {
+        solvx[i] = solvx[i] + 0.5*dt_fluid*(solfxold[i] + solfx[i]);
+        solvy[i] = solvy[i] + 0.5*dt_fluid*(solfyold[i] + solfy[i]);
+        solfxold[i] = solfx[i];
+        solfyold[i] = solfy[i];
     }
 }
 

@@ -18,6 +18,7 @@ setup:
 	bash $(SETUP_SCRIPT)
 
 run:
+	set -e; \
 	if [ ! -e "$(OUTPUT)" ]; then \
 		$(MAKE) all; \
 	fi; \
