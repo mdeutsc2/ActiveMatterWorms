@@ -6,7 +6,7 @@ use Time; // for stopwatch
 // configuration
 config const np = 40,
              nworms = 250,
-             nsteps = 2500,//00,
+             nsteps = 300000,
              fdogic = 0.06,
              fdogicwall = 0.0,
              fdep = 1.0, // TODO: change to 4.0?
@@ -17,7 +17,7 @@ config const np = 40,
              kbend = 40.0,
              length0 = 0.8, //particle spacing on worms
              rcut = 2.5,
-             save_interval = 25,
+             save_interval = 500,
              boundary = 1, // 1 = circle, 2 = cardiod, 3 = channel
              fluid_cpl = true;
 
@@ -48,7 +48,7 @@ const r2cut = rcut*rcut,
       a = 0.24, // layer spacing of worms in init_worms?
       iwalldrive = 1,
       numPoints = 590*2, // number of boundary points
-      numSol = 1600; // number of solution particles
+      numSol = 3200; // number of solution particles
 
 const numTasks = here.numPUs();
 
@@ -123,7 +123,7 @@ proc main() {
         //
 
 
-        if (fluid_cpl) {fluid_multistep();}
+        if (fluid_cpl) {fluid_step(dt);}
         
         update_vel();
 	ct.stop();
@@ -913,14 +913,16 @@ proc update_vel() {
 
 //Fluid Functions
 proc init_fluid() {
-    var random_placement = true;
+    var random_placement = false;
     if (random_placement) {
         // put the solvent particles in a random x and random y (monte carlo/dla placement)
         if (boundary == 1) {
             // circular boundary
             var numTries = 1000;
             var rand1,rand2,alpha,x,y,r,r2,dx,dy : real;
-            for i in 1..numSol {
+            solx[1] = hxo2;
+            soly[1] = hyo2;
+            for i in 2..numSol {
                 var valid = false;
                 var try_count = 0;
                 while (valid == false) {
@@ -933,16 +935,16 @@ proc init_fluid() {
                     // calculating coordinates
                     x = r * cos(alpha) + hxo2;
                     y = r * sin(alpha) + hyo2;
-                    var valid_count = 0;
+                    var invalid_count = 0;
                     for j in (i-1)..1 by -1 {
                         dx = abs(x - solx[j]);
                         dy = abs(y - soly[j]);
                         r2 = (dx*dx + dy*dy);
-                        if (r2 <= r2cutsmall) {
-                            valid_count += 1;
+                        if (r2 <= r2cut) {
+                            invalid_count += 1;
                         }
                     }
-                    if (valid_count == 0) {
+                    if (invalid_count == 0) {
                         // no conflicts found with any of the existing particles
                         valid = true;
                         //writeln(i,"\t",x,"\t",y);
@@ -1014,7 +1016,7 @@ proc init_fluid() {
 
 }
 proc fluid_multistep() {
-    var iterations = 4;
+    var iterations = 1;
     var timestep = dt/iterations;
     for i in 1..iterations {
         fluid_step(timestep);
@@ -1024,39 +1026,41 @@ proc fluid_multistep() {
 
 proc fluid_step(dt_fluid:real) {
     // update positions
-    for j in 1..numSol {
-        solx[j] = solx[j] + solvx[j]*dt_fluid + (solfx[j]/2)*(dt_fluid**2);
-        soly[j] = soly[j] + solvy[j]*dt_fluid + (solfy[j]/2)*(dt_fluid**2);
+    forall i in 1..numSol {
+        solx[i] = solx[i] + solvx[i]*dt_fluid + (solfx[i]/2)*(dt_fluid**2);
+        soly[i] = soly[i] + solvy[i]*dt_fluid + (solfy[i]/2)*(dt_fluid**2);
         // updating velocity and position
         // solvx[i] += solfx[i] * dt;
         // solvy[i] += solfy[i] * dt;
         // solx[i] += solvx[i] * dt;
         // soly[i] += solvy[i] * dt;
-        // solvx[j] = 0.0;
-        // solvy[j] = 0.0;
-        solfx[j] = 0.0;
-        solfy[j] = 0.0;
+
+        solfx[i] = 0.0;
+        solfy[i] = 0.0;
     }
     // fluid-fluid
-    var dx,dy,rx,ry,r2,ffor:real;
+    var dx,dy,r2,ffor,ffx,ffy:real;
     for i in 1..numSol {
         // calculating the force
         for j in (i+1)..numSol {
-            rx = solx[j] - solx[i];
-            ry = soly[j] - soly[i];
-            r2 = rx**2 + ry**2;
+            dx = solx[j] - solx[i];
+            dy = soly[j] - soly[i];
+            r2 = (dx*dx + dy*dy);
             if (r2 <= r2cut) {
                 ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-                solfx[i] += ffor;
-                solfy[i] += ffor;
-                solfx[j] -= ffor;
-                solfy[j] -= ffor;
+                ffx = ffor*dx;
+                ffy = ffor*dy;
+                solfx[i] += ffx;
+                solfy[i] += ffy;
+                solfx[j] -= ffx;
+                solfy[j] -= ffy;
             }
         }
     }
 
     // fluid-boundary
-    for i in 1..numSol {
+    forall i in 1..numSol {
+        var dx,dy,r2,ffor,ffx,ffy:real;
         // calculate the force on the boundaries.
         for ib in 1..numPoints  {
             //calculate distance to the wall
