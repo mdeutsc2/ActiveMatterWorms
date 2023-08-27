@@ -31,7 +31,7 @@ run:
 		dirname="$$dirname-$$count"; \
 	fi; \
 	mkdir -p $$dirname; \
-	cd $$dirname && ../$(OUTPUT); \
+	cd $$dirname && time ../$(OUTPUT); \
 	output_file=amatter_$$(date +%d_%m_%Y); \
 	if [ -n "$$count" ]; then \
 		output_file=$$output_file-$$count; \
