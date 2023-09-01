@@ -5,21 +5,22 @@ use IO.FormattedIO;
 use Time; // for stopwatch
 // configuration
 config const np = 40,
-             nworms = 250,
-             nsteps = 6000    ,//00,
-             fdogic = 0.06,
-             fdogicwall = 0.0,
-             fdep = 1.0, // TODO: change to 4.0?
-             fdepwall = 0.0,
-             diss = 0.08,
-             dt = 0.02, //0.02
-             kspring = 57.146436,
-             kbend = 40.0,
-             length0 = 0.8, //particle spacing on worms
-             rcut = 2.5,
-             save_interval = 50,
-             boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel
-             fluid_cpl = true;
+            nworms = 250,
+            nsteps = 6000    ,//00,
+            fdogic = 0.06,
+            fdogicwall = 0.0,
+            fdep = 1.0, // TODO: change to 4.0?
+            fdepwall = 0.0,
+            diss = 0.08,
+            dt = 0.02, //0.02
+            kspring = 57.146436,
+            kbend = 40.0,
+            length0 = 0.8, //particle spacing on worms
+            rcut = 2.5,
+            save_interval = 50,
+            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
+            fluid_cpl = true,
+            kbt = 0.1;
 
 var ptc_init_counter = 1;
 record Particle {
@@ -134,8 +135,9 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       iwalldrive = 1,
+      gamma = 1.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 590*2, // number of boundary points
-      numSol = 800, // number of solution particles (3200 for circular)
+      numSol = 3200, // number of solution particles (3200 for circular)
       fluid_offset = 3.0; // z-offset of fluid
 
 const numTasks = here.numPUs();
@@ -1163,7 +1165,7 @@ proc fluid_step(dt_fluid:real) {
         solvent[i].fz = 0.0;
     }
     // fluid-fluid
-    var dx,dy,r2,ffor,ffx,ffy:real;
+    var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega:real;
     for i in 1..numSol {
         // calculating the force
         for j in (i+1)..numSol {
@@ -1171,6 +1173,7 @@ proc fluid_step(dt_fluid:real) {
             dy = solvent[j].y - solvent[i].y;
             r2 = (dx*dx + dy*dy);
             if (r2 <= r2cut) {
+                // LJ force
                 ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
                 ffx = ffor*dx;
                 ffy = ffor*dy;
@@ -1178,11 +1181,31 @@ proc fluid_step(dt_fluid:real) {
                 solvent[i].fy += ffy;
                 solvent[j].fx -= ffx;
                 solvent[j].fy -= ffy;
+                //adding dissipative force
+                dvx = solvent[j].vx - solvent[i].vx;
+                dvy = solvent[j].vy - solvent[i].vy;
+                r = sqrt(r2);
+                rhatx = dx/r;
+                rhaty = dy/r;
+                omega = (1.0-r2/r2cut);
+                fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
+                fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
+                solvent[i].fx += fdissx;
+                solvent[i].fy += fdissy;
+                solvent[j].fx -= fdissx;
+                solvent[j].fy -= fdissy;
+                // adding random forces
+                gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
+                frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+                solvent[i].fx += frand*rhatx;
+                solvent[i].fy += frand*rhaty;
+                solvent[j].fx -= frand*rhatx;
+                solvent[j].fy -= frand*rhaty;
             }
         }
     }
 
-   // fluid-boundary
+    //fluid-boundary
     forall i in 1..numSol {
         var dx,dy,r2,ffor,ffx,ffy:real;
         // calculate the force on the boundaries.
@@ -1245,13 +1268,13 @@ proc fluid_step(dt_fluid:real) {
     //     }
     // }
     // fluid-worms
+    var dz = fluid_offset;
     for i in 1..numSol{
-        var dx,dy,dz,r2,ffor,ffx,ffy:real;
+        var dx,dy,r2,ffor,ffx,ffy:real;
         for iw in 1..nworms {
             for ip in 1..np {
                 dx = solvent[i].x - worms[iw,i].x;
                 dy = solvent[i].y - worms[iw,i].y;
-                dz = fluid_offset;
                 r2 = (dx*dx + dy*dy + dz*dz);
                 if (r2 <= r2cutsmall) {
                     ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
@@ -1267,6 +1290,9 @@ proc fluid_step(dt_fluid:real) {
     }
 
     // thermostat
+    for i in 1..numSol{
+
+    }
 
     //update velocities
     for i in 1..numSol {
@@ -1338,4 +1364,11 @@ proc write_xyz(istep:int) {
     } catch e: Error {
         writeln(e);
     }
+}
+
+proc gaussRand(mean: real, stddev: real): real {
+    var u1 = randStream.getNext();
+    var u2 = randStream.getNext();
+    var z0 = sqrt(-2.0 * log(u1)) * cos(2.0 * pi * u2);  // Box-Muller transform
+    return mean + stddev * z0;  // Adjust for mean and standard deviation
 }
