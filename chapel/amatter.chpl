@@ -6,21 +6,21 @@ use Time; // for stopwatch
 // configuration
 config const np = 40,
             nworms = 250,
-            nsteps = 6000    ,//00,
+            nsteps = 1200    ,//00,
             fdogic = 0.06,
             fdogicwall = 0.0,
             fdep = 1.0, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.08,
-            dt = 0.02, //0.02
+            dt = 0.01, //0.02
             kspring = 57.146436,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
-            save_interval = 50,
-            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
+            save_interval = 25,
+            boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
-            kbt = 0.1;
+            kbt = 1.0;
 
 var ptc_init_counter = 1;
 record Particle {
@@ -137,15 +137,15 @@ const r2cut = rcut*rcut,
       iwalldrive = 1,
       gamma = 1.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 590*2, // number of boundary points
-      numSol = 3200, // number of solution particles (3200 for circular)
+      numSol = 800, // number of solution particles (3200 for circular, 800 for cardioid)
       fluid_offset = 3.0; // z-offset of fluid
 
 const numTasks = here.numPUs();
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
 var worms: [wormsDomain] Particle;
-var bound: [1..numPoints] Particle;
 var solvent: [1..numSol] Particle;
+var bound: [1..numPoints] Particle;
 var savex: [1..np] real(64);
 var savey: [1..np] real(64);
 var ireverse: [1..nworms] int;
@@ -154,6 +154,11 @@ var ddy: [1..9] int;
 var hhead: [1..ncells] int; //
 var ipointto: [1..nworms*np+numPoints] int; // linked list, every particle points to another particle
 var nnab: [wormsDomain] int;
+var KEworm: [1..nworms*np] real;
+var KEsol: [1..numSol] real;
+var KEworm_total: [1..nsteps] real;
+var KEsol_total: [1..nsteps] real; //workaround https://stackoverflow.com/questions/59753273/how-to-append-data-to-an-existing-file
+
 
 // writeln(A[1].id,"\t",A[1].x,"\t",A[1].y,"\t",A[1].z);
 // writeln(A[2].id,"\t",A[2].x,"\t",A[2].y,"\t",A[2].z);
@@ -204,19 +209,28 @@ proc main() {
         //
 
 
-        if (fluid_cpl) {fluid_step(dt);}
+        if (fluid_cpl) {
+            fluid_step(dt);
+            KEsol_total[itime] = (+ reduce KEsol);
+        } else {
+            KEsol_total[itime] = 0.0;
+        }
         
         update_vel();
+        KEworm_total[itime] = (+ reduce KEworm);
+        //KE_tota[iste] = KEworm_total + KEsol_total;
+
 	    ct.stop();
         //write_xyz(itime);
         if (itime % save_interval == 0){
             wt.start();
-        write_xyz(itime);
-        wt.stop();
+            write_xyz(itime);
+            wt.stop();
         }
     }
     //finalize();
     xt.stop();
+    write_macro(nsteps);
     writeln("Total Time:",xt.elapsed()," s");
 }
 //functions
@@ -352,6 +366,11 @@ proc init_worms() {
                 worms[iw,ip].y = savey[np+1-ip];
             }
         }
+    }
+
+    //init macro variable arrays
+    for i in 1..nworms*np{
+        KEworm[i] = 0.0;
     }
     writeln("init done");
 }
@@ -751,7 +770,6 @@ proc cell_sort_old(itime:int) {
     }
 }
 
-
 proc cell_sort_new(itime:int) {
     var dddx:real,dddy:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,dxi:real,dxj:real,
         ri:real,rj:real,r:real,dx:real,dy:real,dyi:real,dyj:real;
@@ -991,6 +1009,7 @@ proc update_vel() {
             worms[iw, i].vy += dto2*(worms[iw,i].fy + worms[iw,i].fyold);
             //vxave[iw, i] = vxave[iw, i]/nnab[iw, i];
             //vyave[iw, i] = vyave[iw, i]/nnab[iw, i];
+            KEworm[iw*i] = 0.5*(worms[iw,i].vx * worms[iw,i].vx + worms[iw,i].vy * worms[iw,i].vy);
         }
     }
 }
@@ -1139,7 +1158,10 @@ proc init_fluid() {
             halt();
         }
     }
-
+    // init macro variable arrays
+    for i in 1..numSol {
+        KEsol[i] = 0.0;
+    }
 }
 proc fluid_multistep() {
     var iterations = 1;
@@ -1190,12 +1212,13 @@ proc fluid_step(dt_fluid:real) {
                 omega = (1.0-r2/r2cut);
                 fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
                 fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
-                solvent[i].fx += fdissx;
-                solvent[i].fy += fdissy;
-                solvent[j].fx -= fdissx;
-                solvent[j].fy -= fdissy;
+                solvent[i].fx -= fdissx;
+                solvent[i].fy -= fdissy;
+                solvent[j].fx += fdissx;
+                solvent[j].fy += fdissy;
                 // adding random forces
                 gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
+                //gauss = randStream.getNext();
                 frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
                 solvent[i].fx += frand*rhatx;
                 solvent[i].fy += frand*rhaty;
@@ -1206,67 +1229,76 @@ proc fluid_step(dt_fluid:real) {
     }
 
     //fluid-boundary
-    forall i in 1..numSol {
-        var dx,dy,r2,ffor,ffx,ffy:real;
-        // calculate the force on the boundaries.
-        for ib in 1..numPoints  {
-            //calculate distance to the wall
-            dx = solvent[i].x - bound[ib].x;
-            dy = solvent[i].y - bound[ib].y;
-            r2 = (dx*dx + dy*dy);
-            //if close enough to the wall, calculate wall forces
-            //use the short cut-off
-            if (r2 <= r2cut) {
-                //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
-                ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-                solvent[i].fx += ffor*dx;
-                solvent[i].fy += ffor*dy;
-            }
-        }
-    }
-    // if (boundary == 1) {
-    //     forall i in 1..numSol {
-    //         var dx,dy,r2,ffor,ffx,ffy,xwall,ywall,th,rr2,scale,dp,r,normx,normy:real;
-    //         dx = solvent[i].x - hxo2;
-    //         dy = solvent[i].y - hyo2;
-    //         r = sqrt(dx*dx + dy*dy);
-    //         if (r >=rwall) {
-    //             // Move particle back to boundary
-    //             scale = rwall / r;
-    //             solvent[i].x = hx / 2 + dx * scale;
-    //             solvent[i].y = hy / 2 + dy * scale;
-
-    //             // Reflect particle velocity
-    //             normx = dx/r;
-    //             normy = dy/r;
-    //             dp = solvent[i].vx * normx + solvent[i].vy * normy;
-    //             solvent[i].vx -= 2 * dp * normx;
-    //             solvent[i].vy -= 2 * dp * normy;
-    //         }
-    //     }
-    // } else if (boundary == 2) {
-    //     var a = 1.5*(rwall/2);
-    //     forall i in 1..numSol {
-    //         var dx,dy,r2,r,dp:real;
-    //         // Calculate squared distance between particle and the cardioid's edge
-    //         dx = solvent[i].x - a * (1 - cos(solvent[i].x / a)) * cos(solvent[i].x / a);
-    //         dy = solvent[i].y - a * (1 - cos(solvent[i].x / a)) * sin(solvent[i].x / a);
-    //         r2 = dx * dx + dy * dy;
-
-    //         // Check for collision (compare squared distance with a^2)
-    //         if (r2 >= a * a) {
-    //             // Normalize the displacement vector
-    //             r = sqrt(r2);
-    //             dx /= r;
-    //             dy /= r;
-
-    //             // Reflect particle velocity
-    //             dp = solvent[i].vx * dx + solvent[i].vy * dy;
-    //             solvent[i].vx -= 2 * dp * dx;
-    //             solvent[i].vy -= 2 * dp * dy;
+    // forall i in 1..numSol {
+    //     var dx,dy,r2,ffor,ffx,ffy:real;
+    //     // calculate the force on the boundaries.
+    //     for ib in 1..numPoints  {
+    //         //calculate distance to the wall
+    //         dx = solvent[i].x - bound[ib].x;
+    //         dy = solvent[i].y - bound[ib].y;
+    //         r2 = (dx*dx + dy*dy);
+    //         //if close enough to the wall, calculate wall forces
+    //         //use the short cut-off
+    //         if (r2 <= r2cut) {
+    //             //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
+    //             ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+    //             solvent[i].fx += ffor*dx;
+    //             solvent[i].fy += ffor*dy;
     //         }
     //     }
     // }
+    if (boundary == 1) {
+        forall i in 1..numSol {
+            var dx,dy,r2,ffor,ffx,ffy,xwall,ywall,th,rr2,scale,dp,r,normx,normy:real;
+            dx = solvent[i].x - hxo2;
+            dy = solvent[i].y - hyo2;
+            r = sqrt(dx*dx + dy*dy);
+            if (r >=rwall) {
+                // Move particle back to boundary
+                scale = rwall / r;
+                solvent[i].x = hx / 2 + dx * scale;
+                solvent[i].y = hy / 2 + dy * scale;
+
+                // Reflect particle velocity
+                normx = dx/r;
+                normy = dy/r;
+                dp = solvent[i].vx * normx + solvent[i].vy * normy;
+                solvent[i].vx -= 2 * dp * normx;
+                solvent[i].vy -= 2 * dp * normy;
+            }
+        }
+    } else if (boundary == 2) {
+        var a = 1.5*(rwall/2);
+        forall i in 1..numSol {
+            var dx,dy,r2,cr,t,dp,scale,r,normx,normy:real;
+            // bound[i].x = ca * (1 - cos(thetaValues[i])) * cos(thetaValues[i]) + hxo2 + ca;
+            // bound[i].y = ca * (1 - cos(thetaValues[i])) * sin(thetaValues[i]) + hyo2;
+            // Calculate squared distance between particle and the cardioid's edge
+            dx = solvent[i].x - hxo2 - a;
+            dy = solvent[i].y - hyo2;
+            // Calculate the parameter 't' that corresponds to the point on the cardioid
+            t = atan2(dy, dx);
+            cr = a * (1 - cos(t));
+            r = sqrt(dx * dx + dy * dy);
+
+            // Check for collision
+            if (r >= cr) {
+                // Move particle back to the cardioid's edge
+                scale = cr/r;
+                solvent[i].x = hxo2 + a + dx * scale;
+                solvent[i].y = hyo2 + dy * scale;
+
+                // Normalize the displacement vector
+                normx = dx/r;
+                normy = dy/r;
+
+                // Reflect particle velocity
+                dp = solvent[i].vx * normx + solvent[i].vy * normy;
+                solvent[i].vx -= 2 * dp * normx;
+                solvent[i].vy -= 2 * dp * normy;
+            }
+        }
+    }
     // fluid-worms
     var dz = fluid_offset;
     for i in 1..numSol{
@@ -1290,16 +1322,18 @@ proc fluid_step(dt_fluid:real) {
     }
 
     // thermostat
-    for i in 1..numSol{
+    // for i in 1..numSol{
 
-    }
+    // }
 
     //update velocities
-    for i in 1..numSol {
+    forall i in 1..numSol {
         solvent[i].vx += 0.5*dt_fluid*(solvent[i].fxold + solvent[i].fx);
         solvent[i].vy += 0.5*dt_fluid*(solvent[i].fyold + solvent[i].fy);
         solvent[i].fxold = solvent[i].fx;
         solvent[i].fyold = solvent[i].fy;
+        // calculating kinetic energy here too
+        KEsol[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
     }
 }
 
@@ -1361,14 +1395,54 @@ proc write_xyz(istep:int) {
     // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
     // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
     writeln(filename,"\t",ic," lines written");
+    //xyzfile.close();
     } catch e: Error {
         writeln(e);
     }
 }
 
+
+proc write_macro(nsteps: int) {
+    var filename:string = "energies.dat";
+    try{
+        var datfile = open(filename, ioMode.cw);
+        var myFileWriter = datfile.writer();
+        myFileWriter.writeln("step \t KEworm \t KEsol \n");
+        for istep in 1..nsteps {
+            myFileWriter.writeln(istep,"\t",KEworm_total[istep],"\t",KEsol_total[istep]);
+        }
+        datfile.fsync();
+        writeln("energies.dat written");
+    } catch e: Error {
+        writeln(e);
+    }
+}
+// proc write_macro(istep: int, KE1: real, KE2: real) {
+//     var filename:string = "energies.dat";
+//     try {
+//         if (istep == 0) {
+//             var datfile = open(filename, ioMode.cw);
+//             var myFileWriter = datfile.writer();
+//             myFileWriter.writeln("timestep \t KEworm \t KEsol \n");
+//             //datfile.close();
+//         } else {
+//             var datfile = open(filename, ioMode.cw);
+//             var myFileWriter = datfile.writer();
+//             myFileWriter.writeln(istep,"\t",KE1,"\t",KE2);
+//             //datfile.close();
+//         }
+//     } catch e: Error {
+//         writeln(e);
+//     }
+// }
+
 proc gaussRand(mean: real, stddev: real): real {
     var u1 = randStream.getNext();
     var u2 = randStream.getNext();
     var z0 = sqrt(-2.0 * log(u1)) * cos(2.0 * pi * u2);  // Box-Muller transform
-    return mean + stddev * z0;  // Adjust for mean and standard deviation
+    var gauss = mean + stddev * z0;
+    if ((gauss > 5.0) || (gauss < -5.0)) {
+        gauss = 0.0;
+    }
+    return gauss;  // Adjust for mean and standard deviation
 }
