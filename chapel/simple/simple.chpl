@@ -5,12 +5,12 @@ use IO.FormattedIO;
 use Time; // for stopwatch
 
 config const L = 100.0, // size of the simulation box in x and y
-            nsteps = 10000,
+            nsteps = 20000,
             dt = 0.01,
-            save_interval = 250,
+            save_interval = 100,
             numParticles = 144, // number of particles
             thermo = true,
-            kbt = 1.0; //reduced temperature
+            kbt = 0.1; //reduced temperature
 
 var hxo2 = L/2,
     sigma = 1.0,
@@ -19,7 +19,7 @@ var hxo2 = L/2,
     rcutsmall = sigma*2.0**(1.0/6.0),
     r2cutsmall = rcutsmall*rcutsmall,
     pi = 4.0*atan(1.0),
-    gamma = 1;
+    gamma = 2.0;
 
 var ptc_init_counter = 1;
 record Particle {
@@ -133,6 +133,7 @@ proc main () {
 
     write_xyz(0);
     calc_forces();
+    var vel_mag = 0.0;
     for istep in 1..nsteps {
         // update positions
         update_position();
@@ -142,7 +143,12 @@ proc main () {
         update_velocities();
         
         KE_total[istep] = (+ reduce KE);
-        writeln(istep,"\t",KE_total[istep],"\t");
+        vel_mag = sqrt((max reduce solvent.vx)**2 + (max reduce solvent.vy)**2);
+        writeln(istep,"\t",
+                KE_total[istep],"\t",
+                (max reduce solvent.x),"\t",
+                (max reduce solvent.y),"\t",
+                vel_mag);
         if (istep % save_interval == 0){
             write_xyz(istep);
         }
@@ -153,7 +159,7 @@ proc main () {
 
 proc update_position() {
     // update positions
-    forall i in 1..numParticles {
+    for i in 1..numParticles {
         solvent[i].x += solvent[i].vx*dt + (solvent[i].fx/2)*(dt**2);
         solvent[i].y += solvent[i].vy*dt + (solvent[i].fy/2)*(dt**2);
         //periodic boundary conditions
@@ -175,7 +181,16 @@ proc update_position() {
 }
 
 proc calc_forces () {
-    var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega:real;
+    var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega,alpha,lb,dp,col_prob:real;
+    // if (thermo) {
+    //     // needed for idiot thermostat
+    //     var temp_KE_total = (+ reduce KE);
+    //     alpha = sqrt(kbt*numParticles)/temp_KE_total;
+    //     if (temp_KE_total <= 0.00001) {
+    //         alpha = 1.0;
+    //     } 
+    //     writeln(alpha);
+    // }
     for i in 1..numParticles {
         // calculating the force
         for j in (i+1)..numParticles {
@@ -192,6 +207,28 @@ proc calc_forces () {
                 solvent[j].fx -= ffx;
                 solvent[j].fy -= ffy;
                 if (thermo) {
+                    // Lowe-Anderson thermostat (both particles are in interaction range)
+                    gamma = 20;
+                    col_prob = gamma * dt;
+                    gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
+                    //gauss = (randStream.getNext() * 2.0) - 1.0;
+                    if (col_prob >= gauss) {
+                        r = sqrt(r2);
+                        dx = dx / r; //omega
+                        dy = dy / r;
+                        gauss = gaussRand(0.0,1.0);
+                        //gauss = (randStream.getNext() * 2.0) - 1.0;
+                        lb = gauss*sqrt(0.5*kbt); // lambda
+                        dp = (solvent[j].vx - solvent[i].vx)*dx + (solvent[j].vy - solvent[i].vy)*dy;
+                        //writeln(lb,"\t",dp);
+                        ffx = (0.5/dt)*(lb - dp)*dx;
+                        ffy = (0.5/dt)*(lb - dp)*dy;
+                        solvent[i].fx -= ffx;
+                        solvent[i].fy -= ffy;
+                        solvent[j].fx += ffx;
+                        solvent[j].fy += ffy;
+                        //halt();
+                    }
                     /*
                     // DPD thermostat
                     //adding dissipative force
@@ -219,21 +256,22 @@ proc calc_forces () {
                 }
             }
         }
-        // idiot thermostat
-        // rescaling velocities
-        //var total_kinetic = (+ reduce KEsol)
-        var alpha = sqrt(kbt*numParticles)/(+ reduce KE);
-        solvent[i].vx = alpha*solvent[i].vx;
-        solvent[i].vy = alpha*solvent[i].vy;
-        /*
-        // Lowe-Anderson Thermostat
-        */
+        // if (thermo) {
+        // // idiot thermostat
+        // // rescaling velocities
+        // //var total_kinetic = (+ reduce KEsol)
+        // solvent[i].vx = alpha*solvent[i].vx;
+        // solvent[i].vy = alpha*solvent[i].vy;
+        // /*
+        // // Lowe-Anderson Thermostat
+        // */
+        // }
     }
 }
 
 proc update_velocities() {
     //update velocities
-    forall i in 1..numParticles {
+    for i in 1..numParticles {
         solvent[i].vx += 0.5*dt*(solvent[i].fxold + solvent[i].fx);
         solvent[i].vy += 0.5*dt*(solvent[i].fyold + solvent[i].fy);
         solvent[i].fxold = solvent[i].fx;
@@ -270,12 +308,17 @@ proc write_xyz(istep:int) {
 
 proc write_macro(nsteps: int) {
     var filename:string = "energies.dat";
+    //var vel_mag = sqrt((max reduce solvent.vx)**2 + (max reduce solvent.vy)**2);
     try{
         var datfile = open(filename, ioMode.cw);
         var myFileWriter = datfile.writer();
-        myFileWriter.writeln("step \t KEworm \t KEsol \n");
+        myFileWriter.writeln("step \t KE \t maxX \t maxY \t vel_mag");
         for istep in 1..nsteps {
-            myFileWriter.writeln(istep,"\t",KE_total[istep]);
+            myFileWriter.writeln(istep,"\t",
+                                KE_total[istep],"\t");
+                                //(max reduce solvent.x),"\t",
+                                //(max reduce solvent.y),"\t",
+                                //vel_mag);
         }
         datfile.fsync();
         writeln("energies.dat written");
