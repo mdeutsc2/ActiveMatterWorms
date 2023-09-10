@@ -6,7 +6,7 @@ use Time; // for stopwatch
 // configuration
 config const np = 40,
             nworms = 250,
-            nsteps = 1200    ,//00,
+            nsteps = 3000    ,//00,
             fdogic = 0.06,
             fdogicwall = 0.0,
             fdep = 1.0, // TODO: change to 4.0?
@@ -20,7 +20,8 @@ config const np = 40,
             save_interval = 25,
             boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
-            kbt = 1.0;
+            kbt = 1.0,
+            sigma = 2.0;
 
 var ptc_init_counter = 1;
 record Particle {
@@ -1229,76 +1230,81 @@ proc fluid_step(dt_fluid:real) {
     }
 
     //fluid-boundary
-    // forall i in 1..numSol {
-    //     var dx,dy,r2,ffor,ffx,ffy:real;
-    //     // calculate the force on the boundaries.
-    //     for ib in 1..numPoints  {
-    //         //calculate distance to the wall
-    //         dx = solvent[i].x - bound[ib].x;
-    //         dy = solvent[i].y - bound[ib].y;
-    //         r2 = (dx*dx + dy*dy);
-    //         //if close enough to the wall, calculate wall forces
-    //         //use the short cut-off
-    //         if (r2 <= r2cut) {
-    //             //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
-    //             ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-    //             solvent[i].fx += ffor*dx;
-    //             solvent[i].fy += ffor*dy;
-    //         }
-    //     }
-    // }
-    if (boundary == 1) {
-        forall i in 1..numSol {
-            var dx,dy,r2,ffor,ffx,ffy,xwall,ywall,th,rr2,scale,dp,r,normx,normy:real;
-            dx = solvent[i].x - hxo2;
-            dy = solvent[i].y - hyo2;
-            r = sqrt(dx*dx + dy*dy);
-            if (r >=rwall) {
-                // Move particle back to boundary
-                scale = rwall / r;
-                solvent[i].x = hx / 2 + dx * scale;
-                solvent[i].y = hy / 2 + dy * scale;
-
-                // Reflect particle velocity
-                normx = dx/r;
-                normy = dy/r;
-                dp = solvent[i].vx * normx + solvent[i].vy * normy;
-                solvent[i].vx -= 2 * dp * normx;
-                solvent[i].vy -= 2 * dp * normy;
-            }
-        }
-    } else if (boundary == 2) {
-        var a = 1.5*(rwall/2);
-        forall i in 1..numSol {
-            var dx,dy,r2,cr,t,dp,scale,r,normx,normy:real;
-            // bound[i].x = ca * (1 - cos(thetaValues[i])) * cos(thetaValues[i]) + hxo2 + ca;
-            // bound[i].y = ca * (1 - cos(thetaValues[i])) * sin(thetaValues[i]) + hyo2;
-            // Calculate squared distance between particle and the cardioid's edge
-            dx = solvent[i].x - hxo2 - a;
-            dy = solvent[i].y - hyo2;
-            // Calculate the parameter 't' that corresponds to the point on the cardioid
-            t = atan2(dy, dx);
-            cr = a * (1 - cos(t));
-            r = sqrt(dx * dx + dy * dy);
-
-            // Check for collision
-            if (r >= cr) {
-                // Move particle back to the cardioid's edge
-                scale = cr/r;
-                solvent[i].x = hxo2 + a + dx * scale;
-                solvent[i].y = hyo2 + dy * scale;
-
-                // Normalize the displacement vector
-                normx = dx/r;
-                normy = dy/r;
-
-                // Reflect particle velocity
-                dp = solvent[i].vx * normx + solvent[i].vy * normy;
-                solvent[i].vx -= 2 * dp * normx;
-                solvent[i].vy -= 2 * dp * normy;
+    // var r2cutsol = r2cut
+    var r2cutsol = sigma*2.0**(1.0/6.0);
+    var sigma12 = sigma**12;
+    var sigma6 = sigma**6;
+    forall i in 1..numSol {
+        var dx,dy,r2,ffor,ffx,ffy:real;
+        // calculate the force on the boundaries.
+        for ib in 1..numPoints  {
+            //calculate distance to the wall
+            dx = solvent[i].x - bound[ib].x;
+            dy = solvent[i].y - bound[ib].y;
+            r2 = (dx*dx + dy*dy);
+            //if close enough to the wall, calculate wall forces
+            //use the short cut-off
+            if (r2 <= r2cutsol) {
+                //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
+                //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+                ffor = 48.0*sigma12*r2**(-7.0) -24*sigma6*r2**(-4.0);
+                solvent[i].fx += ffor*dx;
+                solvent[i].fy += ffor*dy;
             }
         }
     }
+    // if (boundary == 1) {
+    //     forall i in 1..numSol {
+    //         var dx,dy,r2,ffor,ffx,ffy,xwall,ywall,th,rr2,scale,dp,r,normx,normy:real;
+    //         dx = solvent[i].x - hxo2;
+    //         dy = solvent[i].y - hyo2;
+    //         r = sqrt(dx*dx + dy*dy);
+    //         if (r >=rwall) {
+    //             // Move particle back to boundary
+    //             scale = rwall / r;
+    //             solvent[i].x = hx / 2 + dx * scale;
+    //             solvent[i].y = hy / 2 + dy * scale;
+
+    //             // Reflect particle velocity vector
+    //             normx = dx/r;
+    //             normy = dy/r;
+    //             dp = solvent[i].vx * normx + solvent[i].vy * normy;
+    //             solvent[i].vx -= 2 * dp * normx;
+    //             solvent[i].vy -= 2 * dp * normy;
+    //         }
+    //     }
+    // } else if (boundary == 2) {
+    //     var a = 1.5*(rwall/2);
+    //     forall i in 1..numSol {
+    //         var dx,dy,r2,cr,t,dp,scale,r,normx,normy:real;
+    //         // bound[i].x = ca * (1 - cos(thetaValues[i])) * cos(thetaValues[i]) + hxo2 + ca;
+    //         // bound[i].y = ca * (1 - cos(thetaValues[i])) * sin(thetaValues[i]) + hyo2;
+    //         // Calculate squared distance between particle and the cardioid's edge
+    //         dx = solvent[i].x - hxo2 - a;
+    //         dy = solvent[i].y - hyo2;
+    //         // Calculate the parameter 't' that corresponds to the point on the cardioid
+    //         t = atan2(dy, dx);
+    //         cr = a * (1 - cos(t));
+    //         r = sqrt(dx * dx + dy * dy);
+
+    //         // Check for collision
+    //         if (r >= cr) {
+    //             // Move particle back to the cardioid's edge if it has gone over
+    //             scale = cr/r;
+    //             solvent[i].x = hxo2 + a + dx * scale;
+    //             solvent[i].y = hyo2 + dy * scale;
+
+    //             // Normalize the displacement vector
+    //             normx = dx/r;
+    //             normy = dy/r;
+
+    //             // Reflect particle velocity vector
+    //             dp = solvent[i].vx * normx + solvent[i].vy * normy;
+    //             solvent[i].vx -= 2 * dp * normx;
+    //             solvent[i].vy -= 2 * dp * normy;
+    //         }
+    //     }
+    // }
     // fluid-worms
     var dz = fluid_offset;
     for i in 1..numSol{
@@ -1335,6 +1341,8 @@ proc fluid_step(dt_fluid:real) {
         // calculating kinetic energy here too
         KEsol[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
     }
+
+
 }
 
 // IO Functions
@@ -1441,8 +1449,5 @@ proc gaussRand(mean: real, stddev: real): real {
     var u2 = randStream.getNext();
     var z0 = sqrt(-2.0 * log(u1)) * cos(2.0 * pi * u2);  // Box-Muller transform
     var gauss = mean + stddev * z0;
-    if ((gauss > 5.0) || (gauss < -5.0)) {
-        gauss = 0.0;
-    }
-    return gauss;  // Adjust for mean and standard deviation
+    return gauss;   
 }
