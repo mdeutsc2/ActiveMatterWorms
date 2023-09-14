@@ -5,11 +5,11 @@ use IO.FormattedIO;
 use Time; // for stopwatch
 
 config const L = 100.0, // size of the simulation box in x and y
-            nsteps = 20000,
-            dt = 0.01,
-            save_interval = 100,
+            nsteps = 200000,
+            dt = 0.001,
+            save_interval = 1000,
             numParticles = 144, // number of particles
-            thermo = true,
+            thermo = false,
             kbt = 0.1; //reduced temperature
 
 var hxo2 = L/2,
@@ -19,7 +19,7 @@ var hxo2 = L/2,
     rcutsmall = sigma*2.0**(1.0/6.0),
     r2cutsmall = rcutsmall*rcutsmall,
     pi = 4.0*atan(1.0),
-    gamma = 2.0;
+    gamma = 1.5;
 
 var ptc_init_counter = 1;
 record Particle {
@@ -120,7 +120,7 @@ proc main () {
     if (numParticles != sqrt(numParticles)*sqrt(numParticles)) {writeln("non-square numParticles");halt();}
     var row_length = sqrt(numParticles):int;
     var row,col,center,spacing :real;
-    spacing = 2.0;
+    spacing = 1.0;
     center = hxo2 - spacing*(row_length/2);
     for i in 1..numParticles {
         row = i % row_length;
@@ -173,7 +173,8 @@ proc update_position() {
         } else if solvent[i].y < 0.0 {
             solvent[i].y = solvent[i].y + L;
         }
-
+        solvent[i].vx += 0.5*dt*solvent[i].fx;
+        solvent[i].vy += 0.5*dt*solvent[i].fy;
         solvent[i].fx = 0.0;
         solvent[i].fy = 0.0;
         solvent[i].fz = 0.0;
@@ -191,11 +192,24 @@ proc calc_forces () {
     //     } 
     //     writeln(alpha);
     // }
+    var Lo2 = L/2.0;
     for i in 1..numParticles {
         // calculating the force
         for j in (i+1)..numParticles {
             dx = solvent[j].x - solvent[i].x;
             dy = solvent[j].y - solvent[i].y;
+            if (dx > Lo2) {
+                dx = dx - L;
+            }
+            if (dx < -Lo2) {
+                dx = dx + L;
+            }
+            if (dy > Lo2) {
+                dy = dy - L;
+            }
+            if (dy < -Lo2) {
+                dy = dy + L;
+            }
             r2 = (dx*dx + dy*dy);
             if (r2 <= r2cut) {
                 // LJ force
@@ -207,6 +221,7 @@ proc calc_forces () {
                 solvent[j].fx -= ffx;
                 solvent[j].fy -= ffy;
                 if (thermo) {
+                    /*
                     // Lowe-Anderson thermostat (both particles are in interaction range)
                     gamma = 20;
                     col_prob = gamma * dt;
@@ -228,8 +243,8 @@ proc calc_forces () {
                         solvent[j].fx += ffx;
                         solvent[j].fy += ffy;
                         //halt();
-                    }
-                    /*
+                    } */
+                    
                     // DPD thermostat
                     //adding dissipative force
                     dvx = solvent[j].vx - solvent[i].vx;
@@ -252,7 +267,7 @@ proc calc_forces () {
                     solvent[i].fy += frand*rhaty;
                     solvent[j].fx -= frand*rhatx;
                     solvent[j].fy -= frand*rhaty;
-                    */
+                    
                 }
             }
         }
@@ -272,10 +287,12 @@ proc calc_forces () {
 proc update_velocities() {
     //update velocities
     for i in 1..numParticles {
-        solvent[i].vx += 0.5*dt*(solvent[i].fxold + solvent[i].fx);
-        solvent[i].vy += 0.5*dt*(solvent[i].fyold + solvent[i].fy);
-        solvent[i].fxold = solvent[i].fx;
-        solvent[i].fyold = solvent[i].fy;
+        //solvent[i].vx += 0.5*dt*(solvent[i].fxold + solvent[i].fx);
+        //solvent[i].vy += 0.5*dt*(solvent[i].fyold + solvent[i].fy);
+        //solvent[i].fxold = solvent[i].fx;
+        //solvent[i].fyold = solvent[i].fy;
+        solvent[i].vx += 0.5*dt*solvent[i].fx;
+        solvent[i].vy += 0.5*dt*solvent[i].fy;
         // calculating kinetic energy here too
         KE[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
     }
@@ -332,5 +349,10 @@ proc gaussRand(mean: real, stddev: real): real {
     var u2 = randStream.getNext();
     var z0 = sqrt(-2.0 * log(u1)) * cos(2.0 * pi * u2);  // Box-Muller transform
     var gauss = mean + stddev * z0;
-    return gauss;   
+    if (gauss > 2.5) {
+        gauss = 2.5;
+    } else if (gauss < -2.5) {
+        gauss = -2.5;
+    }
+    return gauss;
 }

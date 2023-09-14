@@ -6,21 +6,22 @@ use Time; // for stopwatch
 // configuration
 config const np = 40,
             nworms = 250,
-            nsteps = 3000    ,//00,
+            nsteps = 30000    ,//00,
             fdogic = 0.06,
             fdogicwall = 0.0,
             fdep = 1.0, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.08,
-            dt = 0.01, //0.02
+            dt = 0.001, //0.02
             kspring = 57.146436,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
-            save_interval = 25,
+            save_interval = 250,
             boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
-            kbt = 1.0,
+            thermo = true, // turn thermostat on?
+            kbt = 0.5,
             sigma = 2.0;
 
 var ptc_init_counter = 1;
@@ -136,7 +137,7 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       iwalldrive = 1,
-      gamma = 1.0, // frictional constant for dissipative force (~1/damp)
+      gamma = 3.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 590*2, // number of boundary points
       numSol = 800, // number of solution particles (3200 for circular, 800 for cardioid)
       fluid_offset = 3.0; // z-offset of fluid
@@ -1164,14 +1165,15 @@ proc init_fluid() {
         KEsol[i] = 0.0;
     }
 }
+
 proc fluid_multistep() {
     var iterations = 1;
     var timestep = dt/iterations;
     for i in 1..iterations {
         fluid_step(timestep);
     }
-
 }
+
 proc fluid_step(dt_fluid:real) {
     // update positions
     forall i in 1..numSol {
@@ -1183,9 +1185,13 @@ proc fluid_step(dt_fluid:real) {
         // solx[i] += solvx[i] * dt;
         // soly[i] += solvy[i] * dt;
 
+        // doing a velocity half-step here
+        solvent[i].vx += 0.5*dt*solvent[i].fx;
+        solvent[i].vy += 0.5*dt*solvent[i].fy;
+        solvent[i].vz = 0.0; // just in case
         solvent[i].fx = 0.0;
         solvent[i].fy = 0.0;
-        solvent[i].fz = 0.0;
+        solvent[i].fz = 0.0; // just in case
     }
     // fluid-fluid
     var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega:real;
@@ -1204,27 +1210,29 @@ proc fluid_step(dt_fluid:real) {
                 solvent[i].fy += ffy;
                 solvent[j].fx -= ffx;
                 solvent[j].fy -= ffy;
-                //adding dissipative force
-                dvx = solvent[j].vx - solvent[i].vx;
-                dvy = solvent[j].vy - solvent[i].vy;
-                r = sqrt(r2);
-                rhatx = dx/r;
-                rhaty = dy/r;
-                omega = (1.0-r2/r2cut);
-                fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
-                fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
-                solvent[i].fx -= fdissx;
-                solvent[i].fy -= fdissy;
-                solvent[j].fx += fdissx;
-                solvent[j].fy += fdissy;
-                // adding random forces
-                gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
-                //gauss = randStream.getNext();
-                frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
-                solvent[i].fx += frand*rhatx;
-                solvent[i].fy += frand*rhaty;
-                solvent[j].fx -= frand*rhatx;
-                solvent[j].fy -= frand*rhaty;
+                if (thermo) {
+                    //adding dissipative force
+                    dvx = solvent[j].vx - solvent[i].vx;
+                    dvy = solvent[j].vy - solvent[i].vy;
+                    r = sqrt(r2);
+                    rhatx = dx/r;
+                    rhaty = dy/r;
+                    omega = (1.0-r2/r2cut);
+                    fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
+                    fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
+                    solvent[i].fx -= fdissx;
+                    solvent[i].fy -= fdissy;
+                    solvent[j].fx += fdissx;
+                    solvent[j].fy += fdissy;
+                    // adding random forces
+                    gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
+                    //gauss = randStream.getNext();
+                    frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+                    solvent[i].fx += frand*rhatx;
+                    solvent[i].fy += frand*rhaty;
+                    solvent[j].fx -= frand*rhatx;
+                    solvent[j].fy -= frand*rhaty;
+                }
             }
         }
     }
@@ -1334,10 +1342,12 @@ proc fluid_step(dt_fluid:real) {
 
     //update velocities
     forall i in 1..numSol {
-        solvent[i].vx += 0.5*dt_fluid*(solvent[i].fxold + solvent[i].fx);
-        solvent[i].vy += 0.5*dt_fluid*(solvent[i].fyold + solvent[i].fy);
-        solvent[i].fxold = solvent[i].fx;
-        solvent[i].fyold = solvent[i].fy;
+        //solvent[i].vx += 0.5*dt_fluid*(solvent[i].fxold + solvent[i].fx);
+        //solvent[i].vy += 0.5*dt_fluid*(solvent[i].fyold + solvent[i].fy);
+        //solvent[i].fxold = solvent[i].fx;
+        //solvent[i].fyold = solvent[i].fy;
+        solvent[i].vx += 0.5*dt*solvent[i].fx;
+        solvent[i].vy += 0.5*dt*solvent[i].fy;
         // calculating kinetic energy here too
         KEsol[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
     }
@@ -1449,5 +1459,10 @@ proc gaussRand(mean: real, stddev: real): real {
     var u2 = randStream.getNext();
     var z0 = sqrt(-2.0 * log(u1)) * cos(2.0 * pi * u2);  // Box-Muller transform
     var gauss = mean + stddev * z0;
+    if (gauss > 2.5) {
+        gauss = 2.5;
+    } else if (gauss < -2.5) {
+        gauss = -2.5;
+    }
     return gauss;   
 }
