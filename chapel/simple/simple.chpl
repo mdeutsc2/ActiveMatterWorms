@@ -9,8 +9,8 @@ config const L = 100.0, // size of the simulation box in x and y
             dt = 0.001,
             save_interval = 1000,
             numParticles = 144, // number of particles
-            thermo = false,
-            kbt = 0.1; //reduced temperature
+            thermo = true,
+            kbt = 0.5; //reduced temperature
 
 var hxo2 = L/2,
     sigma = 1.0,
@@ -127,14 +127,37 @@ proc main () {
         col = ((i - row)/row_length)-1;
         solvent[i].x = center + spacing*rcutsmall*row;
         solvent[i].y = center + spacing*rcutsmall*col;
-        KE[i] = 0.0;
+        solvent[i].vx = 0.01;//*gaussRand(0.0,1.0);
+        solvent[i].vy = 0.0;//0.1*gaussRand(0.0,1.0);
+        //KE[i] = 0.0;
+        KE[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
     }
     // init randomly
-
+    var t = 0.0;
+    var total_time = 0.0;
+    var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
     write_xyz(0);
     calc_forces();
     var vel_mag = 0.0;
+    //setting up stopwatch
+    xt.start();
     for istep in 1..nsteps {
+        if (istep % 500 == 0) {
+	    xt.stop();
+	    total_time = xt.elapsed();
+            KE_total[istep] = (+ reduce KE);
+            vel_mag = sqrt((max reduce solvent.vx)**2 + (max reduce solvent.vy)**2);
+            writeln("Step: ",istep,"\t",
+                    istep/total_time,"iter/s\tCalc:",
+                    (ct.elapsed()/total_time)*100," %\tElapsed:",
+                    total_time," s\t",
+                    KE_total[istep],"\t",
+                    (max reduce solvent.x),"\t",
+                    (max reduce solvent.y),"\t",
+                    vel_mag);                    
+        xt.start();
+        }
+	    ct.start();
         // update positions
         update_position();
 
@@ -142,18 +165,17 @@ proc main () {
 
         update_velocities();
         
-        KE_total[istep] = (+ reduce KE);
-        vel_mag = sqrt((max reduce solvent.vx)**2 + (max reduce solvent.vy)**2);
-        writeln(istep,"\t",
-                KE_total[istep],"\t",
-                (max reduce solvent.x),"\t",
-                (max reduce solvent.y),"\t",
-                vel_mag);
+
+        ct.stop();
         if (istep % save_interval == 0){
+            wt.start();
             write_xyz(istep);
+            wt.stop();
         }
     }
     write_macro(nsteps);
+    xt.stop();
+    writeln("Total Time:",xt.elapsed()," s");
 }
 
 
@@ -173,8 +195,16 @@ proc update_position() {
         } else if solvent[i].y < 0.0 {
             solvent[i].y = solvent[i].y + L;
         }
+        
         solvent[i].vx += 0.5*dt*solvent[i].fx;
         solvent[i].vy += 0.5*dt*solvent[i].fy;
+        // // collide with boundaries
+        // if ((solvent[i].x - L) <= 0.001) || (solvent[i].x <= 0.001) {
+        //     solvent[i].vx = -solvent[i].vx;
+        // }
+        // if ((solvent[i].y - L) <= 0.001) || (solvent[i].y <= 0.001) {
+        //     solvent[i].vy = -solvent[i].vy;
+        // }
         solvent[i].fx = 0.0;
         solvent[i].fy = 0.0;
         solvent[i].fz = 0.0;
@@ -221,29 +251,6 @@ proc calc_forces () {
                 solvent[j].fx -= ffx;
                 solvent[j].fy -= ffy;
                 if (thermo) {
-                    /*
-                    // Lowe-Anderson thermostat (both particles are in interaction range)
-                    gamma = 20;
-                    col_prob = gamma * dt;
-                    gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
-                    //gauss = (randStream.getNext() * 2.0) - 1.0;
-                    if (col_prob >= gauss) {
-                        r = sqrt(r2);
-                        dx = dx / r; //omega
-                        dy = dy / r;
-                        gauss = gaussRand(0.0,1.0);
-                        //gauss = (randStream.getNext() * 2.0) - 1.0;
-                        lb = gauss*sqrt(0.5*kbt); // lambda
-                        dp = (solvent[j].vx - solvent[i].vx)*dx + (solvent[j].vy - solvent[i].vy)*dy;
-                        //writeln(lb,"\t",dp);
-                        ffx = (0.5/dt)*(lb - dp)*dx;
-                        ffy = (0.5/dt)*(lb - dp)*dy;
-                        solvent[i].fx -= ffx;
-                        solvent[i].fy -= ffy;
-                        solvent[j].fx += ffx;
-                        solvent[j].fy += ffy;
-                        //halt();
-                    } */
                     
                     // DPD thermostat
                     //adding dissipative force
@@ -271,16 +278,6 @@ proc calc_forces () {
                 }
             }
         }
-        // if (thermo) {
-        // // idiot thermostat
-        // // rescaling velocities
-        // //var total_kinetic = (+ reduce KEsol)
-        // solvent[i].vx = alpha*solvent[i].vx;
-        // solvent[i].vy = alpha*solvent[i].vy;
-        // /*
-        // // Lowe-Anderson Thermostat
-        // */
-        // }
     }
 }
 
