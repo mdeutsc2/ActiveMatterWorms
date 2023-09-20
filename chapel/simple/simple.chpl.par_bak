@@ -4,18 +4,14 @@ use IO;
 use IO.FormattedIO;
 use Time; // for stopwatch
 use List;
-use MemDiagnostics;
-
 
 config const L = 100.0, // size of the simulation box in x and y
-            nsteps = 20000,
+            nsteps = 200,//000,
             dt = 0.001,
-            save_interval = 50,
-            numParticles = 144, // number of particles
+            save_interval = 1000,
+            numParticles = 256, // number of particles
             thermo = true,
             kbt = 0.5; //reduced temperature
-
-const debug = false;
 
 var hxo2 = L/2,
     sigma = 1.0,
@@ -118,7 +114,7 @@ var bin_init_counter = 1;
 record Bin {
     var id: (int,int); //id of each bin
     var atoms: list(int); // list of particle id's in each bin
-    var neighbors: [1..4][1..2] int; // indices of each bin's neighboring bin 
+    var neighbors: [1..8][1..2] int; // indices of each bin's neighboring bin 
     var ncount: int; // count of number of particles in each bin
     var x: (real,real); // precalculate the max_x and min_x values for the space the box occupies
     var y: (real,real); // this is for easier neighbor list creation
@@ -128,12 +124,13 @@ record Bin {
         this.ncount = 0;
         this.x = (0.0,0.0);
         this.y = (0.0,0.0);
-        for i in 1..4 {
+        for i in 1..8 {
             this.neighbors[i] = [0,0];
         }
     }
 }
 var solvent: [1..numParticles] Particle;
+var solvent2: [1..numParticles] Particle;
 var KE: [1..numParticles] real;
 var KE_total: [1..nsteps] real;
 
@@ -144,7 +141,6 @@ var randStream = new RandomStream(real); // creating random number generator
 
 proc main () {
     writeln("numBins: ",numBins);
-    //startVerboseMem();
     init_bins();
 
     // init particles
@@ -161,27 +157,31 @@ proc main () {
         solvent[i].y = center + spacing*rcutsmall*col;
         solvent[i].vx = 0.01;//*gaussRand(0.0,1.0);
         solvent[i].vy = 0.0;//0.1*gaussRand(0.0,1.0);
-        solvent[i].ptype = 2;
         //KE[i] = 0.0;
         KE[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
     }
-    
     // init randomly
     
-
+    for i in 1..numParticles {
+        solvent2[i] = solvent[i];
+    }
     update_cells();
-
+    //solvent[1].vx = 0.0;
+    for i in 1..numParticles{
+        if (solvent2[i] != solvent[i]){
+            writeln(i," particle different");
+        }
+    }
     var t = 0.0;
     var total_time = 0.0;
     var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
     write_xyz(0);
-    //calc_forces_old();
     calc_forces();
     var vel_mag = 0.0;
     //setting up stopwatch
     xt.start();
     for istep in 1..nsteps {
-        if (istep % print_interval == 0) {
+        //if (istep % print_interval == 0) {
 	    xt.stop();
 	    total_time = xt.elapsed();
             KE_total[istep] = (+ reduce KE);
@@ -195,14 +195,14 @@ proc main () {
                     (max reduce solvent.y),"\t",
                     vel_mag);                    
         xt.start();
-        }
+        //}
 	    ct.start();
         // update positions
         update_position();
-        update_cells();
 
-        //calc_forces_old();
-        calc_forces();
+        //update_cells();
+
+        calc_forces_old();
 
         update_velocities();
         
@@ -217,14 +217,12 @@ proc main () {
     write_macro(nsteps);
     xt.stop();
     writeln("Total Time:",xt.elapsed()," s");
-    //stopVerboseMem();
-    printMemAllocStats();
 }
 
 
 proc update_position() {
     // update positions
-    forall i in 1..numParticles {
+    for i in 1..numParticles {
         solvent[i].x += solvent[i].vx*dt + (solvent[i].fx/2)*(dt**2);
         solvent[i].y += solvent[i].vy*dt + (solvent[i].fy/2)*(dt**2);
         //periodic boundary conditions
@@ -269,6 +267,7 @@ proc update_position() {
 }
 
 proc calc_forces_old () {
+    var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega,alpha,lb,dp,col_prob:real;
     // if (thermo) {
     //     // needed for idiot thermostat
     //     var temp_KE_total = (+ reduce KE);
@@ -280,7 +279,6 @@ proc calc_forces_old () {
     // }
     var Lo2 = L/2.0;
     for i in 1..numParticles {
-        var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega,alpha,lb,dp,col_prob:real;
         // calculating the force
         for j in (i+1)..numParticles {
             dx = solvent[j].x - solvent[i].x;
@@ -340,26 +338,21 @@ proc calc_forces () {
     for ibin in binSpace{
         var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega,alpha,lb,dp,col_prob:real;
         // calculate forces inside this bin
-        if bins[ibin].ncount > 1 { // check if atoms are in this bin
+        if bins[ibin].ncount > 0 { // check if atoms are in this bin
             // iterate over all the atoms in this bin
-            //if (debug) {writeln("in bin int ",bins[ibin].id,"\t",bins[ibin].atoms,"\t");}
-            for icount in 0..bins[ibin].ncount-2 {
-                var i = bins[ibin].atoms[icount];
-                //if (debug) {writeln("icount: ",icount,"\t",bins[ibin].atoms[icount]);}
-                for jcount in icount+1..bins[ibin].ncount-1 {
-                    var j = bins[ibin].atoms[jcount];
-                    //if (debug) {writeln("jcount: ",jcount,"\t",bins[ibin].atoms[jcount]);}
-
+            var inds1 = bins[ibin].atoms.indices; // equivalent to 1..N
+            var inds2 = inds1[1..]; // equivalent to 2..N
+            for i in bins[ibin].atoms[inds1] { 
+                for j in bins[ibin].atoms[inds2] {
+                    if solvent[j].id != solvent[i].id { //make sure we don't iterate over the same atom
                         dx = solvent[j].x - solvent[i].x;
                         dy = solvent[j].y - solvent[i].y;
-                        //if (debug) {writeln(i,"\t",j,"\t",solvent[i].x," ",solvent[i].y,"\t",solvent[j].x," ",solvent[j].y);}
                         r2 = (dx*dx + dy*dy);
                         if (r2 <= r2cut) {
                             // LJ force
                             ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
                             ffx = ffor*dx;
                             ffy = ffor*dy;
-                            if (debug) {writeln(i," ",j," ",ffx," ",ffy);}
                             solvent[i].fx += ffx;
                             solvent[i].fy += ffy;
                             solvent[j].fx -= ffx;
@@ -391,27 +384,21 @@ proc calc_forces () {
                             }
                         }
                     }
+                }
             }
             // calculate forces inside neighbor bins
-            for nab in bins[ibin].neighbors { //loop over each neighboring bin (inab,jnab)
-                var inab = nab[1];
-                var jnab = nab[0];
-                //if (debug) {writeln("current",ibin," neighbor ",nab,"\t",bins[inab,jnab].atoms,"\t",bins[inab,jnab].id);}
-                if ((inab != -1) || (jnab != -1) && (bins[inab,jnab].ncount > 1)) { // checks if neighbor is valid
-                for icount in 1..bins[ibin].ncount { // loop over the atoms in this bin
-                    var i = bins[ibin].atoms[icount-1];
-                    for jcount in 1..bins[inab,jnab].ncount { // loop over all the atoms in the neighboring bin
-                        var j = bins[inab,jnab].atoms[jcount-1];
+            for inab in bins[ibin].neighbors { //loop over each neighboring bin
+                if (inab[0] != -1) || (inab[1] != -1) { // checks if neighbor is valid
+                for i in bins[ibin].atoms { // loop over the atoms in this bin
+                    for j in bins[inab[0],inab[1]].atoms {
                         dx = solvent[j].x - solvent[i].x;
                         dy = solvent[j].y - solvent[i].y;
                         r2 = (dx*dx + dy*dy);
-                        if (debug) {writeln("icount: ",icount,"\t",i,"\tjcount: ",jcount,"\t",j,"\t",r2,"\t",r2cut);}
                         if (r2 <= r2cut) {
                             // LJ force
                             ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
                             ffx = ffor*dx;
                             ffy = ffor*dy;
-                            if (debug) {writeln(i," ",j," ",ffx," ",ffy);}
                             solvent[i].fx += ffx;
                             solvent[i].fy += ffy;
                             solvent[j].fx -= ffx;
@@ -452,7 +439,7 @@ proc calc_forces () {
 
 proc update_velocities() {
     //update velocities
-    forall i in 1..numParticles {
+    for i in 1..numParticles {
         //solvent[i].vx += 0.5*dt*(solvent[i].fxold + solvent[i].fx);
         //solvent[i].vy += 0.5*dt*(solvent[i].fyold + solvent[i].fy);
         //solvent[i].fxold = solvent[i].fx;
@@ -472,23 +459,19 @@ proc update_cells() {
             bins[ibin].atoms.clear();
         }
     }
-
     for i in 1..numParticles { // populating particles into bins
-        var binposx = 1+floor(solvent[i].x/rcut):int;
-        var binposy = 1+floor(solvent[i].y/rcut):int;
-        bins[binposx,binposy].ncount += 1;
-        bins[binposx,binposy].atoms.pushBack(solvent[i].id);
+        var posx = 1+floor(solvent[i].x/rcut):int;
+        var posy = 1+floor(solvent[i].y/rcut):int;
+        bins[posx,posy].ncount += 1;
+        bins[posx,posy].atoms.pushBack(solvent[i].id);
         //writeln(p.id,"\t",posx,"\t",posy,"\t",bins[posx,posy].id," ",bins[posx,posy].ncount);
     }
-    if (debug) {
-        writeln("recalculating bins");
+    /*
         for ibin in binSpace {
             if bins[ibin].ncount > 0 {
-            writeln(bins[ibin].id,"\t",bins[ibin].atoms);
+            writeln(bins[ibin].id,"\t",bins[ibin].atoms,"\t",bins[ibin].atoms.isEmpty());
             }
         }
-    }
-    /*
         //bins[24,24].atoms.clear();
         writeln("*",bins[24,24].atoms,bins[24,24].atoms.isEmpty());
         for a in bins[24,24].atoms {
@@ -524,16 +507,20 @@ proc init_bins() {
         bins[ibin].y[1] = ibin[1]*rcut;
         bins[ibin].id[0] = ibin[0];
         bins[ibin].id[1] = ibin[1];
+        //  8   1   5
+        //  4   *   3
+        //  7   2   6
+        /*  1 = i,j+1
+            2 = i,j-1
+            3 = i+1,j
+            4 = i-1,j
+            5 = i+1,j+1
+            6 = i+1,j-1
+            7 = i-1,j-1
+            8 = i-1,j+1
+        */
         var i = ibin[0];
         var j = ibin[1];
-        //  4   3   2
-        //     *   1
-        //  
-        /*  1 = i+1,j
-            2 = i+1,j+1
-            3 = i,j+1
-            4 = i-1,j+1
-        */
         var ip1,im1,jp1,jm1:int;
         ip1 = i + 1;
         im1 = i - 1;
@@ -551,10 +538,14 @@ proc init_bins() {
         if jm1 == 0{
             jm1 = -1;
         }
-        bins[ibin].neighbors[1] = [ip1,j];
-        bins[ibin].neighbors[2] = [ip1,jp1];
-        bins[ibin].neighbors[3] = [i,jp1];
-        bins[ibin].neighbors[4] = [im1,jp1];
+        bins[ibin].neighbors[1] = [i,jp1];
+        bins[ibin].neighbors[2] = [i,jm1];
+        bins[ibin].neighbors[3] = [ip1,j];
+        bins[ibin].neighbors[4] = [im1,j];
+        bins[ibin].neighbors[5] = [ip1,jp1];
+        bins[ibin].neighbors[6] = [ip1,jm1];
+        bins[ibin].neighbors[7] = [im1,jm1];
+        bins[ibin].neighbors[8] = [im1,jp1];
     }
 }
 
