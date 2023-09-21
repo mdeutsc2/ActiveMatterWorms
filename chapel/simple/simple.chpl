@@ -7,15 +7,14 @@ use List;
 use MemDiagnostics;
 
 
-config const L = 100.0, // size of the simulation box in x and y
-            nsteps = 20000,
-            dt = 0.001,
+config const debug = false, 
+            L = 100.0, // size of the simulation box in x and y
+            nsteps = 2,//0000,
+            dt = 0.0005,//0.001,
             save_interval = 50,
             numParticles = 144, // number of particles
-            thermo = true,
+            thermo = false,
             kbt = 0.5; //reduced temperature
-
-const debug = false;
 
 var hxo2 = L/2,
     sigma = 1.0,
@@ -144,7 +143,7 @@ var randStream = new RandomStream(real); // creating random number generator
 
 proc main () {
     writeln("numBins: ",numBins);
-    //startVerboseMem();
+    startVerboseMem();
     init_bins();
 
     // init particles
@@ -217,7 +216,7 @@ proc main () {
     write_macro(nsteps);
     xt.stop();
     writeln("Total Time:",xt.elapsed()," s");
-    //stopVerboseMem();
+    stopVerboseMem();
     printMemAllocStats();
 }
 
@@ -266,6 +265,53 @@ proc update_position() {
         solvent[i].fy = 0.0;
         solvent[i].fz = 0.0;
     }
+}
+
+proc lj(i,j) {
+    var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,r,rhatx,rhaty,omega,fdissx,fdissy,gauss,frand :real;
+    dx = solvent[j].x - solvent[i].x;
+    dy = solvent[j].y - solvent[i].y;
+    r2 = (dx*dx + dy*dy);
+    //if (debug) {writeln("icount: ",icount,"\t",i,"\tjcount: ",jcount,"\t",j,"\t",r2,"\t",r2cut);}
+    if (r2 <= r2cut) {
+        // LJ force
+        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+        ffx = ffor*dx;
+        ffy = ffor*dy;
+        if (debug) {writeln(i," ",j," ",ffx," ",ffy);}
+        solvent[i].fx += ffx;
+        solvent[i].fy += ffy;
+        solvent[j].fx -= ffx;
+        solvent[j].fy -= ffy;
+        if (thermo) {
+            // DPD thermostat
+            //adding dissipative force
+            dvx = solvent[j].vx - solvent[i].vx;
+            dvy = solvent[j].vy - solvent[i].vy;
+            r = sqrt(r2);
+            rhatx = dx/r;
+            rhaty = dy/r;
+            omega = (1.0-r2/r2cut);
+            fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
+            fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
+            solvent[i].fx -= fdissx;
+            solvent[i].fy -= fdissy;
+            solvent[j].fx += fdissx;
+            solvent[j].fy += fdissy;
+            // adding random forces
+            gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
+            //gauss = randStream.getNext();
+            frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+            solvent[i].fx += frand*rhatx;
+            solvent[i].fy += frand*rhaty;
+            solvent[j].fx -= frand*rhatx;
+            solvent[j].fy -= frand*rhaty;
+        }
+    }
+}
+
+proc wca(i,j) {
+
 }
 
 proc calc_forces_old () {
@@ -338,7 +384,6 @@ proc calc_forces_old () {
 
 proc calc_forces () {
     for ibin in binSpace{
-        var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega,alpha,lb,dp,col_prob:real;
         // calculate forces inside this bin
         if bins[ibin].ncount > 1 { // check if atoms are in this bin
             // iterate over all the atoms in this bin
@@ -348,106 +393,26 @@ proc calc_forces () {
                 //if (debug) {writeln("icount: ",icount,"\t",bins[ibin].atoms[icount]);}
                 for jcount in icount+1..bins[ibin].ncount-1 {
                     var j = bins[ibin].atoms[jcount];
-                    //if (debug) {writeln("jcount: ",jcount,"\t",bins[ibin].atoms[jcount]);}
-
-                        dx = solvent[j].x - solvent[i].x;
-                        dy = solvent[j].y - solvent[i].y;
-                        //if (debug) {writeln(i,"\t",j,"\t",solvent[i].x," ",solvent[i].y,"\t",solvent[j].x," ",solvent[j].y);}
-                        r2 = (dx*dx + dy*dy);
-                        if (r2 <= r2cut) {
-                            // LJ force
-                            ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-                            ffx = ffor*dx;
-                            ffy = ffor*dy;
-                            if (debug) {writeln(i," ",j," ",ffx," ",ffy);}
-                            solvent[i].fx += ffx;
-                            solvent[i].fy += ffy;
-                            solvent[j].fx -= ffx;
-                            solvent[j].fy -= ffy;
-                             if (thermo) {
-                                // DPD thermostat
-                                //adding dissipative force
-                                dvx = solvent[j].vx - solvent[i].vx;
-                                dvy = solvent[j].vy - solvent[i].vy;
-                                r = sqrt(r2);
-                                rhatx = dx/r;
-                                rhaty = dy/r;
-                                omega = (1.0-r2/r2cut);
-                                fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
-                                fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
-                                solvent[i].fx -= fdissx;
-                                solvent[i].fy -= fdissy;
-                                solvent[j].fx += fdissx;
-                                solvent[j].fy += fdissy;
-                                // adding random forces
-                                gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
-                                //gauss = randStream.getNext();
-                                frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
-                                solvent[i].fx += frand*rhatx;
-                                solvent[i].fy += frand*rhaty;
-                                solvent[j].fx -= frand*rhatx;
-                                solvent[j].fy -= frand*rhaty;
-                                
-                            }
-                        }
+                    lj(i,j);
                     }
             }
             // calculate forces inside neighbor bins
             for nab in bins[ibin].neighbors { //loop over each neighboring bin (inab,jnab)
                 var inab = nab[1];
-                var jnab = nab[0];
+                var jnab = nab[2];
                 //if (debug) {writeln("current",ibin," neighbor ",nab,"\t",bins[inab,jnab].atoms,"\t",bins[inab,jnab].id);}
                 if ((inab != -1) || (jnab != -1) && (bins[inab,jnab].ncount > 1)) { // checks if neighbor is valid
                 for icount in 1..bins[ibin].ncount { // loop over the atoms in this bin
                     var i = bins[ibin].atoms[icount-1];
                     for jcount in 1..bins[inab,jnab].ncount { // loop over all the atoms in the neighboring bin
                         var j = bins[inab,jnab].atoms[jcount-1];
-                        dx = solvent[j].x - solvent[i].x;
-                        dy = solvent[j].y - solvent[i].y;
-                        r2 = (dx*dx + dy*dy);
-                        if (debug) {writeln("icount: ",icount,"\t",i,"\tjcount: ",jcount,"\t",j,"\t",r2,"\t",r2cut);}
-                        if (r2 <= r2cut) {
-                            // LJ force
-                            ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-                            ffx = ffor*dx;
-                            ffy = ffor*dy;
-                            if (debug) {writeln(i," ",j," ",ffx," ",ffy);}
-                            solvent[i].fx += ffx;
-                            solvent[i].fy += ffy;
-                            solvent[j].fx -= ffx;
-                            solvent[j].fy -= ffy;
-                             if (thermo) {
-                                // DPD thermostat
-                                //adding dissipative force
-                                dvx = solvent[j].vx - solvent[i].vx;
-                                dvy = solvent[j].vy - solvent[i].vy;
-                                r = sqrt(r2);
-                                rhatx = dx/r;
-                                rhaty = dy/r;
-                                omega = (1.0-r2/r2cut);
-                                fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
-                                fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
-                                solvent[i].fx -= fdissx;
-                                solvent[i].fy -= fdissy;
-                                solvent[j].fx += fdissx;
-                                solvent[j].fy += fdissy;
-                                // adding random forces
-                                gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
-                                //gauss = randStream.getNext();
-                                frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
-                                solvent[i].fx += frand*rhatx;
-                                solvent[i].fy += frand*rhaty;
-                                solvent[j].fx -= frand*rhatx;
-                                solvent[j].fy -= frand*rhaty;
-                                
-                            }
+                        lj(i,j);
                         }
                     }
                 }
                 }
             }
         }
-    }
 }
 
 proc update_velocities() {
@@ -476,6 +441,18 @@ proc update_cells() {
     for i in 1..numParticles { // populating particles into bins
         var binposx = 1+floor(solvent[i].x/rcut):int;
         var binposy = 1+floor(solvent[i].y/rcut):int;
+        if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
+        if (debug) {
+            if (binposx > numBins) {
+                dump_particles();
+            } else if (binposy > numBins) {
+                dump_particles();
+            }else if (binposx < 1) {
+                dump_particles();
+            } else if (binposy < 1) {
+                dump_particles();
+            }
+        }
         bins[binposx,binposy].ncount += 1;
         bins[binposx,binposy].atoms.pushBack(solvent[i].id);
         //writeln(p.id,"\t",posx,"\t",posy,"\t",bins[posx,posy].id," ",bins[posx,posy].ncount);
@@ -605,6 +582,18 @@ proc write_macro(nsteps: int) {
     }
 }
 
+proc dump_particles() {
+    var filename:string = "particles.dump";
+    try {
+        var dfile = open(filename, ioMode.cw);
+        var myFileWriter = dfile.writer();
+        for i in 1..numParticles {
+            myFileWriter.writeln(solvent[i].info());
+        }
+    } catch e: Error {
+        writeln(e);
+    }
+}
 
 // HELPER FUNCTIONS
 proc gaussRand(mean: real, stddev: real): real {

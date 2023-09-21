@@ -1,0 +1,576 @@
+id# 1 	 type: solvent 	 mass: 0.0 
+ pos: 79.0422 	 -0.704567 	 0 
+ vel: 17021.1 	 22055.8 	 0 
+ force: 0 	 0 	 0
+id# 2 	 type: solvent 	 mass: 0.0 
+ pos: 45.3444 	 37.8075 	 0 
+ vel: -0.124637 	 -0.487226 	 0 
+ force: 0 	 0 	 0
+id# 3 	 type: solvent 	 mass: 0.0 
+ pos: 47.5395 	 43.0587 	 0 
+ vel: 0.043998 	 -0.365922 	 0 
+ force: 0 	 0 	 0
+id# 4 	 type: solvent 	 mass: 0.0 
+ pos: 48.8083 	 42.9577 	 0 
+ vel: -0.340384 	 -0.361313 	 0 
+ force: 0 	 0 	 0
+id# 5 	 type: solvent 	 mass: 0.0 
+ pos: 49.9477 	 43.0772 	 0 
+ vel: 0.431008 	 -0.401427 	 0 
+ force: 0 	 0 	 0
+id# 6 	 type: solvent 	 mass: 0.0 
+ pos: 51.1296 	 43.2066 	 0 
+ vel: -0.108372 	 -0.290379 	 0 
+ force: 0 	 0 	 0
+id# 7 	 type: solvent 	 mass: 0.0 
+ pos: 52.4085 	 43.3286 	 0 
+ vel: 0.3125 	 0.5724 	 0 
+ force: 0 	 0 	 0
+id# 8 	 type: solvent 	 mass: 0.0 
+ pos: 53.7391 	 43.1758 	 0 
+ vel: -0.422059 	 0.558711 	 0 
+ force: 0 	 0 	 0
+id# 9 	 type: solvent 	 mass: 0.0 
+ pos: 54.8656 	 43.4369 	 0 
+ vel: -0.0598753 	 -0.209738 	 0 
+ force: 0 	 0 	 0
+id# 10 	 type: solvent 	 mass: 0.0 
+ pos: 55.8695 	 43.561 	 0 
+ vel: -0.975233 	 -0.0362802 	 0 
+ force: 0 	 0 	 0
+id# 11 	 type: solvent 	 mass: 0.0 
+ pos: 57.2827 	 43.7058 	 0 
+ vel: -0.372103 	 0.168343 	 0 
+ force: 0 	 0 	 0
+id# 12 	 type: solvent 	 mass: 0.0 
+ pos: 44.9569 	 40.1352 	 0 
+ vel: 0.111639 	 -0.33857 	 0 
+ force: 0 	 0 	 0
+id# 13 	 type: solvent 	 mass: 0.0 
+ pos: 45.0378 	 44.4857 	 0 
+ vel: -0.263475 	 -0.491098 	 0 
+ force: 0 	 0 	 0
+id# 14 	 type: solvent 	 mass: 0.0 
+ pos: 46.0655 	 43.8515 	 0 
+ vel: -0.717645 	 -0.131889 	 0 
+ force: 0 	 0 	 0
+id# 15 	 type: solvent 	 mass: 0.0 
+ pos: 47.2126 	 44.1698 	 0 
+ vel: -0.0632662 	 -0.783164 	 0 
+ force: 0 	 0 	 0
+id# 16 	 type: solvent 	 mass: 0.0 
+ pos: 48.266 	 43.9488 	 0 
+ vel: -0.616308 	 -0.242717 	 0 
+ force: 0 	 0 	 0
+id# 17 	 type: solvent 	 mass: 0.0 
+ pos: 49.4045 	 44.0514 	 0 
+ vel: -0.242025 	 0.0690193 	 0 
+ force: 0 	 0 	 0
+id# 18 	 type: solvent 	 mass: 0.0 
+ pos: 50.5223 	 44.1368 	 0 
+ vel: 0.527841 	 0.213907 	 0 
+ force: 0 	 0 	 0
+id# 19 	 type: solvent 	 mass: 0.0 
+ pos: 51.6964 	 44.1284 	 0 
+ vel: 0.102807 	 0.0492412 	 0 
+ force: 0 	 0 	 0
+id# 20 	 type: solvent 	 mass: 0.0 
+ pos: 52.974 	 44.2158 	 0 
+ vel: 0.0714561 	 -0.747009 	 0 
+ force: 0 	 0 	 0
+id# 21 	 type: solvent 	 mass: 0.0 
+ pos: 54.1504 	 44.2952 	 0 
+ vel: 0.791429 	 0.231464 	 0 
+ force: 0 	 0 	 0
+id# 22 	 type: solvent 	 mass: 0.0 
+ pos: 55.3684 	 44.4565 	 0 
+ vel: -0.142449 	 0.532251 	 0 
+ force: 0 	 0 	 0
+id# 23 	 type: solvent 	 mass: 0.0 
+ pos: 56.4194 	 44.5539 	 0 
+ vel: 0.53571 	 -0.624924 	 0 
+ force: 0 	 0 	 0
+id# 24 	 type: solvent 	 mass: 0.0 
+ pos: 10.7488 	 87.7886 	 0 
+ vel: -17021.2 	 22055.6 	 0 
+ force: 0 	 0 	 0
+id# 25 	 type: solvent 	 mass: 0.0 
+ pos: 45.079 	 45.5644 	 0 
+ vel: 0.218143 	 0.44226 	 0 
+ force: 0 	 0 	 0
+id# 26 	 type: solvent 	 mass: 0.0 
+ pos: 46.1615 	 45.0814 	 0 
+ vel: 0.0652248 	 0.102301 	 0 
+ force: 0 	 0 	 0
+id# 27 	 type: solvent 	 mass: 0.0 
+ pos: 47.0347 	 45.644 	 0 
+ vel: -0.975283 	 -0.761898 	 0 
+ force: 0 	 0 	 0
+id# 28 	 type: solvent 	 mass: 0.0 
+ pos: 48.6952 	 45.1309 	 0 
+ vel: -0.0784167 	 -0.41706 	 0 
+ force: 0 	 0 	 0
+id# 29 	 type: solvent 	 mass: 0.0 
+ pos: 49.821 	 45.0567 	 0 
+ vel: 0.109662 	 0.253436 	 0 
+ force: 0 	 0 	 0
+id# 30 	 type: solvent 	 mass: 0.0 
+ pos: 51.1622 	 45.0812 	 0 
+ vel: -0.100498 	 0.79713 	 0 
+ force: 0 	 0 	 0
+id# 31 	 type: solvent 	 mass: 0.0 
+ pos: 52.3277 	 45.1413 	 0 
+ vel: 0.0765666 	 -0.183928 	 0 
+ force: 0 	 0 	 0
+id# 32 	 type: solvent 	 mass: 0.0 
+ pos: 53.451 	 45.2477 	 0 
+ vel: -0.0903678 	 -1.11182 	 0 
+ force: 0 	 0 	 0
+id# 33 	 type: solvent 	 mass: 0.0 
+ pos: 54.4755 	 45.3563 	 0 
+ vel: -0.219382 	 0.273627 	 0 
+ force: 0 	 0 	 0
+id# 34 	 type: solvent 	 mass: 0.0 
+ pos: 55.7095 	 45.4768 	 0 
+ vel: -0.884422 	 -0.894706 	 0 
+ force: 0 	 0 	 0
+id# 35 	 type: solvent 	 mass: 0.0 
+ pos: 56.8689 	 45.5605 	 0 
+ vel: 0.588588 	 -0.701285 	 0 
+ force: 0 	 0 	 0
+id# 36 	 type: solvent 	 mass: 0.0 
+ pos: 43.8833 	 47.0394 	 0 
+ vel: -0.470068 	 0.905538 	 0 
+ force: 0 	 0 	 0
+id# 37 	 type: solvent 	 mass: 0.0 
+ pos: 45.184 	 46.9235 	 0 
+ vel: 0.512193 	 0.445735 	 0 
+ force: 0 	 0 	 0
+id# 38 	 type: solvent 	 mass: 0.0 
+ pos: 46.0509 	 46.1755 	 0 
+ vel: -0.121144 	 0.160626 	 0 
+ force: 0 	 0 	 0
+id# 39 	 type: solvent 	 mass: 0.0 
+ pos: 47.0885 	 46.77 	 0 
+ vel: -0.000910875 	 -0.185506 	 0 
+ force: 0 	 0 	 0
+id# 40 	 type: solvent 	 mass: 0.0 
+ pos: 48.0573 	 45.9752 	 0 
+ vel: 0.12701 	 -0.619865 	 0 
+ force: 0 	 0 	 0
+id# 41 	 type: solvent 	 mass: 0.0 
+ pos: 49.296 	 46.0279 	 0 
+ vel: -0.187833 	 -1.17124 	 0 
+ force: 0 	 0 	 0
+id# 42 	 type: solvent 	 mass: 0.0 
+ pos: 50.4863 	 45.9461 	 0 
+ vel: 0.345305 	 0.142873 	 0 
+ force: 0 	 0 	 0
+id# 43 	 type: solvent 	 mass: 0.0 
+ pos: 51.6248 	 46.1066 	 0 
+ vel: 0.197174 	 -0.516266 	 0 
+ force: 0 	 0 	 0
+id# 44 	 type: solvent 	 mass: 0.0 
+ pos: 52.816 	 46.2094 	 0 
+ vel: -0.298944 	 -0.298893 	 0 
+ force: 0 	 0 	 0
+id# 45 	 type: solvent 	 mass: 0.0 
+ pos: 53.8492 	 46.3123 	 0 
+ vel: 0.588233 	 -0.00875142 	 0 
+ force: 0 	 0 	 0
+id# 46 	 type: solvent 	 mass: 0.0 
+ pos: 54.9458 	 46.3421 	 0 
+ vel: -0.0522716 	 0.617048 	 0 
+ force: 0 	 0 	 0
+id# 47 	 type: solvent 	 mass: 0.0 
+ pos: 56.0503 	 46.4448 	 0 
+ vel: -0.30732 	 -0.481697 	 0 
+ force: 0 	 0 	 0
+id# 48 	 type: solvent 	 mass: 0.0 
+ pos: 44.2678 	 47.6295 	 0 
+ vel: -0.0531997 	 0.367044 	 0 
+ force: 0 	 0 	 0
+id# 49 	 type: solvent 	 mass: 0.0 
+ pos: 45.2907 	 48.0898 	 0 
+ vel: -0.0771569 	 -1.6028 	 0 
+ force: 0 	 0 	 0
+id# 50 	 type: solvent 	 mass: 0.0 
+ pos: 46.2202 	 47.359 	 0 
+ vel: -0.116243 	 -0.0808358 	 0 
+ force: 0 	 0 	 0
+id# 51 	 type: solvent 	 mass: 0.0 
+ pos: 47.2235 	 47.8075 	 0 
+ vel: -0.367548 	 0.452393 	 0 
+ force: 0 	 0 	 0
+id# 52 	 type: solvent 	 mass: 0.0 
+ pos: 48.1495 	 47.162 	 0 
+ vel: 0.461792 	 0.257255 	 0 
+ force: 0 	 0 	 0
+id# 53 	 type: solvent 	 mass: 0.0 
+ pos: 49.9499 	 46.9671 	 0 
+ vel: 0.259025 	 0.087329 	 0 
+ force: 0 	 0 	 0
+id# 54 	 type: solvent 	 mass: 0.0 
+ pos: 51.0831 	 47.0414 	 0 
+ vel: -0.597822 	 -0.0775989 	 0 
+ force: 0 	 0 	 0
+id# 55 	 type: solvent 	 mass: 0.0 
+ pos: 52.1742 	 47.1053 	 0 
+ vel: 0.354335 	 0.103096 	 0 
+ force: 0 	 0 	 0
+id# 56 	 type: solvent 	 mass: 0.0 
+ pos: 53.2138 	 47.2207 	 0 
+ vel: 0.228447 	 -0.683276 	 0 
+ force: 0 	 0 	 0
+id# 57 	 type: solvent 	 mass: 0.0 
+ pos: 54.3722 	 47.285 	 0 
+ vel: -0.0171051 	 -0.0545036 	 0 
+ force: 0 	 0 	 0
+id# 58 	 type: solvent 	 mass: 0.0 
+ pos: 55.429 	 47.3725 	 0 
+ vel: -0.060316 	 -0.235648 	 0 
+ force: 0 	 0 	 0
+id# 59 	 type: solvent 	 mass: 0.0 
+ pos: 56.5372 	 47.3882 	 0 
+ vel: 0.530045 	 0.881172 	 0 
+ force: 0 	 0 	 0
+id# 60 	 type: solvent 	 mass: 0.0 
+ pos: 44.1816 	 48.8626 	 0 
+ vel: -0.208078 	 0.527166 	 0 
+ force: 0 	 0 	 0
+id# 61 	 type: solvent 	 mass: 0.0 
+ pos: 45.3988 	 49.1902 	 0 
+ vel: 0.115198 	 -0.951889 	 0 
+ force: 0 	 0 	 0
+id# 62 	 type: solvent 	 mass: 0.0 
+ pos: 46.2561 	 48.5226 	 0 
+ vel: -0.096987 	 -1.15502 	 0 
+ force: 0 	 0 	 0
+id# 63 	 type: solvent 	 mass: 0.0 
+ pos: 47.3392 	 48.922 	 0 
+ vel: 0.247334 	 0.492205 	 0 
+ force: 0 	 0 	 0
+id# 64 	 type: solvent 	 mass: 0.0 
+ pos: 48.2191 	 48.2866 	 0 
+ vel: 0.222404 	 0.671863 	 0 
+ force: 0 	 0 	 0
+id# 65 	 type: solvent 	 mass: 0.0 
+ pos: 49.2437 	 47.747 	 0 
+ vel: 0.554375 	 -0.660958 	 0 
+ force: 0 	 0 	 0
+id# 66 	 type: solvent 	 mass: 0.0 
+ pos: 50.3862 	 47.9732 	 0 
+ vel: -0.685036 	 -1.27549 	 0 
+ force: 0 	 0 	 0
+id# 67 	 type: solvent 	 mass: 0.0 
+ pos: 51.5085 	 48.0212 	 0 
+ vel: 0.755733 	 0.379341 	 0 
+ force: 0 	 0 	 0
+id# 68 	 type: solvent 	 mass: 0.0 
+ pos: 52.6847 	 48.19 	 0 
+ vel: -0.154331 	 0.264764 	 0 
+ force: 0 	 0 	 0
+id# 69 	 type: solvent 	 mass: 0.0 
+ pos: 53.8436 	 48.2933 	 0 
+ vel: 1.00379 	 0.313222 	 0 
+ force: 0 	 0 	 0
+id# 70 	 type: solvent 	 mass: 0.0 
+ pos: 54.9319 	 48.6062 	 0 
+ vel: 0.493175 	 0.413142 	 0 
+ force: 0 	 0 	 0
+id# 71 	 type: solvent 	 mass: 0.0 
+ pos: 56.1168 	 48.4448 	 0 
+ vel: -0.89103 	 -0.107705 	 0 
+ force: 0 	 0 	 0
+id# 72 	 type: solvent 	 mass: 0.0 
+ pos: 44.6936 	 49.9784 	 0 
+ vel: -0.911388 	 0.208799 	 0 
+ force: 0 	 0 	 0
+id# 73 	 type: solvent 	 mass: 0.0 
+ pos: 45.6006 	 50.4053 	 0 
+ vel: 0.168829 	 0.651266 	 0 
+ force: 0 	 0 	 0
+id# 74 	 type: solvent 	 mass: 0.0 
+ pos: 46.4455 	 49.5743 	 0 
+ vel: 0.533167 	 -0.833567 	 0 
+ force: 0 	 0 	 0
+id# 75 	 type: solvent 	 mass: 0.0 
+ pos: 47.4732 	 50.0563 	 0 
+ vel: -0.249838 	 0.0699737 	 0 
+ force: 0 	 0 	 0
+id# 76 	 type: solvent 	 mass: 0.0 
+ pos: 48.3926 	 49.3537 	 0 
+ vel: -0.376947 	 0.0168553 	 0 
+ force: 0 	 0 	 0
+id# 77 	 type: solvent 	 mass: 0.0 
+ pos: 49.595 	 48.8429 	 0 
+ vel: 0.375359 	 -0.396961 	 0 
+ force: 0 	 0 	 0
+id# 78 	 type: solvent 	 mass: 0.0 
+ pos: 50.8244 	 49.0256 	 0 
+ vel: 0.69109 	 -0.611032 	 0 
+ force: 0 	 0 	 0
+id# 79 	 type: solvent 	 mass: 0.0 
+ pos: 51.9048 	 49.0833 	 0 
+ vel: -0.0590119 	 0.0519573 	 0 
+ force: 0 	 0 	 0
+id# 80 	 type: solvent 	 mass: 0.0 
+ pos: 53.1037 	 49.1987 	 0 
+ vel: 0.797857 	 0.309751 	 0 
+ force: 0 	 0 	 0
+id# 81 	 type: solvent 	 mass: 0.0 
+ pos: 53.3639 	 50.3132 	 0 
+ vel: -0.205082 	 0.844624 	 0 
+ force: 0 	 0 	 0
+id# 82 	 type: solvent 	 mass: 0.0 
+ pos: 54.1121 	 49.3861 	 0 
+ vel: -1.68307 	 -1.80139 	 0 
+ force: 0 	 0 	 0
+id# 83 	 type: solvent 	 mass: 0.0 
+ pos: 55.5812 	 49.4725 	 0 
+ vel: -0.550985 	 -0.592417 	 0 
+ force: 0 	 0 	 0
+id# 84 	 type: solvent 	 mass: 0.0 
+ pos: 44.4487 	 51.1988 	 0 
+ vel: -1.5052 	 0.0835457 	 0 
+ force: 0 	 0 	 0
+id# 85 	 type: solvent 	 mass: 0.0 
+ pos: 45.812 	 51.5425 	 0 
+ vel: -0.000127127 	 -0.243812 	 0 
+ force: 0 	 0 	 0
+id# 86 	 type: solvent 	 mass: 0.0 
+ pos: 46.5973 	 50.7941 	 0 
+ vel: 0.389519 	 -0.955344 	 0 
+ force: 0 	 0 	 0
+id# 87 	 type: solvent 	 mass: 0.0 
+ pos: 47.6021 	 51.1278 	 0 
+ vel: 0.662111 	 0.568239 	 0 
+ force: 0 	 0 	 0
+id# 88 	 type: solvent 	 mass: 0.0 
+ pos: 48.4554 	 50.3879 	 0 
+ vel: 0.759573 	 -0.317252 	 0 
+ force: 0 	 0 	 0
+id# 89 	 type: solvent 	 mass: 0.0 
+ pos: 49.5062 	 50.6491 	 0 
+ vel: 0.249478 	 0.501959 	 0 
+ force: 0 	 0 	 0
+id# 90 	 type: solvent 	 mass: 0.0 
+ pos: 50.1835 	 49.8355 	 0 
+ vel: -0.127196 	 -0.136549 	 0 
+ force: 0 	 0 	 0
+id# 91 	 type: solvent 	 mass: 0.0 
+ pos: 51.1845 	 50.1668 	 0 
+ vel: -0.128737 	 -0.308143 	 0 
+ force: 0 	 0 	 0
+id# 92 	 type: solvent 	 mass: 0.0 
+ pos: 52.274 	 50.1321 	 0 
+ vel: -0.614461 	 -0.476675 	 0 
+ force: 0 	 0 	 0
+id# 93 	 type: solvent 	 mass: 0.0 
+ pos: 53.7568 	 51.3468 	 0 
+ vel: 0.413868 	 0.18715 	 0 
+ force: 0 	 0 	 0
+id# 94 	 type: solvent 	 mass: 0.0 
+ pos: 54.4611 	 50.3602 	 0 
+ vel: 0.0193143 	 -0.210631 	 0 
+ force: 0 	 0 	 0
+id# 95 	 type: solvent 	 mass: 0.0 
+ pos: 55.6497 	 50.7414 	 0 
+ vel: 0.0677106 	 -0.131473 	 0 
+ force: 0 	 0 	 0
+id# 96 	 type: solvent 	 mass: 0.0 
+ pos: 44.8778 	 52.1327 	 0 
+ vel: -0.134035 	 0.00596534 	 0 
+ force: 0 	 0 	 0
+id# 97 	 type: solvent 	 mass: 0.0 
+ pos: 46.0303 	 52.6524 	 0 
+ vel: -0.940539 	 -0.315955 	 0 
+ force: 0 	 0 	 0
+id# 98 	 type: solvent 	 mass: 0.0 
+ pos: 46.8473 	 51.9772 	 0 
+ vel: 0.693837 	 0.806797 	 0 
+ force: 0 	 0 	 0
+id# 99 	 type: solvent 	 mass: 0.0 
+ pos: 47.8996 	 52.2553 	 0 
+ vel: 0.151236 	 -0.364987 	 0 
+ force: 0 	 0 	 0
+id# 100 	 type: solvent 	 mass: 0.0 
+ pos: 48.7194 	 51.389 	 0 
+ vel: 0.579308 	 0.204581 	 0 
+ force: 0 	 0 	 0
+id# 101 	 type: solvent 	 mass: 0.0 
+ pos: 49.8649 	 51.8196 	 0 
+ vel: 0.0367157 	 0.666125 	 0 
+ force: 0 	 0 	 0
+id# 102 	 type: solvent 	 mass: 0.0 
+ pos: 50.5675 	 50.9952 	 0 
+ vel: 0.513695 	 0.825675 	 0 
+ force: 0 	 0 	 0
+id# 103 	 type: solvent 	 mass: 0.0 
+ pos: 51.7124 	 51.0941 	 0 
+ vel: -0.884843 	 0.800949 	 0 
+ force: 0 	 0 	 0
+id# 104 	 type: solvent 	 mass: 0.0 
+ pos: 52.7025 	 51.2514 	 0 
+ vel: -0.118012 	 0.0643773 	 0 
+ force: 0 	 0 	 0
+id# 105 	 type: solvent 	 mass: 0.0 
+ pos: 53.1052 	 52.3365 	 0 
+ vel: 0.261126 	 -0.297613 	 0 
+ force: 0 	 0 	 0
+id# 106 	 type: solvent 	 mass: 0.0 
+ pos: 54.8756 	 51.5246 	 0 
+ vel: 0.148042 	 0.027922 	 0 
+ force: 0 	 0 	 0
+id# 107 	 type: solvent 	 mass: 0.0 
+ pos: 55.3189 	 52.5273 	 0 
+ vel: 0.592895 	 -0.0514652 	 0 
+ force: 0 	 0 	 0
+id# 108 	 type: solvent 	 mass: 0.0 
+ pos: 45.2844 	 53.4632 	 0 
+ vel: -0.581962 	 0.0313298 	 0 
+ force: 0 	 0 	 0
+id# 109 	 type: solvent 	 mass: 0.0 
+ pos: 46.3986 	 53.9269 	 0 
+ vel: 0.0557827 	 -0.648373 	 0 
+ force: 0 	 0 	 0
+id# 110 	 type: solvent 	 mass: 0.0 
+ pos: 47.1458 	 53.16 	 0 
+ vel: 0.911686 	 0.276309 	 0 
+ force: 0 	 0 	 0
+id# 111 	 type: solvent 	 mass: 0.0 
+ pos: 48.2622 	 53.3106 	 0 
+ vel: -0.0558055 	 -0.725254 	 0 
+ force: 0 	 0 	 0
+id# 112 	 type: solvent 	 mass: 0.0 
+ pos: 48.9873 	 52.4733 	 0 
+ vel: 0.327532 	 0.828117 	 0 
+ force: 0 	 0 	 0
+id# 113 	 type: solvent 	 mass: 0.0 
+ pos: 50.1091 	 52.9643 	 0 
+ vel: -0.153084 	 0.054995 	 0 
+ force: 0 	 0 	 0
+id# 114 	 type: solvent 	 mass: 0.0 
+ pos: 50.9425 	 52.0904 	 0 
+ vel: -0.228862 	 -0.0511479 	 0 
+ force: 0 	 0 	 0
+id# 115 	 type: solvent 	 mass: 0.0 
+ pos: 52.005 	 52.1467 	 0 
+ vel: -0.999842 	 1.30575 	 0 
+ force: 0 	 0 	 0
+id# 116 	 type: solvent 	 mass: 0.0 
+ pos: 52.4274 	 53.2544 	 0 
+ vel: -0.640552 	 0.625009 	 0 
+ force: 0 	 0 	 0
+id# 117 	 type: solvent 	 mass: 0.0 
+ pos: 53.5621 	 53.3626 	 0 
+ vel: -0.126621 	 -0.223854 	 0 
+ force: 0 	 0 	 0
+id# 118 	 type: solvent 	 mass: 0.0 
+ pos: 54.1846 	 52.3349 	 0 
+ vel: -0.34574 	 0.105363 	 0 
+ force: 0 	 0 	 0
+id# 119 	 type: solvent 	 mass: 0.0 
+ pos: 55.9908 	 53.4057 	 0 
+ vel: 0.326814 	 0.00562603 	 0 
+ force: 0 	 0 	 0
+id# 120 	 type: solvent 	 mass: 0.0 
+ pos: 45.4575 	 54.7074 	 0 
+ vel: -0.291056 	 -0.0356968 	 0 
+ force: 0 	 0 	 0
+id# 121 	 type: solvent 	 mass: 0.0 
+ pos: 46.495 	 54.98 	 0 
+ vel: 0.024268 	 -0.814962 	 0 
+ force: 0 	 0 	 0
+id# 122 	 type: solvent 	 mass: 0.0 
+ pos: 47.5018 	 54.2347 	 0 
+ vel: 0.842172 	 0.445074 	 0 
+ force: 0 	 0 	 0
+id# 123 	 type: solvent 	 mass: 0.0 
+ pos: 48.5247 	 54.6819 	 0 
+ vel: 0.107664 	 1.01684 	 0 
+ force: 0 	 0 	 0
+id# 124 	 type: solvent 	 mass: 0.0 
+ pos: 49.2341 	 53.6685 	 0 
+ vel: -0.00910489 	 0.338988 	 0 
+ force: 0 	 0 	 0
+id# 125 	 type: solvent 	 mass: 0.0 
+ pos: 50.6568 	 54.3626 	 0 
+ vel: 0.53025 	 0.877429 	 0 
+ force: 0 	 0 	 0
+id# 126 	 type: solvent 	 mass: 0.0 
+ pos: 51.3143 	 53.0632 	 0 
+ vel: 0.718705 	 -0.184445 	 0 
+ force: 0 	 0 	 0
+id# 127 	 type: solvent 	 mass: 0.0 
+ pos: 51.7649 	 54.3078 	 0 
+ vel: -0.060613 	 0.60622 	 0 
+ force: 0 	 0 	 0
+id# 128 	 type: solvent 	 mass: 0.0 
+ pos: 52.9192 	 54.2726 	 0 
+ vel: -0.659735 	 0.31891 	 0 
+ force: 0 	 0 	 0
+id# 129 	 type: solvent 	 mass: 0.0 
+ pos: 54.0822 	 54.4836 	 0 
+ vel: 0.877246 	 -0.19764 	 0 
+ force: 0 	 0 	 0
+id# 130 	 type: solvent 	 mass: 0.0 
+ pos: 54.827 	 53.4967 	 0 
+ vel: -0.952789 	 0.390793 	 0 
+ force: 0 	 0 	 0
+id# 131 	 type: solvent 	 mass: 0.0 
+ pos: 57.1328 	 54.9898 	 0 
+ vel: 0.723948 	 0.516806 	 0 
+ force: 0 	 0 	 0
+id# 132 	 type: solvent 	 mass: 0.0 
+ pos: 44.3427 	 53.0907 	 0 
+ vel: -0.995336 	 -0.64252 	 0 
+ force: 0 	 0 	 0
+id# 133 	 type: solvent 	 mass: 0.0 
+ pos: 45.6468 	 55.8335 	 0 
+ vel: -1.31892 	 1.32825 	 0 
+ force: 0 	 0 	 0
+id# 134 	 type: solvent 	 mass: 0.0 
+ pos: 46.7313 	 56.2636 	 0 
+ vel: 0.0625367 	 0.315785 	 0 
+ force: 0 	 0 	 0
+id# 135 	 type: solvent 	 mass: 0.0 
+ pos: 47.5505 	 55.3894 	 0 
+ vel: 0.785417 	 -0.248042 	 0 
+ force: 0 	 0 	 0
+id# 136 	 type: solvent 	 mass: 0.0 
+ pos: 48.5353 	 55.8706 	 0 
+ vel: -0.255882 	 0.254024 	 0 
+ force: 0 	 0 	 0
+id# 137 	 type: solvent 	 mass: 0.0 
+ pos: 49.6159 	 54.634 	 0 
+ vel: 0.307719 	 -0.147302 	 0 
+ force: 0 	 0 	 0
+id# 138 	 type: solvent 	 mass: 0.0 
+ pos: 50.2508 	 55.4805 	 0 
+ vel: 0.0411799 	 0.335597 	 0 
+ force: 0 	 0 	 0
+id# 139 	 type: solvent 	 mass: 0.0 
+ pos: 51.7534 	 55.4158 	 0 
+ vel: -0.764851 	 0.36512 	 0 
+ force: 0 	 0 	 0
+id# 140 	 type: solvent 	 mass: 0.0 
+ pos: 53.757 	 56.7655 	 0 
+ vel: 0.314576 	 1.03442 	 0 
+ force: 0 	 0 	 0
+id# 141 	 type: solvent 	 mass: 0.0 
+ pos: 54.4943 	 55.4441 	 0 
+ vel: -0.456579 	 -0.00945917 	 0 
+ force: 0 	 0 	 0
+id# 142 	 type: solvent 	 mass: 0.0 
+ pos: 56.1054 	 54.4666 	 0 
+ vel: 0.848598 	 0.578293 	 0 
+ force: 0 	 0 	 0
+id# 143 	 type: solvent 	 mass: 0.0 
+ pos: 57.6149 	 57.0104 	 0 
+ vel: 2.57566 	 1.88805 	 0 
+ force: 0 	 0 	 0
+id# 144 	 type: solvent 	 mass: 0.0 
+ pos: 44.4692 	 54.1591 	 0 
+ vel: 0.994222 	 -0.58587 	 0 
+ force: 0 	 0 	 0

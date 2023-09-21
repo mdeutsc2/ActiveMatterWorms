@@ -1,8 +1,8 @@
 # Makefile for compiling simple.chpl with Chapel compiler
 
 CHPL = chpl
-#CHPLFLAGS = --fast --optimize --print-passes --print-commands
-CHPLFLAGS = -g --print-passes --print-commands
+CHPLFLAGS = --fast --optimize --print-passes --print-commands
+DEBUGFLAGS = -g --savec=c_srcs --print-passes --print-commands --checks --print-callstack-on-error
 
 SOURCE = simple.chpl
 OUTPUT = simple.x
@@ -11,3 +11,6 @@ all: $(OUTPUT)
 
 $(OUTPUT): $(SOURCE)
 	$(CHPL) $(CHPLFLAGS) $(SOURCE) -o $(OUTPUT)
+
+debug: $(SOURCE)
+	$(CHPL) $(DEBUGFLAGS) $(SOURCE) -o $(OUTPUT)
