@@ -7,24 +7,25 @@ use List;
 
 config const debug = false, 
             L = 100.0, // size of the simulation box in x and y
-            nsteps = 2,//0000,
-            dt = 0.00025,//0.001,
-            save_interval = 50,
+            nsteps = 1600000,
+            dt = 0.001,
+            save_interval = 5000,
             numParticles = 144, // number of particles
             thermo = false,
             kbt = 0.5; //reduced temperature
 
 var hxo2 = L/2,
-    sigma = 2.0,
+    sigma = 1.0,
     rcut = 2.5*sigma,
     r2cut = rcut**2,
     rcutsmall = sigma*2.0**(1.0/6.0),
     r2cutsmall = rcutsmall*rcutsmall,
     pi = 4.0*atan(1.0),
-    gamma = 1.5,
-    print_interval = 10;
+    gamma = 3.0, //1.5
+    print_interval = 500;
 
 var ptc_init_counter = 1;
+
 record Particle {
     var id: int;
     var x,y,z: real;
@@ -39,19 +40,15 @@ record Particle {
         ptc_init_counter += 1;
         this.x = 0.0;
         this.y = 0.0;
-        this.z = 0.0;
         this.vx = 0.0;
         this.vy = 0.0;
-        this.vz = 0.0;
         this.vxave = 0.0;
         this.vyave = 0.0;
         this.vzave = 0.0;
         this.fx = 0.0;
         this.fy = 0.0;
-        this.fz = 0.0;
         this.fxold = 0.0;
         this.fyold = 0.0;
-        this.fzold = 0.0;
         this.ptype = -1;
     }
     proc info() {
@@ -65,49 +62,41 @@ record Particle {
         } else {
             typestring = "unassigned";
         }
-        var s:string = "id# %i \t type: %s \t mass: %s \n pos: %r \t %r \t %r \n vel: %r \t %r \t %r \n force: %r \t %r \t %r".format(this.id,typestring,this.m,this.x,this.y,this.z,this.vx,this.vy,this.vz,this.fx,this.fy,this.fz);
+        var s:string = "id# %i \t type: %s \t mass: %s \n pos: %r \t %r \t %r \n vel: %r \t %r \t %r \n force: %r \t %r \t %r".format(this.id,typestring,this.m,this.x,this.y,this.vx,this.vy,this.fx,this.fy);
         return s;
     }
-    proc p(px: real, py: real, pz: real) {
+    proc p(px: real, py: real) {
         this.x = px;
         this.y = py;
-        this.z = pz;
     }
     proc p() {
         return (this.x,this.y,this.z);
     }
-    proc v(velx: real, vely:real, velz:real) {
+    proc v(velx: real, vely:real) {
         this.vx = velx;
         this.vy = vely;
-        this.vz = velz;
     }
     proc v() {
-        return (this.vx,this.vy,this.vz);
+        return (this.vx,this.vy);
     }
-    proc f(forcex:real,forcey:real,forcez:real) {
+    proc f(forcex:real,forcey:real) {
         this.fx = forcex;
         this.fy = forcey;
-        this.fz = forcez;
     }
     proc f() {
-        return (this.fx,this.fy,this.fz);
+        return (this.fx,this.fy);
     }
     proc set(p: Particle) {
         this.x = p.x;
         this.y = p.y;
-        this.z = p.z;
         this.vx = p.vx;
         this.vy = p.vy;
-        this.vz = p.vz;
         this.vxave = p.vxave;
         this.vyave = p.vyave;
-        this.vzave = p.vzave;
         this.fx = p.fx;
         this.fy = p.fy;
-        this.fz = p.fz;
         this.fxold = p.fxold;
         this.fyold = p.fyold;
-        this.fzold = p.fzold;
     }
 }
 
@@ -136,7 +125,7 @@ var solvent: [1..numParticles] Particle;
 var KE: [1..numParticles] real;
 var KE_total: [1..nsteps] real;
 
-var numBins = ceil(L/rcutsmall):int;
+var numBins = ceil(L/rcut):int;
 //const binSpace = {1..numBins, 1..numBins};
 const binSpace = {1..numBins*numBins};
 var bins : [1..numBins*numBins] Bin;
@@ -151,18 +140,24 @@ proc main () {
     if (numParticles != sqrt(numParticles)*sqrt(numParticles)) {writeln("non-square numParticles");halt();}
     var row_length = sqrt(numParticles):int;
     var row,col,center,spacing :real;
-    spacing = 0.75;
+    spacing = 1.0;
     center = hxo2 - spacing*(row_length/2);
     for i in 1..numParticles {
         row = i % row_length;
         col = ((i - row)/row_length)-1;
         solvent[i].x = center + spacing*rcutsmall*row;
         solvent[i].y = center + spacing*rcutsmall*col;
-        solvent[i].vx = 0.01;//*gaussRand(0.0,1.0);
-        solvent[i].vy = 0.0;//0.1*gaussRand(0.0,1.0);
+        solvent[i].vx = 0.1*gaussRand(0.0,1.0);
+        solvent[i].vy = 0.1*gaussRand(0.0,1.0);
         solvent[i].ptype = 2;
         //KE[i] = 0.0;
         KE[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
+    }
+    var vxave = (+ reduce solvent.vx)/numParticles;
+    var vyave = (+ reduce solvent.vy)/numParticles;
+    for i in 1..numParticles {
+        solvent[i].vx = solvent[i].vx - vxave;
+        solvent[i].vy = solvent[i].vy - vyave;
     }
     
     // init randomly
@@ -252,7 +247,6 @@ proc update_position() {
         }
         solvent[i].fx = 0.0;
         solvent[i].fy = 0.0;
-        solvent[i].fz = 0.0;
     }
 }
 
@@ -262,7 +256,7 @@ proc lj(i,j) {
     dy = solvent[j].y - solvent[i].y;
     r2 = (dx*dx + dy*dy);
     //if (debug) {writeln("icount: ",icount,"\t",i,"\tjcount: ",jcount,"\t",j,"\t",r2,"\t",r2cut);}
-    if (r2 <= r2cutsmall) {
+    if (r2 <= r2cut) {
         // LJ force
         ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
         ffx = ffor*dx;
@@ -465,7 +459,7 @@ proc calc_forces() {
 
     // odd neighbors to the NE (2) (i+1,j+1)
     for ibin in 1..numBins by 2 {
-        for jbin in 1..numBins by 2 {
+        for jbin in 1..numBins {
             var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[2];
             if (binidnbor != -1) {
@@ -483,8 +477,8 @@ proc calc_forces() {
     }
 
     // even neighbors to the NE (2)
-    for ibin in 2..numBins by 2 {
-        for jbin in 2..numBins by 2 {
+    for ibin in 2..numBins by 2 { // can we do this with every i, but every other j?
+        for jbin in 1..numBins {
             var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[2];
             if (binidnbor != -1) { // check if neighbor is valid
@@ -544,7 +538,7 @@ proc calc_forces() {
 
     // odd neighbors to the NW (4)
     for ibin in 1..numBins by 2 {
-        for jbin in 1..numBins by 2 {
+        for jbin in 1..numBins {
             var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[4];
             if (binidnbor != -1) {
@@ -564,7 +558,7 @@ proc calc_forces() {
 
     // even neighbors to the NW (4)
     for ibin in 2..numBins by 2 {
-        for jbin in 2..numBins by 2 {
+        for jbin in 1..numBins {
             var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[4];
             if (binidnbor != -1) {
@@ -609,8 +603,8 @@ proc update_cells(istep:int) {
     }
     var ibin,jbin,binid :int;
     for i in 1..numParticles { // populating particles into bins
-        ibin=ceil(solvent[i].x/rcutsmall):int;
-        jbin=ceil(solvent[i].y/rcutsmall):int;
+        ibin=ceil(solvent[i].x/rcut):int;
+        jbin=ceil(solvent[i].y/rcut):int;
         binid=(jbin-1)*numBins+ibin;
         
         if (binid > numBins*numBins) {
@@ -701,7 +695,7 @@ proc init_bins() {
 // I/O FUNCTIONS
 proc write_xyz(istep:int) {
     var ic:int;
-    var filename:string = "simple%{07u}.xyz".format(istep);
+    var filename:string = "simple%{08u}.xyz".format(istep);
     //var filename = "amatter" + (istep:string) + ".xyz";
     try {
         var xyzfile = open(filename, ioMode.cw);

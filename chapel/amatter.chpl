@@ -184,7 +184,13 @@ proc main() {
     writeln("starting...",numTasks);
     init_worms();
     if (fluid_cpl) {init_fluid();}
+    // equilibrate the fluid
+    for istep in 1..5000 {
+        fluid_step(dt);
+    }
+    writeln("fluid equilibrated...5000dt");
     write_xyz(0);
+    halt();
     //setting up stopwatch
     xt.start();
     for itime in 1..nsteps {
