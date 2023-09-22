@@ -7,10 +7,10 @@ use List;
 
 config const debug = false, 
             L = 100.0, // size of the simulation box in x and y
-            nsteps = 800000,
+            nsteps = 1600000,
             dt = 0.001,
             save_interval = 5000,
-            numParticles = 2500, // number of particles
+            numParticles = 144, // number of particles
             thermo = false,
             kbt = 0.5; //reduced temperature
 
@@ -123,7 +123,7 @@ record Bin {
 }
 var solvent: [1..numParticles] Particle;
 var KE: [1..numParticles] real;
-var KE_total: [1..nsteps/print_interval] real;
+var KE_total: [1..nsteps] real;
 
 var numBins = ceil(L/rcut):int;
 //const binSpace = {1..numBins, 1..numBins};
@@ -170,7 +170,7 @@ proc main () {
     var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
     write_xyz(0);
     //calc_forces_old();
-    calc_forces_parallel();
+    calc_forces();
     var vel_mag = 0.0;
     //setting up stopwatch
     xt.start();
@@ -178,13 +178,13 @@ proc main () {
         if (istep % print_interval == 0) {
 	    xt.stop();
 	    total_time = xt.elapsed();
-            KE_total[(istep/print_interval):int] = (+ reduce KE);
+            KE_total[istep] = (+ reduce KE);
             vel_mag = sqrt((max reduce solvent.vx)**2 + (max reduce solvent.vy)**2);
             writeln("Step: ",istep,"\t",
                     istep/total_time,"iter/s\tCalc:",
                     (ct.elapsed()/total_time)*100," %\tElapsed:",
                     total_time," s\t",
-                    KE_total[(istep/print_interval):int],"\t",
+                    KE_total[istep],"\t",
                     (max reduce solvent.x),"\t",
                     (max reduce solvent.y),"\t",
                     vel_mag);                    
@@ -196,7 +196,7 @@ proc main () {
         update_cells(istep);
 
         //calc_forces_old();
-        calc_forces_parallel();
+        calc_forces();
 
         update_velocities();
         
@@ -403,180 +403,6 @@ proc calc_forces () {
 }
 */
 
-proc calc_forces_parallel() {
-    // loop over all bins
-    forall binid in binSpace {
-        if (bins[binid].ncount > 1) {
-            // calculate the forces between atoms inside each bin
-            for icount in 0..bins[binid].ncount-2 {
-                var i = bins[binid].atoms[icount];
-                for jcount in (icount+1)..bins[binid].ncount-1 {
-                    var j = bins[binid].atoms[jcount];
-                    lj(i,j); // lennard-jones interaction between particles i and j;
-                }
-            }
-        }
-    }
-
-    // odd neighbors to the east (1)
-    forall ibin in 1..numBins by 2 {
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
-            var binidnbor = bins[binid].neighbors[1];
-            if (binidnbor != -1) {
-                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
-                    for icount in 0..bins[binid].ncount-1 {
-                        var i = bins[binid].atoms[icount];
-                        for jcount in 0..bins[binidnbor].ncount-1 {
-                            var j = bins[binidnbor].atoms[jcount];
-                            lj(i,j);
-                        }
-
-                    }
-                }
-            }
-        }
-    }
-    // even neighbors to the east (1)
-    forall ibin in 2..numBins by 2 {
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
-            var binidnbor = bins[binid].neighbors[1];
-            if (binidnbor != -1) {
-                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
-                    for icount in 0..bins[binid].ncount-1 {
-                        var i = bins[binid].atoms[icount];
-                        for jcount in 0..bins[binidnbor].ncount-1 {
-                            var j = bins[binidnbor].atoms[jcount];
-                            lj(i,j);
-                        }
-
-                    }
-                }
-            }
-        }
-    }
-
-    // odd neighbors to the NE (2) (i+1,j+1)
-    forall ibin in 1..numBins by 2 {
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
-            var binidnbor = bins[binid].neighbors[2];
-            if (binidnbor != -1) {
-                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
-                    for icount in 0..bins[binid].ncount-1 {
-                        var i = bins[binid].atoms[icount];
-                        for jcount in 0..bins[binidnbor].ncount-1 {
-                            var j = bins[binidnbor].atoms[jcount];
-                            lj(i,j);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // even neighbors to the NE (2)
-    forall ibin in 2..numBins by 2 { // can we do this with every i, but every other j?
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
-            var binidnbor = bins[binid].neighbors[2];
-            if (binidnbor != -1) { // check if neighbor is valid
-                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) { // check if neighbor has any atoms at all
-                    for icount in 0..bins[binid].ncount-1 {
-                        var i = bins[binid].atoms[icount];
-                        for jcount in 0..bins[binidnbor].ncount-1 {
-                            var j = bins[binidnbor].atoms[jcount];
-                            lj(i,j);
-                        }
-
-                    }
-                }
-            }
-        }
-    }
-
-    // odd neighbors to the N (3)
-    forall ibin in 1..numBins {
-        for jbin in 1..numBins by 2 {
-            var binid=(jbin-1)*numBins+ibin;
-            var binidnbor = bins[binid].neighbors[3];
-            if (binidnbor != -1) {
-                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
-                    for icount in 0..bins[binid].ncount-1 {
-                        var i = bins[binid].atoms[icount];
-                        for jcount in 0..bins[binidnbor].ncount-1 {
-                            var j = bins[binidnbor].atoms[jcount];
-                            lj(i,j);
-                        }
-
-                    }
-                }
-            }
-        }
-    }
-
-    // even neighbors to the N (3)
-    forall ibin in 1..numBins {
-        for jbin in 2..numBins by 2 {
-            var binid=(jbin-1)*numBins+ibin;
-            var binidnbor = bins[binid].neighbors[3];
-            if (binidnbor != -1) {
-                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
-                    for icount in 0..bins[binid].ncount-1 {
-                        var i = bins[binid].atoms[icount];
-                        for jcount in 0..bins[binidnbor].ncount-1 {
-                            var j = bins[binidnbor].atoms[jcount];
-                            lj(i,j);
-                        }
-
-                    }
-                }
-            }
-        }
-    }
-
-    // odd neighbors to the NW (4)
-    for ibin in 1..numBins by 2 {
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
-            var binidnbor = bins[binid].neighbors[4];
-            if (binidnbor != -1) {
-                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
-                    for icount in 0..bins[binid].ncount-1 {
-                        var i = bins[binid].atoms[icount];
-                        for jcount in 0..bins[binidnbor].ncount-1 {
-                            var j = bins[binidnbor].atoms[jcount];
-                            lj(i,j);
-                        }
-
-                    }
-                }
-            }
-        }
-    }
-
-    // even neighbors to the NW (4)
-    for ibin in 2..numBins by 2 {
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
-            var binidnbor = bins[binid].neighbors[4];
-            if (binidnbor != -1) {
-                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
-                    for icount in 0..bins[binid].ncount-1 {
-                        var i = bins[binid].atoms[icount];
-                        for jcount in 0..bins[binidnbor].ncount-1 {
-                            var j = bins[binidnbor].atoms[jcount];
-                            lj(i,j);
-                        }
-
-                    }
-                }
-            }
-        }
-    }
-}
-
 proc calc_forces() {
     // loop over all bins
     for binid in binSpace {
@@ -593,18 +419,20 @@ proc calc_forces() {
     }
 
     // odd neighbors to the east (1)
-    for binid in binSpaceiodd {       
-        //var binid=(jbin-1)*numBins+ibin;
-        var binidnbor = bins[binid].neighbors[1];
-        if (binidnbor != -1) {
-            if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
-                for icount in 0..bins[binid].ncount-1 {
-                    var i = bins[binid].atoms[icount];
-                    for jcount in 0..bins[binidnbor].ncount-1 {
-                        var j = bins[binidnbor].atoms[jcount];
-                        lj(i,j);
-                    }
+    for ibin in 1..numBins by 2 {
+        for jbin in 1..numBins {
+            var binid=(jbin-1)*numBins+ibin;
+            var binidnbor = bins[binid].neighbors[1];
+            if (binidnbor != -1) {
+                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                    for icount in 0..bins[binid].ncount-1 {
+                        var i = bins[binid].atoms[icount];
+                        for jcount in 0..bins[binidnbor].ncount-1 {
+                            var j = bins[binidnbor].atoms[jcount];
+                            lj(i,j);
+                        }
 
+                    }
                 }
             }
         }
@@ -862,16 +690,6 @@ proc init_bins() {
         // bins[ibin].x[1] = ibin[0]*rcut;
         // bins[ibin].y[0] = (ibin[1]-1)*rcut;
         // bins[ibin].y[1] = ibin[1]*rcut;
-
-    // making lists of binids for different 
-    var icount = 0;
-    for ibin in 1..numBins by 2 {
-        for jbin in 1..numBins {
-            icount += 1;
-            var binid=(jbin-1)*numBins+ibin;
-            binSpaceiodd[icount] = binid;
-        }
-    }
 }
 
 // I/O FUNCTIONS
