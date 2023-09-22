@@ -4,8 +4,6 @@ use IO;
 use IO.FormattedIO;
 use Time; // for stopwatch
 use List;
-use MemDiagnostics;
-
 
 config const debug = false, 
             L = 100.0, // size of the simulation box in x and y
@@ -17,7 +15,7 @@ config const debug = false,
             kbt = 0.5; //reduced temperature
 
 var hxo2 = L/2,
-    sigma = 1.0,
+    sigma = 2.0,
     rcut = 2.5*sigma,
     r2cut = rcut**2,
     rcutsmall = sigma*2.0**(1.0/6.0),
@@ -115,20 +113,22 @@ record Particle {
 
 var bin_init_counter = 1;
 record Bin {
-    var id: (int,int); //id of each bin
+    //var id: (int,int); //id of each bin
+    var id: int; //id of each bin
     var atoms: list(int); // list of particle id's in each bin
-    var neighbors: [1..4][1..2] int; // indices of each bin's neighboring bin 
+    var neighbors: [1..4] int; // indices of each bin's neighboring bin 
     var ncount: int; // count of number of particles in each bin
     var x: (real,real); // precalculate the max_x and min_x values for the space the box occupies
     var y: (real,real); // this is for easier neighbor list creation
 
     proc init() { // record initializer
-        this.id = (0,0);
+        this.id = bin_init_counter;
+        bin_init_counter += 1;
         this.ncount = 0;
         this.x = (0.0,0.0);
         this.y = (0.0,0.0);
         for i in 1..4 {
-            this.neighbors[i] = [0,0];
+            this.neighbors[i] = -1;
         }
     }
 }
@@ -136,14 +136,14 @@ var solvent: [1..numParticles] Particle;
 var KE: [1..numParticles] real;
 var KE_total: [1..nsteps] real;
 
-var numBins = ceil(L/rcut):int;
-const binSpace = {1..numBins, 1..numBins};
-var bins : [binSpace] Bin;
+var numBins = ceil(L/rcutsmall):int;
+//const binSpace = {1..numBins, 1..numBins};
+const binSpace = {1..numBins*numBins};
+var bins : [1..numBins*numBins] Bin;
 var randStream = new RandomStream(real); // creating random number generator
 
 proc main () {
     writeln("numBins: ",numBins);
-    startVerboseMem();
     init_bins();
 
     // init particles
@@ -151,7 +151,7 @@ proc main () {
     if (numParticles != sqrt(numParticles)*sqrt(numParticles)) {writeln("non-square numParticles");halt();}
     var row_length = sqrt(numParticles):int;
     var row,col,center,spacing :real;
-    spacing = 1.0;
+    spacing = 0.75;
     center = hxo2 - spacing*(row_length/2);
     for i in 1..numParticles {
         row = i % row_length;
@@ -174,8 +174,8 @@ proc main () {
     var total_time = 0.0;
     var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
     write_xyz(0);
-    calc_forces_old();
-    //calc_forces();
+    //calc_forces_old();
+    calc_forces();
     var vel_mag = 0.0;
     //setting up stopwatch
     xt.start();
@@ -200,8 +200,8 @@ proc main () {
         update_position();
         update_cells(istep);
 
-        calc_forces_old();
-        //calc_forces();
+        //calc_forces_old();
+        calc_forces();
 
         update_velocities();
         
@@ -216,10 +216,7 @@ proc main () {
     write_macro(nsteps);
     xt.stop();
     writeln("Total Time:",xt.elapsed()," s");
-    stopVerboseMem();
-    printMemAllocStats();
 }
-
 
 proc update_position() {
     // update positions
@@ -244,20 +241,12 @@ proc update_position() {
         if isclose(solvent[i].x, L, rtol = 1e-3, atol = 0.0) {
             solvent[i].vx = -1.0*solvent[i].vx;
         }
-        // if isclose(solvent[i].x, 0.0, rtol = 1e-3, atol = 0.0) {
-        //     solvent[i].vx = -1.0*solvent[i].vx;
-        //     writeln("hit left wall",solvent[i].vx);
-        // }
         if solvent[i].x <= 0.01 {
             solvent[i].vx = -1.0*solvent[i].vx;
         }
         if isclose(solvent[i].y, L, rtol = 1e-3, atol = 0.0) {
             solvent[i].vy = -1.0*solvent[i].vy;
         }
-        // if isclose(solvent[i].y, 0.0, rtol = 1e-3, atol = 0.0) {
-        //     solvent[i].vy = -1.0*solvent[i].vy;
-        //     writeln("hit bottom wall",solvent[i].vy);
-        // }
         if (solvent[i].y <= 0.01) {
             solvent[i].vy = -1.0*solvent[i].vy;
         }
@@ -273,7 +262,7 @@ proc lj(i,j) {
     dy = solvent[j].y - solvent[i].y;
     r2 = (dx*dx + dy*dy);
     //if (debug) {writeln("icount: ",icount,"\t",i,"\tjcount: ",jcount,"\t",j,"\t",r2,"\t",r2cut);}
-    if (r2 <= r2cut) {
+    if (r2 <= r2cutsmall) {
         // LJ force
         ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
         ffx = ffor*dx;
@@ -312,10 +301,6 @@ proc lj(i,j) {
             solvent[j].fy -= frand*rhaty;
         }
     }
-}
-
-proc wca(i,j) {
-
 }
 
 proc calc_forces_old () {
@@ -386,22 +371,16 @@ proc calc_forces_old () {
     }
 }
 
+/*
 proc calc_forces () {
     for ibin in binSpace{
         // calculate forces inside this bin
         if bins[ibin].ncount > 1 { // check if atoms are in this bin
             // iterate over all the atoms in this bin
-            //if (debug) {writeln("in bin int ",bins[ibin].id,"\t",bins[ibin].atoms,"\t");}
             for icount in 0..bins[ibin].ncount-2 {
                 var i = bins[ibin].atoms[icount];
-                //if (debug) {writeln("icount: ",icount,"\t",bins[ibin].atoms[icount]);}
                 for jcount in icount+1..bins[ibin].ncount-1 {
                     var j = bins[ibin].atoms[jcount];
-                    // if (i == 1) || (j == 1) {
-                    //     writeln("in current cell ",ibin);
-                    //     writeln(solvent[i].info());
-                    //     writeln(solvent[j].info());
-                    // }
                     lj(i,j);
                     }
             }
@@ -428,6 +407,181 @@ proc calc_forces () {
             }
         }
 }
+*/
+
+proc calc_forces() {
+    // loop over all bins
+    for binid in binSpace {
+        if (bins[binid].ncount > 1) {
+            // calculate the forces between atoms inside each bin
+            for icount in 0..bins[binid].ncount-2 {
+                var i = bins[binid].atoms[icount];
+                for jcount in (icount+1)..bins[binid].ncount-1 {
+                    var j = bins[binid].atoms[jcount];
+                    lj(i,j); // lennard-jones interaction between particles i and j;
+                }
+            }
+        }
+    }
+
+    // odd neighbors to the east (1)
+    for ibin in 1..numBins by 2 {
+        for jbin in 1..numBins {
+            var binid=(jbin-1)*numBins+ibin;
+            var binidnbor = bins[binid].neighbors[1];
+            if (binidnbor != -1) {
+                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                    for icount in 0..bins[binid].ncount-1 {
+                        var i = bins[binid].atoms[icount];
+                        for jcount in 0..bins[binidnbor].ncount-1 {
+                            var j = bins[binidnbor].atoms[jcount];
+                            lj(i,j);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+    // even neighbors to the east (1)
+    for ibin in 2..numBins by 2 {
+        for jbin in 1..numBins {
+            var binid=(jbin-1)*numBins+ibin;
+            var binidnbor = bins[binid].neighbors[1];
+            if (binidnbor != -1) {
+                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                    for icount in 0..bins[binid].ncount-1 {
+                        var i = bins[binid].atoms[icount];
+                        for jcount in 0..bins[binidnbor].ncount-1 {
+                            var j = bins[binidnbor].atoms[jcount];
+                            lj(i,j);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+
+    // odd neighbors to the NE (2) (i+1,j+1)
+    for ibin in 1..numBins by 2 {
+        for jbin in 1..numBins by 2 {
+            var binid=(jbin-1)*numBins+ibin;
+            var binidnbor = bins[binid].neighbors[2];
+            if (binidnbor != -1) {
+                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                    for icount in 0..bins[binid].ncount-1 {
+                        var i = bins[binid].atoms[icount];
+                        for jcount in 0..bins[binidnbor].ncount-1 {
+                            var j = bins[binidnbor].atoms[jcount];
+                            lj(i,j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // even neighbors to the NE (2)
+    for ibin in 2..numBins by 2 {
+        for jbin in 2..numBins by 2 {
+            var binid=(jbin-1)*numBins+ibin;
+            var binidnbor = bins[binid].neighbors[2];
+            if (binidnbor != -1) { // check if neighbor is valid
+                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) { // check if neighbor has any atoms at all
+                    for icount in 0..bins[binid].ncount-1 {
+                        var i = bins[binid].atoms[icount];
+                        for jcount in 0..bins[binidnbor].ncount-1 {
+                            var j = bins[binidnbor].atoms[jcount];
+                            lj(i,j);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+
+    // odd neighbors to the N (3)
+    for ibin in 1..numBins {
+        for jbin in 1..numBins by 2 {
+            var binid=(jbin-1)*numBins+ibin;
+            var binidnbor = bins[binid].neighbors[3];
+            if (binidnbor != -1) {
+                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                    for icount in 0..bins[binid].ncount-1 {
+                        var i = bins[binid].atoms[icount];
+                        for jcount in 0..bins[binidnbor].ncount-1 {
+                            var j = bins[binidnbor].atoms[jcount];
+                            lj(i,j);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+
+    // even neighbors to the N (3)
+    for ibin in 1..numBins {
+        for jbin in 2..numBins by 2 {
+            var binid=(jbin-1)*numBins+ibin;
+            var binidnbor = bins[binid].neighbors[3];
+            if (binidnbor != -1) {
+                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                    for icount in 0..bins[binid].ncount-1 {
+                        var i = bins[binid].atoms[icount];
+                        for jcount in 0..bins[binidnbor].ncount-1 {
+                            var j = bins[binidnbor].atoms[jcount];
+                            lj(i,j);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+
+    // odd neighbors to the NW (4)
+    for ibin in 1..numBins by 2 {
+        for jbin in 1..numBins by 2 {
+            var binid=(jbin-1)*numBins+ibin;
+            var binidnbor = bins[binid].neighbors[4];
+            if (binidnbor != -1) {
+                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                    for icount in 0..bins[binid].ncount-1 {
+                        var i = bins[binid].atoms[icount];
+                        for jcount in 0..bins[binidnbor].ncount-1 {
+                            var j = bins[binidnbor].atoms[jcount];
+                            lj(i,j);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+
+    // even neighbors to the NW (4)
+    for ibin in 2..numBins by 2 {
+        for jbin in 2..numBins by 2 {
+            var binid=(jbin-1)*numBins+ibin;
+            var binidnbor = bins[binid].neighbors[4];
+            if (binidnbor != -1) {
+                if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                    for icount in 0..bins[binid].ncount-1 {
+                        var i = bins[binid].atoms[icount];
+                        for jcount in 0..bins[binidnbor].ncount-1 {
+                            var j = bins[binidnbor].atoms[jcount];
+                            lj(i,j);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+}
 
 proc update_velocities() {
     //update velocities
@@ -445,40 +599,35 @@ proc update_velocities() {
 
 // CELL LIST FUNCTIONS
 proc update_cells(istep:int) {
-    for ibin in binSpace{
-        if bins[ibin].ncount > 0{
-            bins[ibin].ncount = 0;
-            bins[ibin].atoms.clear();
+    // ncount array set to zero
+    // particle list set to empty
+    for binid in binSpace{
+        if bins[binid].ncount > 0{
+            bins[binid].ncount = 0;
+            bins[binid].atoms.clear();
         }
     }
-
+    var ibin,jbin,binid :int;
     for i in 1..numParticles { // populating particles into bins
-        var binposx = 1+floor(solvent[i].x/rcut):int;
-        var binposy = 1+floor(solvent[i].y/rcut):int;
+        ibin=ceil(solvent[i].x/rcutsmall):int;
+        jbin=ceil(solvent[i].y/rcutsmall):int;
+        binid=(jbin-1)*numBins+ibin;
+        
+        if (binid > numBins*numBins) {
+            writeln(solvent[i].info());
+            write_xyz(istep);
+            dump_particles();
+        } else if (binid < 1) {
+            writeln(solvent[i].info());
+            write_xyz(istep);
+            dump_particles();
+        }
+        //append i to particle_list for binid
+        bins[binid].ncount += 1;
+        bins[binid].atoms.pushBack(solvent[i].id);
         //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
-        if (debug) {
-            if (binposx > numBins) {
-                dump_particles();
-            } else if (binposy > numBins) {
-                dump_particles();
-            }else if (binposx < 1) {
-                dump_particles();
-            } else if (binposy < 1) {
-                dump_particles();
-            }
-        }
-        if (binposx > numBins) {
-            write_xyz(istep);
-        } else if (binposy > numBins) {
-            write_xyz(istep);
-        }else if (binposx < 1) {
-            write_xyz(istep);
-        } else if (binposy < 1) {
-            write_xyz(istep);
-        }
-        bins[binposx,binposy].ncount += 1;
-        bins[binposx,binposy].atoms.pushBack(solvent[i].id);
-        //writeln(p.id,"\t",posx,"\t",posy,"\t",bins[posx,posy].id," ",bins[posx,posy].ncount);
+
+
     }
     if (debug) {
         writeln("recalculating bins");
@@ -488,74 +637,65 @@ proc update_cells(istep:int) {
             }
         }
     }
-    /*
-        //bins[24,24].atoms.clear();
-        writeln("*",bins[24,24].atoms,bins[24,24].atoms.isEmpty());
-        for a in bins[24,24].atoms {
-            writeln(solvent[a].info());
-        }
-        var ic = 0;
-        writeln(bins[24,20].ncount);
-        var inds = bins[24,20].atoms.indices;
-        writeln(bins[24,20].atoms);
-        writeln(bins[24,20].atoms[inds]);
-        var inds2 = inds[1..];
-        writeln(inds2);
-        writeln(bins[24,20].atoms[inds2]); 
-        for atom1 in bins[24,20].atoms[inds] { 
-            for atom2 in bins[24,20].atoms[inds2] {
-                if solvent[atom1].id != solvent[atom2].id { //make sure we 
-                    writeln(atom1,"\t",solvent[atom1].id,"\t",atom2,"\t",solvent[atom2].id);
-                    ic += 1;
-                }
-            }
-        }
-        writeln(ic);
-    */
 }
 
 proc init_bins() {
     // writeln((4/numBins):int +1); //row
     // writeln(4%numBins); // col
-    for ibin in binSpace {
-        bins[ibin].x[0] = (ibin[0]-1)*rcut;
-        bins[ibin].x[1] = ibin[0]*rcut;
-        bins[ibin].y[0] = (ibin[1]-1)*rcut;
-        bins[ibin].y[1] = ibin[1]*rcut;
-        bins[ibin].id[0] = ibin[0];
-        bins[ibin].id[1] = ibin[1];
-        var i = ibin[0];
-        var j = ibin[1];
-        //  4   3   2
-        //     *   1
-        //  
-        /*  1 = i+1,j
-            2 = i+1,j+1
-            3 = i,j+1
-            4 = i-1,j+1
-        */
-        var ip1,im1,jp1,jm1:int;
-        ip1 = i + 1;
-        im1 = i - 1;
-        jp1 = j + 1;
-        jm1 = j - 1;
-        if ip1 > numBins {
-            ip1 = -1; // no neighbors in this direction
+    var binid,ibinnab,jbinnab,binidnbor:int;
+    for ibin in 1..numBins {
+        for jbin in 1..numBins {
+            binid = (jbin-1)*numBins+ibin;
+            //  4   3   2
+            //     *   1
+            //  
+            /*  1 = i+1,j
+                2 = i+1,j+1
+                3 = i,j+1
+                4 = i-1,j+1
+            */
+            ibinnab=ibin+1;
+            jbinnab=jbin;
+            if (ibinnab <= numBins) {
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                bins[binid].neighbors[1] = binidnbor;
+            } else {
+                bins[binid].neighbors[1] = -1;
+            }
+
+            ibinnab=ibin+1;
+            jbinnab=jbin+1;
+            if (ibinnab <= numBins) && (jbinnab <= numBins) {
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                bins[binid].neighbors[2] = binidnbor;
+            } else {
+                bins[binid].neighbors[2] = -1;
+            }
+
+            ibinnab=ibin;
+            jbinnab=jbin+1;
+            if (jbinnab <= numBins) {
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                bins[binid].neighbors[3] = binidnbor;
+            } else {
+                bins[binid].neighbors[3] = -1;
+            }
+
+            ibinnab=ibin-1;
+            jbinnab=jbin+1;
+            if (ibinnab > 0) && (jbinnab <= numBins){
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                bins[binid].neighbors[4] = binidnbor;
+            } else {
+                bins[binid].neighbors[4] = -1;
+            }
+
         }
-        if jp1 > numBins {
-            jp1 = -1;
-        }
-        if im1 == 0 {
-            im1 = -1;
-        }
-        if jm1 == 0{
-            jm1 = -1;
-        }
-        bins[ibin].neighbors[1] = [ip1,j];
-        bins[ibin].neighbors[2] = [ip1,jp1];
-        bins[ibin].neighbors[3] = [i,jp1];
-        bins[ibin].neighbors[4] = [im1,jp1];
     }
+        // bins[ibin].x[0] = (ibin[0]-1)*rcut;
+        // bins[ibin].x[1] = ibin[0]*rcut;
+        // bins[ibin].y[0] = (ibin[1]-1)*rcut;
+        // bins[ibin].y[1] = ibin[1]*rcut;
 }
 
 // I/O FUNCTIONS
