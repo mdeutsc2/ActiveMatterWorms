@@ -25,6 +25,7 @@ def main():
         merged_file.write(data)
 
     merged_file.close()
+    print(input_string)
 
 if __name__ == '__main__':
     main()

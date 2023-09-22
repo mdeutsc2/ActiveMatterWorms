@@ -6,7 +6,7 @@ use Time; // for stopwatch
 // configuration
 config const np = 40,
             nworms = 250,
-            nsteps = 60000    ,//00,
+            nsteps = 200000    ,//00,
             fdogic = 0.06,
             fdogicwall = 0.0,
             fdep = 1.0, // TODO: change to 4.0?
@@ -141,7 +141,7 @@ const r2cut = rcut*rcut,
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 900,//590*2, // number of boundary points
       numSol = 800, // number of solution particles (3200 for circular, 800 for cardioid)
-      fluid_offset = 3.0; // z-offset of fluid
+      fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
 const numTasks = here.numPUs();
 
