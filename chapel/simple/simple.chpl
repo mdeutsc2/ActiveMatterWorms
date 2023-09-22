@@ -10,7 +10,7 @@ use MemDiagnostics;
 config const debug = false, 
             L = 100.0, // size of the simulation box in x and y
             nsteps = 2,//0000,
-            dt = 0.0005,//0.001,
+            dt = 0.00025,//0.001,
             save_interval = 50,
             numParticles = 144, // number of particles
             thermo = false,
@@ -168,14 +168,14 @@ proc main () {
     // init randomly
     
 
-    update_cells();
+    update_cells(0);
 
     var t = 0.0;
     var total_time = 0.0;
     var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
     write_xyz(0);
-    //calc_forces_old();
-    calc_forces();
+    calc_forces_old();
+    //calc_forces();
     var vel_mag = 0.0;
     //setting up stopwatch
     xt.start();
@@ -198,10 +198,10 @@ proc main () {
 	    ct.start();
         // update positions
         update_position();
-        update_cells();
+        update_cells(istep);
 
-        //calc_forces_old();
-        calc_forces();
+        calc_forces_old();
+        //calc_forces();
 
         update_velocities();
         
@@ -278,7 +278,11 @@ proc lj(i,j) {
         ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
         ffx = ffor*dx;
         ffy = ffor*dy;
-        if (debug) {writeln(i," ",j," ",ffx," ",ffy);}
+        if (debug) {
+            if (i == 1) || (j == 1) {
+                writeln("LJ ",i," ",j," ",sqrt(r2)," ",sqrt(r2cut)," ",ffx," ",ffy," ",dx," ",dy);
+            }
+        }
         solvent[i].fx += ffx;
         solvent[i].fy += ffy;
         solvent[j].fx -= ffx;
@@ -393,6 +397,11 @@ proc calc_forces () {
                 //if (debug) {writeln("icount: ",icount,"\t",bins[ibin].atoms[icount]);}
                 for jcount in icount+1..bins[ibin].ncount-1 {
                     var j = bins[ibin].atoms[jcount];
+                    // if (i == 1) || (j == 1) {
+                    //     writeln("in current cell ",ibin);
+                    //     writeln(solvent[i].info());
+                    //     writeln(solvent[j].info());
+                    // }
                     lj(i,j);
                     }
             }
@@ -406,6 +415,11 @@ proc calc_forces () {
                     var i = bins[ibin].atoms[icount-1];
                     for jcount in 1..bins[inab,jnab].ncount { // loop over all the atoms in the neighboring bin
                         var j = bins[inab,jnab].atoms[jcount-1];
+                        // if (i == 1) || (j == 1) {
+                        //     writeln("in neighbor cell ",nab);
+                        //     writeln(solvent[i].info());
+                        //     writeln(solvent[j].info());
+                        // }
                         lj(i,j);
                         }
                     }
@@ -430,7 +444,7 @@ proc update_velocities() {
 }
 
 // CELL LIST FUNCTIONS
-proc update_cells() {
+proc update_cells(istep:int) {
     for ibin in binSpace{
         if bins[ibin].ncount > 0{
             bins[ibin].ncount = 0;
@@ -441,7 +455,7 @@ proc update_cells() {
     for i in 1..numParticles { // populating particles into bins
         var binposx = 1+floor(solvent[i].x/rcut):int;
         var binposy = 1+floor(solvent[i].y/rcut):int;
-        if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
+        //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
         if (debug) {
             if (binposx > numBins) {
                 dump_particles();
@@ -452,6 +466,15 @@ proc update_cells() {
             } else if (binposy < 1) {
                 dump_particles();
             }
+        }
+        if (binposx > numBins) {
+            write_xyz(istep);
+        } else if (binposy > numBins) {
+            write_xyz(istep);
+        }else if (binposx < 1) {
+            write_xyz(istep);
+        } else if (binposy < 1) {
+            write_xyz(istep);
         }
         bins[binposx,binposy].ncount += 1;
         bins[binposx,binposy].atoms.pushBack(solvent[i].id);
