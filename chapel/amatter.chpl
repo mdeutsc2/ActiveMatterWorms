@@ -163,17 +163,6 @@ var KEworm_total: [1..nsteps] real;
 var KEsol_total: [1..nsteps] real; //workaround https://stackoverflow.com/questions/59753273/how-to-append-data-to-an-existing-file
 
 
-// writeln(A[1].id,"\t",A[1].x,"\t",A[1].y,"\t",A[1].z);
-// writeln(A[2].id,"\t",A[2].x,"\t",A[2].y,"\t",A[2].z);
-// writeln(A[1].info());
-// A[1].p(1.1,2.2,3.3);
-// writeln(A[1].info());
-// A[1].p(2.2,3.3,4.4);
-// writeln(A[1].p());
-// (px,py,pz) = A[1].p();
-// writeln(px,"\t",py,"\t",pz);
-// px <=> py;
-// writeln(px,"\t",py,"\t",pz);
 var randStream = new RandomStream(real); // creating random number generator
 
 var t = 0.0;
