@@ -6,7 +6,7 @@ use Time; // for stopwatch
 // configuration
 config const np = 40,
             nworms = 250,
-            nsteps = 30000    ,//00,
+            nsteps = 60000    ,//00,
             fdogic = 0.06,
             fdogicwall = 0.0,
             fdep = 1.0, // TODO: change to 4.0?
@@ -20,6 +20,7 @@ config const np = 40,
             save_interval = 250,
             boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
+            debug = false,
             thermo = true, // turn thermostat on?
             kbt = 0.5,
             sigma = 2.0;
@@ -138,7 +139,7 @@ const r2cut = rcut*rcut,
       a = 0.24, // layer spacing of worms in init_worms?
       iwalldrive = 1,
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
-      numPoints = 590*2, // number of boundary points
+      numPoints = 900,//590*2, // number of boundary points
       numSol = 800, // number of solution particles (3200 for circular, 800 for cardioid)
       fluid_offset = 3.0; // z-offset of fluid
 
@@ -1174,8 +1175,73 @@ proc fluid_multistep() {
     }
 }
 
-proc fluid_step(dt_fluid:real) {
-    // update positions
+proc lj_thermo(i,j,r2cut_local:real) {
+    var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,r,rhatx,rhaty,omega,fdissx,fdissy,gauss,frand :real;
+    dx = solvent[j].x - solvent[i].x;
+    dy = solvent[j].y - solvent[i].y;
+    r2 = (dx*dx + dy*dy);
+    //if (debug) {writeln("icount: ",icount,"\t",i,"\tjcount: ",jcount,"\t",j,"\t",r2,"\t",r2cut);}
+    if (r2 <= r2cut_local) {
+        // LJ force
+        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+        ffx = ffor*dx;
+        ffy = ffor*dy;
+        if (debug) {
+            if (i == 1) || (j == 1) {
+                writeln("LJ ",i," ",j," ",sqrt(r2)," ",sqrt(r2cut_local)," ",ffx," ",ffy," ",dx," ",dy);
+            }
+        }
+        solvent[i].fx += ffx;
+        solvent[i].fy += ffy;
+        solvent[j].fx -= ffx;
+        solvent[j].fy -= ffy;
+        if (thermo) {
+            // DPD thermostat
+            //adding dissipative force
+            dvx = solvent[j].vx - solvent[i].vx;
+            dvy = solvent[j].vy - solvent[i].vy;
+            r = sqrt(r2);
+            rhatx = dx/r;
+            rhaty = dy/r;
+            omega = (1.0-r2/r2cut_local);
+            fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
+            fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
+            solvent[i].fx -= fdissx;
+            solvent[i].fy -= fdissy;
+            solvent[j].fx += fdissx;
+            solvent[j].fy += fdissy;
+            // adding random forces
+            gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
+            //gauss = randStream.getNext();
+            frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+            solvent[i].fx += frand*rhatx;
+            solvent[i].fy += frand*rhaty;
+            solvent[j].fx -= frand*rhatx;
+            solvent[j].fy -= frand*rhaty;
+        }
+    }
+}
+
+proc lj(i,j,r2cut_local:real) {
+    var dx,dy,r2,ffor,ffx,ffy,sigma12,sigma6:real;
+    //calculate distance to the wall
+    dx = solvent[j].x - bound[i].x;
+    dy = solvent[j].y - bound[i].y;
+    r2 = (dx*dx + dy*dy);
+    //if close enough to the wall, calculate wall forces
+    //use the short cut-off
+    if (r2 <= r2cut_local) {
+        //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
+        //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+        sigma12 = sigma**12;
+        sigma6 = sigma**6;
+        ffor = 48.0*sigma12*r2**(-7.0) -24*sigma6*r2**(-4.0);
+        solvent[j].fx += ffor*dx;
+        solvent[j].fy += ffor*dy;
+    }
+}
+
+proc fluid_pos(dt_fluid:real) {
     forall i in 1..numSol {
         solvent[i].x += solvent[i].vx*dt_fluid + (solvent[i].fx/2)*(dt_fluid**2);
         solvent[i].y += solvent[i].vy*dt_fluid + (solvent[i].fy/2)*(dt_fluid**2);
@@ -1193,126 +1259,28 @@ proc fluid_step(dt_fluid:real) {
         solvent[i].fy = 0.0;
         solvent[i].fz = 0.0; // just in case
     }
+}
+
+proc fluid_force_old() {
     // fluid-fluid
     var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega:real;
     for i in 1..numSol {
         // calculating the force
         for j in (i+1)..numSol {
-            dx = solvent[j].x - solvent[i].x;
-            dy = solvent[j].y - solvent[i].y;
-            r2 = (dx*dx + dy*dy);
-            if (r2 <= r2cut) {
-                // LJ force
-                ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-                ffx = ffor*dx;
-                ffy = ffor*dy;
-                solvent[i].fx += ffx;
-                solvent[i].fy += ffy;
-                solvent[j].fx -= ffx;
-                solvent[j].fy -= ffy;
-                if (thermo) {
-                    //adding dissipative force
-                    dvx = solvent[j].vx - solvent[i].vx;
-                    dvy = solvent[j].vy - solvent[i].vy;
-                    r = sqrt(r2);
-                    rhatx = dx/r;
-                    rhaty = dy/r;
-                    omega = (1.0-r2/r2cut);
-                    fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
-                    fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
-                    solvent[i].fx -= fdissx;
-                    solvent[i].fy -= fdissy;
-                    solvent[j].fx += fdissx;
-                    solvent[j].fy += fdissy;
-                    // adding random forces
-                    gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
-                    //gauss = randStream.getNext();
-                    frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
-                    solvent[i].fx += frand*rhatx;
-                    solvent[i].fy += frand*rhaty;
-                    solvent[j].fx -= frand*rhatx;
-                    solvent[j].fy -= frand*rhaty;
-                }
-            }
+            lj_thermo(i,j,r2cut);
         }
     }
-
     //fluid-boundary
     // var r2cutsol = r2cut
     var r2cutsol = sigma*2.0**(1.0/6.0);
-    var sigma12 = sigma**12;
-    var sigma6 = sigma**6;
     forall i in 1..numSol {
-        var dx,dy,r2,ffor,ffx,ffy:real;
         // calculate the force on the boundaries.
         for ib in 1..numPoints  {
-            //calculate distance to the wall
-            dx = solvent[i].x - bound[ib].x;
-            dy = solvent[i].y - bound[ib].y;
-            r2 = (dx*dx + dy*dy);
-            //if close enough to the wall, calculate wall forces
-            //use the short cut-off
-            if (r2 <= r2cutsol) {
-                //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
-                //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-                ffor = 48.0*sigma12*r2**(-7.0) -24*sigma6*r2**(-4.0);
-                solvent[i].fx += ffor*dx;
-                solvent[i].fy += ffor*dy;
-            }
+            lj(ib,i,r2cutsol);
+
         }
     }
-    // if (boundary == 1) {
-    //     forall i in 1..numSol {
-    //         var dx,dy,r2,ffor,ffx,ffy,xwall,ywall,th,rr2,scale,dp,r,normx,normy:real;
-    //         dx = solvent[i].x - hxo2;
-    //         dy = solvent[i].y - hyo2;
-    //         r = sqrt(dx*dx + dy*dy);
-    //         if (r >=rwall) {
-    //             // Move particle back to boundary
-    //             scale = rwall / r;
-    //             solvent[i].x = hx / 2 + dx * scale;
-    //             solvent[i].y = hy / 2 + dy * scale;
 
-    //             // Reflect particle velocity vector
-    //             normx = dx/r;
-    //             normy = dy/r;
-    //             dp = solvent[i].vx * normx + solvent[i].vy * normy;
-    //             solvent[i].vx -= 2 * dp * normx;
-    //             solvent[i].vy -= 2 * dp * normy;
-    //         }
-    //     }
-    // } else if (boundary == 2) {
-    //     var a = 1.5*(rwall/2);
-    //     forall i in 1..numSol {
-    //         var dx,dy,r2,cr,t,dp,scale,r,normx,normy:real;
-    //         // bound[i].x = ca * (1 - cos(thetaValues[i])) * cos(thetaValues[i]) + hxo2 + ca;
-    //         // bound[i].y = ca * (1 - cos(thetaValues[i])) * sin(thetaValues[i]) + hyo2;
-    //         // Calculate squared distance between particle and the cardioid's edge
-    //         dx = solvent[i].x - hxo2 - a;
-    //         dy = solvent[i].y - hyo2;
-    //         // Calculate the parameter 't' that corresponds to the point on the cardioid
-    //         t = atan2(dy, dx);
-    //         cr = a * (1 - cos(t));
-    //         r = sqrt(dx * dx + dy * dy);
-
-    //         // Check for collision
-    //         if (r >= cr) {
-    //             // Move particle back to the cardioid's edge if it has gone over
-    //             scale = cr/r;
-    //             solvent[i].x = hxo2 + a + dx * scale;
-    //             solvent[i].y = hyo2 + dy * scale;
-
-    //             // Normalize the displacement vector
-    //             normx = dx/r;
-    //             normy = dy/r;
-
-    //             // Reflect particle velocity vector
-    //             dp = solvent[i].vx * normx + solvent[i].vy * normy;
-    //             solvent[i].vx -= 2 * dp * normx;
-    //             solvent[i].vy -= 2 * dp * normy;
-    //         }
-    //     }
-    // }
     // fluid-worms
     var dz = fluid_offset;
     for i in 1..numSol{
@@ -1334,25 +1302,29 @@ proc fluid_step(dt_fluid:real) {
             }
         }
     }
+}
 
-    // thermostat
-    // for i in 1..numSol{
-
-    // }
-
+proc fluid_vel(dt_fluid:real) {
     //update velocities
     forall i in 1..numSol {
         //solvent[i].vx += 0.5*dt_fluid*(solvent[i].fxold + solvent[i].fx);
         //solvent[i].vy += 0.5*dt_fluid*(solvent[i].fyold + solvent[i].fy);
         //solvent[i].fxold = solvent[i].fx;
         //solvent[i].fyold = solvent[i].fy;
-        solvent[i].vx += 0.5*dt*solvent[i].fx;
-        solvent[i].vy += 0.5*dt*solvent[i].fy;
+        solvent[i].vx += 0.5*dt_fluid*solvent[i].fx;
+        solvent[i].vy += 0.5*dt_fluid*solvent[i].fy;
         // calculating kinetic energy here too
         KEsol[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
     }
+}
 
+proc fluid_step(dt_fluid:real) {
+    // update positions
+    fluid_pos(dt_fluid);
 
+    fluid_force_old();
+
+    fluid_vel(dt_fluid);
 }
 
 // IO Functions
