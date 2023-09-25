@@ -3,6 +3,7 @@
 CHPL = chpl
 CHPLFLAGS = --fast --optimize --print-passes --print-commands
 DEBUGFLAGS = -g --savec=c_srcs --print-passes --print-commands --checks --print-callstack-on-error
+GPUFLAGS = --fast --optimize --print-passes --print-commands --gpu-arch=sm60 --gpu-specialization
 
 SOURCE = simple.chpl
 OUTPUT = simple.x
@@ -14,3 +15,6 @@ $(OUTPUT): $(SOURCE)
 
 debug: $(SOURCE)
 	$(CHPL) $(DEBUGFLAGS) $(SOURCE) -o $(OUTPUT)
+
+cuda: $(SOURCE)
+	CHPL_GPU=nvidia $(CHPL) $(GPUFLAGS) $(SOURCE) -o $(OUTPUT)

@@ -4,13 +4,15 @@ use IO;
 use IO.FormattedIO;
 use Time; // for stopwatch
 use List;
+use GPU;
+
 
 config const debug = false, 
             L = 100.0, // size of the simulation box in x and y
-            nsteps = 800000,
+            nsteps = 50000,
             dt = 0.001,
             save_interval = 5000,
-            numParticles = 2500, // number of particles
+            numParticles = 625, // number of particles
             thermo = false,
             kbt = 0.5; //reduced temperature
 
@@ -129,9 +131,20 @@ var numBins = ceil(L/rcut):int;
 //const binSpace = {1..numBins, 1..numBins};
 const binSpace = {1..numBins*numBins};
 var bins : [1..numBins*numBins] Bin;
+var binSpaceiodd : [1..(numBins*numBins)/2] int;
+var binSpacejodd : [1..(numBins*numBins)/2] int;
+var binSpaceieven : [1..(numBins*numBins)/2] int;
+var binSpacejeven : [1..(numBins*numBins)/2] int;
 var randStream = new RandomStream(real); // creating random number generator
+const numTasks = here.numPUs();
+if here.gpus.isEmpty() {
+    writeln("no gpus");
+} else {
+    writeln("gpus");
+}
 
 proc main () {
+    writeln(numTasks);
     writeln("numBins: ",numBins);
     init_bins();
 
@@ -170,7 +183,7 @@ proc main () {
     var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
     write_xyz(0);
     //calc_forces_old();
-    calc_forces_parallel();
+    calc_forces(here);
     var vel_mag = 0.0;
     //setting up stopwatch
     xt.start();
@@ -196,7 +209,7 @@ proc main () {
         update_cells(istep);
 
         //calc_forces_old();
-        calc_forces_parallel();
+        calc_forces(here);
 
         update_velocities();
         
@@ -402,7 +415,7 @@ proc calc_forces () {
         }
 }
 */
-
+/*
 proc calc_forces_parallel() {
     // loop over all bins
     forall binid in binSpace {
@@ -575,11 +588,13 @@ proc calc_forces_parallel() {
             }
         }
     }
-}
+}*/
 
-proc calc_forces() {
+
+proc calc_forces(loc) {
+    on loc {
     // loop over all bins
-    for binid in binSpace {
+    forall binid in binSpace {
         if (bins[binid].ncount > 1) {
             // calculate the forces between atoms inside each bin
             for icount in 0..bins[binid].ncount-2 {
@@ -593,7 +608,7 @@ proc calc_forces() {
     }
 
     // odd neighbors to the east (1)
-    for binid in binSpaceiodd {       
+    forall binid in binSpaceiodd {       
         //var binid=(jbin-1)*numBins+ibin;
         var binidnbor = bins[binid].neighbors[1];
         if (binidnbor != -1) {
@@ -610,9 +625,10 @@ proc calc_forces() {
         }
     }
     // even neighbors to the east (1)
-    for ibin in 2..numBins by 2 {
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
+    forall binid in binSpaceieven {
+    // for ibin in 2..numBins by 2 {
+    //     for jbin in 1..numBins {
+            // var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[1];
             if (binidnbor != -1) {
                 if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -626,13 +642,14 @@ proc calc_forces() {
                     }
                 }
             }
-        }
+        //}
     }
 
     // odd neighbors to the NE (2) (i+1,j+1)
-    for ibin in 1..numBins by 2 {
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
+    forall binid in binSpaceiodd {
+    // for ibin in 1..numBins by 2 {
+    //     for jbin in 1..numBins {
+            // var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[2];
             if (binidnbor != -1) {
                 if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -645,13 +662,14 @@ proc calc_forces() {
                     }
                 }
             }
-        }
+        //}
     }
 
     // even neighbors to the NE (2)
-    for ibin in 2..numBins by 2 { // can we do this with every i, but every other j?
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
+    forall binid in binSpaceieven {
+    // for ibin in 2..numBins by 2 { // can we do this with every i, but every other j?
+    //     for jbin in 1..numBins {
+    //        var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[2];
             if (binidnbor != -1) { // check if neighbor is valid
                 if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) { // check if neighbor has any atoms at all
@@ -665,13 +683,14 @@ proc calc_forces() {
                     }
                 }
             }
-        }
+        //}
     }
 
     // odd neighbors to the N (3)
-    for ibin in 1..numBins {
-        for jbin in 1..numBins by 2 {
-            var binid=(jbin-1)*numBins+ibin;
+    forall binid in binSpacejodd {
+    // for ibin in 1..numBins {
+    //     for jbin in 1..numBins by 2 {
+    //        var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[3];
             if (binidnbor != -1) {
                 if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -685,13 +704,14 @@ proc calc_forces() {
                     }
                 }
             }
-        }
+        //}
     }
 
     // even neighbors to the N (3)
-    for ibin in 1..numBins {
-        for jbin in 2..numBins by 2 {
-            var binid=(jbin-1)*numBins+ibin;
+    forall binid in binSpacejeven {
+    // for ibin in 1..numBins {
+    //     for jbin in 2..numBins by 2 {
+    //         var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[3];
             if (binidnbor != -1) {
                 if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -705,13 +725,14 @@ proc calc_forces() {
                     }
                 }
             }
-        }
+        //}
     }
 
     // odd neighbors to the NW (4)
-    for ibin in 1..numBins by 2 {
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
+    forall binid in binSpaceiodd {
+    // for ibin in 1..numBins by 2 {
+    //     for jbin in 1..numBins {
+    //         var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[4];
             if (binidnbor != -1) {
                 if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -725,13 +746,14 @@ proc calc_forces() {
                     }
                 }
             }
-        }
+        //}
     }
 
     // even neighbors to the NW (4)
-    for ibin in 2..numBins by 2 {
-        for jbin in 1..numBins {
-            var binid=(jbin-1)*numBins+ibin;
+    forall binid in binSpaceieven {
+    // for ibin in 2..numBins by 2 {
+    //     for jbin in 1..numBins {
+    //         var binid=(jbin-1)*numBins+ibin;
             var binidnbor = bins[binid].neighbors[4];
             if (binidnbor != -1) {
                 if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -745,7 +767,8 @@ proc calc_forces() {
                     }
                 }
             }
-        }
+        //}
+    }
     }
 }
 
@@ -868,8 +891,28 @@ proc init_bins() {
     for ibin in 1..numBins by 2 {
         for jbin in 1..numBins {
             icount += 1;
-            var binid=(jbin-1)*numBins+ibin;
-            binSpaceiodd[icount] = binid;
+            binSpaceiodd[icount] = (jbin-1)*numBins+ibin;
+        }
+    }
+    icount = 0;
+    for ibin in 2..numBins by 2 {
+        for jbin in 1..numBins {
+            icount +=1;
+            binSpaceieven[icount] = (jbin-1)*numBins+ibin;
+        }
+    }
+    icount = 0;
+    for ibin in 1..numBins {
+        for jbin in 1..numBins by 2 {
+            icount += 1;
+            binSpacejodd[icount] = (jbin-1)*numBins+ibin;
+        }
+    }
+    icount = 0;
+    for ibin in 1..numBins {
+        for jbin in 2..numBins by 2 {
+            icount += 1;
+            binSpacejeven[icount] = (jbin-1)*numBins+ibin;
         }
     }
 }

@@ -179,7 +179,6 @@ proc main() {
     }
     writeln("fluid equilibrated...5000dt");
     write_xyz(0);
-    halt();
     //setting up stopwatch
     xt.start();
     for itime in 1..nsteps {
