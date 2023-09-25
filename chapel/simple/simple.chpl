@@ -137,13 +137,12 @@ var binSpaceieven : [1..(numBins*numBins)/2] int;
 var binSpacejeven : [1..(numBins*numBins)/2] int;
 var randStream = new RandomStream(real); // creating random number generator
 const numTasks = here.numPUs();
-if here.gpus.isEmpty() {
-    writeln("no gpus");
-} else {
-    writeln("gpus");
-}
 
-proc main () {
+proc main() {
+    var location = here;
+    if !(here.gpus.isEmpty()) {
+        var location = here.gpus[0];
+    }
     writeln(numTasks);
     writeln("numBins: ",numBins);
     init_bins();
@@ -176,14 +175,14 @@ proc main () {
     // init randomly
     
 
-    update_cells(0);
+    update_cells(location,0);
 
     var t = 0.0;
     var total_time = 0.0;
     var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
     write_xyz(0);
     //calc_forces_old();
-    calc_forces(here);
+    calc_forces(location);
     var vel_mag = 0.0;
     //setting up stopwatch
     xt.start();
@@ -205,13 +204,13 @@ proc main () {
         }
 	    ct.start();
         // update positions
-        update_position();
-        update_cells(istep);
+        update_position(location);
+        update_cells(location,istep);
 
         //calc_forces_old();
-        calc_forces(here);
+        calc_forces(location);
 
-        update_velocities();
+        update_velocities(location);
         
 
         ct.stop();
@@ -226,7 +225,8 @@ proc main () {
     writeln("Total Time:",xt.elapsed()," s");
 }
 
-proc update_position() {
+proc update_position(loc) {
+    on loc {
     // update positions
     forall i in 1..numParticles {
         solvent[i].x += solvent[i].vx*dt + (solvent[i].fx/2)*(dt**2);
@@ -260,6 +260,7 @@ proc update_position() {
         }
         solvent[i].fx = 0.0;
         solvent[i].fy = 0.0;
+    }
     }
 }
 
@@ -772,8 +773,9 @@ proc calc_forces(loc) {
     }
 }
 
-proc update_velocities() {
+proc update_velocities(loc) {
     //update velocities
+    on loc {
     forall i in 1..numParticles {
         //solvent[i].vx += 0.5*dt*(solvent[i].fxold + solvent[i].fx);
         //solvent[i].vy += 0.5*dt*(solvent[i].fyold + solvent[i].fy);
@@ -784,17 +786,20 @@ proc update_velocities() {
         // calculating kinetic energy here too
         KE[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
     }
+    }
 }
 
 // CELL LIST FUNCTIONS
-proc update_cells(istep:int) {
+proc update_cells(loc,istep:int) {
     // ncount array set to zero
     // particle list set to empty
-    for binid in binSpace{
+    on loc {
+    forall binid in binSpace{
         if bins[binid].ncount > 0{
             bins[binid].ncount = 0;
             bins[binid].atoms.clear();
         }
+    }
     }
     var ibin,jbin,binid :int;
     for i in 1..numParticles { // populating particles into bins
@@ -815,8 +820,6 @@ proc update_cells(istep:int) {
         bins[binid].ncount += 1;
         bins[binid].atoms.pushBack(solvent[i].id);
         //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
-
-
     }
     if (debug) {
         writeln("recalculating bins");
