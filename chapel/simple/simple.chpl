@@ -141,7 +141,8 @@ const numTasks = here.numPUs();
 proc main() {
     var location = here;
     if !(here.gpus.isEmpty()) {
-        var location = here.gpus[0];
+        writeln("GPU");
+        location = here.gpus[0];
     }
     writeln(numTasks);
     writeln("numBins: ",numBins);
