@@ -4,10 +4,8 @@ use IO;
 use IO.FormattedIO;
 use Time; // for stopwatch
 use List;
-use GPU;
 
-
-config const debug = false, 
+config const debug = false,
             L = 100.0, // size of the simulation box in x and y
             nsteps = 50000,
             dt = 0.001,
@@ -36,7 +34,7 @@ record Particle {
     var fx,fy,fz: real;
     var fxold,fyold,fzold: real;
     var m: real; //mass
-    var ptype: int; //  ptype=1 (active), ptype=2(solvent), ptype=3 (boundary), ptype=-1 (unassigned) 
+    var ptype: int; //  ptype=1 (active), ptype=2(solvent), ptype=3 (boundary), ptype=-1 (unassigned)
     proc init() {
         this.id = ptc_init_counter;
         ptc_init_counter += 1;
@@ -107,7 +105,7 @@ record Bin {
     //var id: (int,int); //id of each bin
     var id: int; //id of each bin
     var atoms: list(int); // list of particle id's in each bin
-    var neighbors: [1..4] int; // indices of each bin's neighboring bin 
+    var neighbors: [1..4] int; // indices of each bin's neighboring bin
     var ncount: int; // count of number of particles in each bin
     var x: (real,real); // precalculate the max_x and min_x values for the space the box occupies
     var y: (real,real); // this is for easier neighbor list creation
@@ -137,13 +135,13 @@ var binSpaceieven : [1..(numBins*numBins)/2] int;
 var binSpacejeven : [1..(numBins*numBins)/2] int;
 var randStream = new RandomStream(real); // creating random number generator
 const numTasks = here.numPUs();
+if here.gpus.isEmpty() {
+    writeln("no gpus");
+} else {
+    writeln("gpus");
+}
 
-proc main() {
-    var location = here;
-    if !(here.gpus.isEmpty()) {
-        writeln("GPU");
-        location = here.gpus[0];
-    }
+proc main () {
     writeln(numTasks);
     writeln("numBins: ",numBins);
     init_bins();
@@ -172,18 +170,18 @@ proc main() {
         solvent[i].vx = solvent[i].vx - vxave;
         solvent[i].vy = solvent[i].vy - vyave;
     }
-    
-    // init randomly
-    
 
-    update_cells(location,0);
+    // init randomly
+
+
+    update_cells(0);
 
     var t = 0.0;
     var total_time = 0.0;
     var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
     write_xyz(0);
     //calc_forces_old();
-    calc_forces(location);
+    calc_forces();
     var vel_mag = 0.0;
     //setting up stopwatch
     xt.start();
@@ -200,19 +198,19 @@ proc main() {
                     KE_total[(istep/print_interval):int],"\t",
                     (max reduce solvent.x),"\t",
                     (max reduce solvent.y),"\t",
-                    vel_mag);                    
+                    vel_mag);
         xt.start();
         }
 	    ct.start();
         // update positions
-        update_position(location);
-        update_cells(location,istep);
+        update_position();
+        update_cells(istep);
 
         //calc_forces_old();
-        calc_forces(location);
+        calc_forces();
 
-        update_velocities(location);
-        
+        update_velocities();
+
 
         ct.stop();
         if (istep % save_interval == 0){
@@ -226,8 +224,7 @@ proc main() {
     writeln("Total Time:",xt.elapsed()," s");
 }
 
-proc update_position(loc) {
-    on loc {
+proc update_position() {
     // update positions
     forall i in 1..numParticles {
         solvent[i].x += solvent[i].vx*dt + (solvent[i].fx/2)*(dt**2);
@@ -243,7 +240,7 @@ proc update_position(loc) {
         // } else if solvent[i].y < 0.0 {
         //     solvent[i].y = solvent[i].y + L;
         // }
-        
+
         solvent[i].vx += 0.5*dt*solvent[i].fx;
         solvent[i].vy += 0.5*dt*solvent[i].fy;
         // collide with boundaries
@@ -261,7 +258,6 @@ proc update_position(loc) {
         }
         solvent[i].fx = 0.0;
         solvent[i].fy = 0.0;
-    }
     }
 }
 
@@ -319,7 +315,7 @@ proc calc_forces_old () {
     //     alpha = sqrt(kbt*numParticles)/temp_KE_total;
     //     if (temp_KE_total <= 0.00001) {
     //         alpha = 1.0;
-    //     } 
+    //     }
     //     writeln(alpha);
     // }
     var Lo2 = L/2.0;
@@ -593,8 +589,7 @@ proc calc_forces_parallel() {
 }*/
 
 
-proc calc_forces(loc) {
-    on loc {
+proc calc_forces() {
     // loop over all bins
     forall binid in binSpace {
         if (bins[binid].ncount > 1) {
@@ -610,7 +605,7 @@ proc calc_forces(loc) {
     }
 
     // odd neighbors to the east (1)
-    forall binid in binSpaceiodd {       
+    forall binid in binSpaceiodd {
         //var binid=(jbin-1)*numBins+ibin;
         var binidnbor = bins[binid].neighbors[1];
         if (binidnbor != -1) {
@@ -771,12 +766,10 @@ proc calc_forces(loc) {
             }
         //}
     }
-    }
 }
 
-proc update_velocities(loc) {
+proc update_velocities() {
     //update velocities
-    on loc {
     forall i in 1..numParticles {
         //solvent[i].vx += 0.5*dt*(solvent[i].fxold + solvent[i].fx);
         //solvent[i].vy += 0.5*dt*(solvent[i].fyold + solvent[i].fy);
@@ -787,27 +780,24 @@ proc update_velocities(loc) {
         // calculating kinetic energy here too
         KE[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
     }
-    }
 }
 
 // CELL LIST FUNCTIONS
-proc update_cells(loc,istep:int) {
+proc update_cells(istep:int) {
     // ncount array set to zero
     // particle list set to empty
-    on loc {
-    forall binid in binSpace{
+    for binid in binSpace{
         if bins[binid].ncount > 0{
             bins[binid].ncount = 0;
             bins[binid].atoms.clear();
         }
-    }
     }
     var ibin,jbin,binid :int;
     for i in 1..numParticles { // populating particles into bins
         ibin=ceil(solvent[i].x/rcut):int;
         jbin=ceil(solvent[i].y/rcut):int;
         binid=(jbin-1)*numBins+ibin;
-        
+
         if (binid > numBins*numBins) {
             writeln(solvent[i].info());
             write_xyz(istep);
@@ -821,6 +811,8 @@ proc update_cells(loc,istep:int) {
         bins[binid].ncount += 1;
         bins[binid].atoms.pushBack(solvent[i].id);
         //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
+
+
     }
     if (debug) {
         writeln("recalculating bins");
@@ -841,7 +833,7 @@ proc init_bins() {
             binid = (jbin-1)*numBins+ibin;
             //  4   3   2
             //     *   1
-            //  
+            //
             /*  1 = i+1,j
                 2 = i+1,j+1
                 3 = i,j+1
@@ -890,7 +882,7 @@ proc init_bins() {
         // bins[ibin].y[0] = (ibin[1]-1)*rcut;
         // bins[ibin].y[1] = ibin[1]*rcut;
 
-    // making lists of binids for different 
+    // making lists of binids for different
     var icount = 0;
     for ibin in 1..numBins by 2 {
         for jbin in 1..numBins {
