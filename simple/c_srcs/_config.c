@@ -30,6 +30,7 @@ void CreateConfigVarTable(void) {
   installConfigVar("numParticles", "int(64)", "simple", /* private = */ 0, /* deprecated = */ 0, "numParticles is deprecated");
   installConfigVar("thermo", "bool", "simple", /* private = */ 0, /* deprecated = */ 0, "thermo is deprecated");
   installConfigVar("kbt", "real(64)", "simple", /* private = */ 0, /* deprecated = */ 0, "kbt is deprecated");
+  installConfigVar("VisualDebugOn", "bool", "VisualDebug", /* private = */ 0, /* deprecated = */ 0, "VisualDebugOn is deprecated");
 }
 
 

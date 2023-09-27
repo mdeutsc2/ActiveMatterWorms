@@ -6,7 +6,7 @@ use Time; // for stopwatch
 // configuration
 config const np = 40,
             nworms = 250,
-            nsteps = 200000    ,//00,
+            nsteps = 2000000    ,//00,
             fdogic = 0.06,
             fdogicwall = 0.0,
             fdep = 1.0, // TODO: change to 4.0?
@@ -18,7 +18,7 @@ config const np = 40,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
             save_interval = 250,
-            boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel
+            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
@@ -34,7 +34,7 @@ record Particle {
     var fx,fy,fz: real;
     var fxold,fyold,fzold: real;
     var m: real; //mass
-    var ptype: int; //  ptype=1 (active), ptype=2(solvent), ptype=3 (boundary), ptype=-1 (unassigned) 
+    var ptype: int; //  ptype=1 (active), ptype=2(solvent), ptype=3 (boundary), ptype=-1 (unassigned)
     proc init() {
         this.id = ptc_init_counter;
         ptc_init_counter += 1;
@@ -140,7 +140,7 @@ const r2cut = rcut*rcut,
       iwalldrive = 1,
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 900,//590*2, // number of boundary points
-      numSol = 800, // number of solution particles (3200 for circular, 800 for cardioid)
+      numSol = 3200, // number of solution particles (3200 for circular, 800 for cardioid)
       fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
 const numTasks = here.numPUs();
@@ -197,7 +197,7 @@ proc main() {
         calc_forces();
         worm_wall_new();
         for i in 1..ncells {
-            hhead[i] = -1; // 
+            hhead[i] = -1; //
         }
         for iw in 1..nworms*np{
             ipointto[iw] = 0;
@@ -212,7 +212,7 @@ proc main() {
         } else {
             KEsol_total[itime] = 0.0;
         }
-        
+
         update_vel();
         KEworm_total[itime] = (+ reduce KEworm);
         //KE_tota[iste] = KEworm_total + KEsol_total;
@@ -270,7 +270,7 @@ proc init_worms() {
         for i in 1..numPoints {
             equidistantThetaValues[i] = i * deltaTheta;
         }
-        
+
         for i in 1..numPoints {
             bound[i].x = rwall * cos(equidistantThetaValues[i])+hxo2;
             bound[i].y = rwall * sin(equidistantThetaValues[i])+hyo2;
@@ -313,7 +313,7 @@ proc init_worms() {
             equidistantArcLengths[i] = totalArcLength * (i - 1) / (numPoints - 1);
             thetaValues[i] = 4 * asin(sqrt(equidistantArcLengths[i] / totalArcLength));
         }
-        
+
         for i in 1..numPoints {
             bound[i].x = ca * (1 - cos(thetaValues[i])) * cos(thetaValues[i]) + hxo2 + ca;
             bound[i].y = ca * (1 - cos(thetaValues[i])) * sin(thetaValues[i]) + hyo2;
@@ -391,7 +391,7 @@ proc calc_forces() {
     var rsq:real,rand1:real,rand2:real,v1:real,v2:real,fac:real,g1:real,th:real;
     //zero out the force arrays and add Gaussian noise
     rsq = 0.0;
-    for iw in 1..nworms {
+    /* for iw in 1..nworms {
         for i in 1..np {
             while ((rsq >= 0.999) || (rsq <= 0.001)) {
                 rand1 = randStream.getNext();
@@ -407,7 +407,7 @@ proc calc_forces() {
             worms[iw,i].fx = g1*cos(th) - diss*worms[iw,i].vx;
             worms[iw,i].fy = g1*sin(th) - diss*worms[iw,i].vy;
         }
-    }
+    } */
     //first set of springs nearest neighbor springs
     forall iw in 1..nworms {
         var ip1:int,r:real,ff:real,ffx:real,ffy:real,dx:real,dy:real;
@@ -488,8 +488,8 @@ proc calc_forces() {
 }
 
 proc worm_wall() {
-    var dx:real, dy:real, r:real, r2:real, th:real, 
-           xwall:real, ywall:real, rr2:real, ffor:real, 
+    var dx:real, dy:real, r:real, r2:real, th:real,
+           xwall:real, ywall:real, rr2:real, ffor:real,
            dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
     var ip1:int;
     //put worm-wall interactions here, and dissipation force proportional to velocity
@@ -522,7 +522,7 @@ proc worm_wall() {
                 ffor = -48.0*rr2**(-7.0) + 24.0*rr2**(-4.0);
                 worms[iw, i].fx += ffor*dx;
                 worms[iw, i].fy += ffor*dy;
-               
+
                 //iwalldrive = 1; // made this a const parameter
                 //Turning on dogic drive with the wall!!!
                 if (iwalldrive == 1) {
@@ -574,8 +574,8 @@ proc worm_wall() {
 proc worm_wall_new() {
     //put worm-wall interactions here, and dissipation force proportional to velocity
     forall iw in 1..nworms{
-        var dx:real, dy:real, r:real, r2:real, th:real, 
-           xwall:real, ywall:real, rr2:real, ffor:real, 
+        var dx:real, dy:real, r:real, r2:real, th:real,
+           xwall:real, ywall:real, rr2:real, ffor:real,
            dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
         var ip1:int;
         for i in 1..np{
@@ -587,7 +587,7 @@ proc worm_wall_new() {
             worms[iw,i].vxave = worms[iw,i].vx;
             worms[iw,i].vyave = worms[iw,i].vy;
             nnab[iw, i] = 1;
-            
+
             // calculate the force on the boundaries.
             for ib in 1..numPoints  {
                 //calculate distance to the wall
@@ -612,7 +612,7 @@ proc cell_sort_old(itime:int) {
         ri:real,rj:real,r:real,dx:real,dy:real,dyi:real,dyj:real;
     var iworm:int,jworm:int,ip:int,jp:int,ii:int,jj:int,kk:int,i:int,ip1:int,
         jp1:int,scell:int,scnab:int,inogo:int,icnab:int,jcnab:int,icell:int,jcell:int;
-    
+
     for iworm in 1..nworms{
         for ip in 1..np {
             ii = (iworm-1)*np+ip; //unique particle id 1<=ii<=nworms*np
@@ -773,7 +773,7 @@ proc cell_sort_new(itime:int) {
     var iworm:int,jworm:int,ip:int,jp:int,ii:int,jj:int,kk:int,i:int,ip1:int,
         jp1:int,scell:int,scnab:int,inogo:int,icnab:int,jcnab:int,icell:int,jcell:int,
         iiboolworm:int,jjboolworm:int,ib:int,jb:int;
-    
+
     for iworm in 1..nworms{ //sorting of worm particles into cells
         for ip in 1..np {
             ii = (iworm-1)*np+ip; //unique particle id 1<=ii<=nworms*np
@@ -1430,5 +1430,5 @@ proc gaussRand(mean: real, stddev: real): real {
     } else if (gauss < -2.5) {
         gauss = -2.5;
     }
-    return gauss;   
+    return gauss;
 }
