@@ -1,4 +1,6 @@
 module Structs {
+    use List;
+    
     var ptc_init_counter = 1;
     record Particle {
         var id: int;

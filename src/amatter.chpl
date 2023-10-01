@@ -3,6 +3,7 @@ use Random;
 use IO;
 use IO.FormattedIO;
 use Time; // for stopwatch
+use List;
 // user-defined modules
 use Structs; //imports Particle and Bin structures
 //use Worms;
@@ -84,6 +85,15 @@ var KEsol: [1..numSol] real;
 var KEworm_total: [1..nsteps] real;
 var KEsol_total: [1..nsteps] real; //workaround https://stackoverflow.com/questions/59753273/how-to-append-data-to-an-existing-file
 
+var numBins = ceil(hx/rcut):int;
+//const binSpace = {1..numBins, 1..numBins};
+const binSpace = {1..numBins*numBins};
+var solbins : [1..numBins*numBins] Bin;
+var wormbins : [1..numBins*numBims] Bin;
+var binSpaceiodd : [1..(numBins*numBins)/2] int;
+var binSpacejodd : [1..(numBins*numBins)/2] int;
+var binSpaceieven : [1..(numBins*numBins)/2] int;
+var binSpacejeven : [1..(numBins*numBins)/2] int;
 
 var randStream = new RandomStream(real); // creating random number generator
 
@@ -93,8 +103,17 @@ var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
 //main
 proc main() {
     writeln("starting...",numTasks);
+    init_binspace();
+    init_worm_bins();
     init_worms();
-    if (fluid_cpl) {init_fluid();}
+
+    if (fluid_cpl) {
+        init_fluid_binds();
+        init_fluid();
+    }
+
+    update_worm_cells(0);
+    update_fluid_cells(0);
     // equilibrate the fluid
     for istep in 1..5000 {
         fluid_step(dt);
@@ -309,6 +328,7 @@ proc update_pos(itime:int) {
     }
 }
 
+// TODO This needs to be renamed to "interworm_forces"
 proc calc_forces() {
     var rsq:real,rand1:real,rand2:real,v1:real,v2:real,fac:real,g1:real,th:real;
     //zero out the force arrays and add Gaussian noise
@@ -1012,17 +1032,17 @@ proc fluid_step(dt_fluid:real) {
 }
 
 // CELL LIST FUNCTIONS
-proc update_cells(istep:int) {
+proc update_fluid_cells(istep:int) {
     // ncount array set to zero
     // particle list set to empty
     for binid in binSpace{
-        if bins[binid].ncount > 0{
-            bins[binid].ncount = 0;
-            bins[binid].atoms.clear();
+        if solbins[binid].ncount > 0{
+            solbins[binid].ncount = 0;
+            solbins[binid].atoms.clear();
         }
     }
     var ibin,jbin,binid :int;
-    for i in 1..numParticles { // populating particles into bins
+    for i in 1..numSol { // populating particles into bins
         ibin=ceil(solvent[i].x/rcut):int;
         jbin=ceil(solvent[i].y/rcut):int;
         binid=(jbin-1)*numBins+ibin;
@@ -1030,18 +1050,60 @@ proc update_cells(istep:int) {
         if (binid > numBins*numBins) {
             writeln(solvent[i].info());
             write_xyz(istep);
-            dump_particles();
+            //dump_particles();
         } else if (binid < 1) {
             writeln(solvent[i].info());
             write_xyz(istep);
-            dump_particles();
+            //dump_particles();
         }
         //append i to particle_list for binid
-        bins[binid].ncount += 1;
-        bins[binid].atoms.pushBack(solvent[i].id);
+        solbins[binid].ncount += 1;
+        solbins[binid].atoms.pushBack(solvent[i].id);
         //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
 
 
+    }
+    if (debug) {
+        writeln("recalculating bins");
+        for ibin in binSpace {
+            if solbins[ibin].ncount > 0 {
+            writeln(solbins[ibin].id,"\t",solbins[ibin].atoms);
+            }
+        }
+    }
+}
+
+proc update_worm_cells(istep:int) {
+    // ncount array set to zero
+    // particle list set to empty
+    for binid in binSpace{
+        if wormbins[binid].ncount > 0{
+            wormbins[binid].ncount = 0;
+            wormbins[binid].atoms.clear();
+        }
+    }
+    var ibin,jbin,binid,wormid :int;
+    for iw in 1..nworms { // populating particles into bins
+        for ip in 1..np {
+            ibin=ceil(solvent[i].x/rcut):int;
+            jbin=ceil(solvent[i].y/rcut):int;
+            binid=(jbin-1)*numBins+ibin;
+            wormid = (iw-1)*nworms + ip;
+
+            if (binid > numBins*numBins) {
+                writeln(worms[iw,ip].info());
+                write_xyz(istep);
+                dump_particles();
+            } else if (binid < 1) {
+                writeln(worms[iw,ip].info());
+                write_xyz(istep);
+                dump_particles();
+            }
+            //append i to particle_list for binid
+            wormbins[binid].ncount += 1;
+            wormbins[binid].atoms.pushBack(wormid);
+            //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
+        }
     }
     if (debug) {
         writeln("recalculating bins");
@@ -1053,7 +1115,7 @@ proc update_cells(istep:int) {
     }
 }
 
-proc init_bins() {
+proc init_fluid_bins() {
     // writeln((4/numBins):int +1); //row
     // writeln(4%numBins); // col
     var binid,ibinnab,jbinnab,binidnbor:int;
@@ -1072,36 +1134,36 @@ proc init_bins() {
             jbinnab=jbin;
             if (ibinnab <= numBins) {
                 binidnbor=(jbinnab-1)*numBins+ibinnab;
-                bins[binid].neighbors[1] = binidnbor;
+                solbins[binid].neighbors[1] = binidnbor;
             } else {
-                bins[binid].neighbors[1] = -1;
+                solbins[binid].neighbors[1] = -1;
             }
 
             ibinnab=ibin+1;
             jbinnab=jbin+1;
             if (ibinnab <= numBins) && (jbinnab <= numBins) {
                 binidnbor=(jbinnab-1)*numBins+ibinnab;
-                bins[binid].neighbors[2] = binidnbor;
+                solbins[binid].neighbors[2] = binidnbor;
             } else {
-                bins[binid].neighbors[2] = -1;
+                solbins[binid].neighbors[2] = -1;
             }
 
             ibinnab=ibin;
             jbinnab=jbin+1;
             if (jbinnab <= numBins) {
                 binidnbor=(jbinnab-1)*numBins+ibinnab;
-                bins[binid].neighbors[3] = binidnbor;
+                solbins[binid].neighbors[3] = binidnbor;
             } else {
-                bins[binid].neighbors[3] = -1;
+                solbins[binid].neighbors[3] = -1;
             }
 
             ibinnab=ibin-1;
             jbinnab=jbin+1;
             if (ibinnab > 0) && (jbinnab <= numBins){
                 binidnbor=(jbinnab-1)*numBins+ibinnab;
-                bins[binid].neighbors[4] = binidnbor;
+                solbins[binid].neighbors[4] = binidnbor;
             } else {
-                bins[binid].neighbors[4] = -1;
+                solbins[binid].neighbors[4] = -1;
             }
 
         }
@@ -1111,6 +1173,64 @@ proc init_bins() {
         // bins[ibin].y[0] = (ibin[1]-1)*rcut;
         // bins[ibin].y[1] = ibin[1]*rcut;
 
+}
+
+proc init_worm_bins() {
+    // writeln((4/numBins):int +1); //row
+    // writeln(4%numBins); // col
+    var binid,ibinnab,jbinnab,binidnbor:int;
+    for ibin in 1..numBins {
+        for jbin in 1..numBins {
+            binid = (jbin-1)*numBins+ibin;
+            //  4   3   2
+            //     *   1
+            //
+            /*  1 = i+1,j
+                2 = i+1,j+1
+                3 = i,j+1
+                4 = i-1,j+1
+            */
+            ibinnab=ibin+1;
+            jbinnab=jbin;
+            if (ibinnab <= numBins) {
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                wormbins[binid].neighbors[1] = binidnbor;
+            } else {
+                wormbins[binid].neighbors[1] = -1;
+            }
+
+            ibinnab=ibin+1;
+            jbinnab=jbin+1;
+            if (ibinnab <= numBins) && (jbinnab <= numBins) {
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                wormbins[binid].neighbors[2] = binidnbor;
+            } else {
+                wormbins[binid].neighbors[2] = -1;
+            }
+
+            ibinnab=ibin;
+            jbinnab=jbin+1;
+            if (jbinnab <= numBins) {
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                wormbins[binid].neighbors[3] = binidnbor;
+            } else {
+                wormbins[binid].neighbors[3] = -1;
+            }
+
+            ibinnab=ibin-1;
+            jbinnab=jbin+1;
+            if (ibinnab > 0) && (jbinnab <= numBins){
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                wormbins[binid].neighbors[4] = binidnbor;
+            } else {
+                wormbins[binid].neighbors[4] = -1;
+            }
+
+        }
+    }
+}
+
+proc init_binspace() {
     // making lists of binids for different
     var icount = 0;
     for ibin in 1..numBins by 2 {
@@ -1141,6 +1261,8 @@ proc init_bins() {
         }
     }
 }
+
+
 
 // IO Functions
 proc write_xyz(istep:int) {
