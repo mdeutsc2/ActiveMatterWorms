@@ -1,17 +1,17 @@
 # Makefile for compiling amatter2.chpl with Chapel compiler
 
 CHPL = chpl
-CHPLFLAGS = --fast --optimize --ldflags -v --print-passes --print-commands --print-callstack-on-error
-DEBUGFLAGS = -g --savec=c_srcs --ldflags -v --print-passes --print-commands --checks --print-callstack-on-error
-GPUFLAGS = --fast --optimize --ldflags -v--print-passes --print-commands --gpu-arch=sm60 --gpu-specialization
-
-# SRCS = amatter.chpl
-# VPATH = src/
 SRCDIR = src/
 SOURCE = $(SRCDIR)amatter.chpl
-# SOURCE := $(SRCS)
+BUILDDIR = build/
 OUTPUT = amatter.x
 SETUP_SCRIPT = /mnt/SCRATCH/chapel-1.31.0/util/setchplenv.bash
+
+CHPLFLAGS = --fast --savec=$(BUILDDIR) --optimize --ldflags -v --print-passes --print-commands
+DEBUGFLAGS = -g --savec=$(BUILDDIR) --ldflags -v --print-passes --print-commands --checks --print-callstack-on-error
+GPUFLAGS = --fast --optimize --ldflags -v--print-passes --print-commands --gpu-arch=sm60 --gpu-specialization
+
+
 all: $(OUTPUT)
 
 $(OUTPUT): $(SOURCE)
