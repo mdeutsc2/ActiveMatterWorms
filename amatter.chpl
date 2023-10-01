@@ -139,7 +139,7 @@ const r2cut = rcut*rcut,
       a = 0.24, // layer spacing of worms in init_worms?
       iwalldrive = 1,
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
-      numPoints = 900,//590*2, // number of boundary points
+      numPoints = 420, //number of boundary points (for circle w/ r-75)
       numSol = 3200, // number of solution particles (3200 for circular, 800 for cardioid)
       fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
@@ -581,11 +581,11 @@ proc worm_wall_new() {
         for i in 1..np{
             //dissipation proportional to v relative to local average
             // TODO swap vxave with intvx
-            worms[iw,i].fx = worms[iw,i].fx - diss*(worms[iw,i].vx - worms[iw,i].vxave);
-            worms[iw,i].fy = worms[iw,i].fy - diss*(worms[iw,i].vy - worms[iw,i].vyave);
+            //worms[iw,i].fx = worms[iw,i].fx - diss*(worms[iw,i].vx - worms[iw,i].vxave);
+            //worms[iw,i].fy = worms[iw,i].fy - diss*(worms[iw,i].vy - worms[iw,i].vyave);
             //now that we have used them, zero out vxave and vyave, recalculate below
-            worms[iw,i].vxave = worms[iw,i].vx;
-            worms[iw,i].vyave = worms[iw,i].vy;
+            //worms[iw,i].vxave = worms[iw,i].vx;
+            //worms[iw,i].vyave = worms[iw,i].vy;
             nnab[iw, i] = 1;
 
             // calculate the force on the boundaries.
@@ -692,11 +692,11 @@ proc cell_sort_old(itime:int) {
                                         worms[jworm,jp].fy -= ffy;
 
                                         //take these neighbors into account in calculating vxave and vyave
-                                        worms[iworm,ip].vxave += worms[jworm,jp].vx;
-                                        worms[iworm,ip].vyave += worms[jworm,jp].vy;
+                                        //worms[iworm,ip].vxave += worms[jworm,jp].vx;
+                                        //worms[iworm,ip].vyave += worms[jworm,jp].vy;
                                         nnab[iworm, ip] = nnab[iworm, ip] + 1;
-                                        worms[jworm,jp].vxave += worms[iworm,ip].vx;
-                                        worms[jworm,jp].vyave += worms[iworm,ip].vy;
+                                        //worms[jworm,jp].vxave += worms[iworm,ip].vx;
+                                        //worms[jworm,jp].vyave += worms[iworm,ip].vy;
                                         nnab[jworm, jp] = nnab[jworm, jp] + 1;
 
                                         //add 'dogic drive' to interacting pairs
