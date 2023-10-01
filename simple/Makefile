@@ -1,7 +1,7 @@
 # Makefile for compiling simple.chpl with Chapel compiler
 
 CHPL = chpl
-CHPLFLAGS = --fast --optimize --ldflags -v --print-passes --print-commands
+CHPLFLAGS = --fast --optimize --ldflags -v --print-passes --print-commands --print-callstack-on-error
 DEBUGFLAGS = -g --savec=c_srcs --ldflags -v --print-passes --print-commands --checks --print-callstack-on-error
 GPUFLAGS = --fast --optimize --ldflags -v--print-passes --print-commands --gpu-arch=sm60 --gpu-specialization
 
