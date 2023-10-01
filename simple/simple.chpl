@@ -22,7 +22,7 @@ var hxo2 = L/2,
     r2cutsmall = rcutsmall*rcutsmall,
     pi = 4.0*atan(1.0),
     gamma = 3.0, //1.5
-    print_interval = 500;
+    print_interval = 100;
 
 var ptc_init_counter = 1;
 
@@ -124,6 +124,9 @@ record Bin {
 var solvent: [1..numParticles] Particle;
 var KE: [1..numParticles] real;
 var KE_total: [1..nsteps/print_interval] real;
+var amom: [1..nsteps/print_interval] real;
+var xmom: [1..nsteps/print_interval] real;
+var ymom: [1..nsteps/print_interval] real;
 
 var numBins = ceil(L/rcut):int;
 //const binSpace = {1..numBins, 1..numBins};
@@ -189,6 +192,30 @@ proc main () {
         if (istep % print_interval == 0) {
 	    xt.stop();
 	    total_time = xt.elapsed();
+            amom[(istep/print_interval):int] = 0.0;
+            xmom[(istep/print_interval):int] = 0.0;
+            ymom[(istep/print_interval):int] = 0.0;
+            var xcom,ycom,rx,ry: real;
+            // calculating the center of mass
+            xcom = 0.0;
+            ycom = 0.0;
+            for i in 1..numParticles {
+                xcom = xcom + solvent[i].x;
+                ycom = ycom + solvent[i].y;
+            }
+            xcom = xcom / numParticles;
+            ycom = ycom / numParticles;
+            // calculating the angular velocity
+            for i in 1..numParticles {
+                rx = solvent[i].x - xcom;
+                ry = solvent[i].y - ycom;
+                amom[(istep/print_interval):int] += (rx*solvent[i].vy - ry*solvent[i].vx);
+                xmom[(istep/print_interval):int] += solvent[i].vx;
+                ymom[(istep/print_interval):int] += solvent[i].vy;
+            }
+            amom[(istep/print_interval):int] = amom[(istep/print_interval):int]/numParticles;
+            xmom[(istep/print_interval):int] = xmom[(istep/print_interval):int]/numParticles;
+            ymom[(istep/print_interval):int] = ymom[(istep/print_interval):int]/numParticles;
             KE_total[(istep/print_interval):int] = (+ reduce KE);
             vel_mag = sqrt((max reduce solvent.vx)**2 + (max reduce solvent.vy)**2);
             writeln("Step: ",istep,"\t",
@@ -735,7 +762,10 @@ proc write_macro(nsteps: int) {
         myFileWriter.writeln("step \t KE \t maxX \t maxY \t vel_mag");
         for istep in 1..nsteps/print_interval {
             myFileWriter.writeln(istep,"\t",
-                                KE_total[istep],"\t");
+                                KE_total[istep],"\t",
+                                amom[istep],"\t",
+                                xmom[istep],"\t",
+                                ymom[istep],"\t");
                                 //(max reduce solvent.x),"\t",
                                 //(max reduce solvent.y),"\t",
                                 //vel_mag);
