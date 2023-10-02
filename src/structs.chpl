@@ -1,6 +1,8 @@
 module Structs {
     use List;
-    
+    use IO;
+    use IO.FormattedIO;
+
     var ptc_init_counter = 1;
     record Particle {
         var id: int;
@@ -31,20 +33,20 @@ module Structs {
             this.fzold = 0.0;
             this.ptype = -1;
         }
-        proc info() {
-            var typestring: string;
-            if (this.ptype == 1) {
-                typestring = "active";
-            } else if (this.ptype == 2) {
-                typestring = "solvent";
-            } else if (this.ptype == 3) {
-                typestring = "boundary";
-            } else {
-                typestring = "unassigned";
-            }
-            var s:string = "id# %i \t type: %s \t mass: %s \n pos: %r \t %r \t %r \n vel: %r \t %r \t %r \n force: %r \t %r \t %r".format(this.id,typestring,this.m,this.x,this.y,this.z,this.vx,this.vy,this.vz,this.fx,this.fy,this.fz);
-            return s;
-        }
+        // proc info() {
+        //     var typestring: string;
+        //     if (this.ptype == 1) {
+        //         typestring = "active";
+        //     } else if (this.ptype == 2) {
+        //         typestring = "solvent";
+        //     } else if (this.ptype == 3) {
+        //         typestring = "boundary";
+        //     } else {
+        //         typestring = "unassigned";
+        //     }
+        //     var s:string = "id# %i \t type: %s \t mass: %s \n pos: %r \t %r \t %r \n vel: %r \t %r \t %r \n force: %r \t %r \t %r".format(this.id,typestring,this.m,this.x,this.y,this.z,this.vx,this.vy,this.vz,this.fx,this.fy,this.fz);
+        //     return s;
+        // }
         proc p(px: real, py: real, pz: real) {
             this.x = px;
             this.y = py;
