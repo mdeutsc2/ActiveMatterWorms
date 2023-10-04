@@ -3,19 +3,13 @@ use Random;
 use IO;
 use IO.FormattedIO;
 use Time; // for stopwatch
-use List;
-// user-defined modules
-//use Structs; //imports Particle and Bin structures
-//use Worms;
-
-const numTasks = here.numPUs();
 // configuration
 config const np = 40,
             nworms = 250,
             nsteps = 2000000    ,//00,
             fdogic = 0.06,
-            walldrive = true;
-            fdogicwall = 0.0,
+            walldrive = false,
+            fdogicwall = 1.0,
             fdep = 1.0, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.08,
@@ -62,20 +56,20 @@ record Particle {
         this.fzold = 0.0;
         this.ptype = -1;
     }
-    // proc info() {
-    //     var typestring: string;
-    //     if (this.ptype == 1) {
-    //         typestring = "active";
-    //     } else if (this.ptype == 2) {
-    //         typestring = "solvent";
-    //     } else if (this.ptype == 3) {
-    //         typestring = "boundary";
-    //     } else {
-    //         typestring = "unassigned";
-    //     }
-    //     var s:string = "id# %i \t type: %s \t mass: %s \n pos: %r \t %r \t %r \n vel: %r \t %r \t %r \n force: %r \t %r \t %r".format(this.id,typestring,this.m,this.x,this.y,this.z,this.vx,this.vy,this.vz,this.fx,this.fy,this.fz);
-    //     return s;
-    // }
+    proc info() {
+        var typestring: string;
+        if (this.ptype == 1) {
+            typestring = "active";
+        } else if (this.ptype == 2) {
+            typestring = "solvent";
+        } else if (this.ptype == 3) {
+            typestring = "boundary";
+        } else {
+            typestring = "unassigned";
+        }
+        var s:string = "id# %i \t type: %s \t mass: %s \n pos: %r \t %r \t %r \n vel: %r \t %r \t %r \n force: %r \t %r \t %r".format(this.id,typestring,this.m,this.x,this.y,this.z,this.vx,this.vy,this.vz,this.fx,this.fy,this.fz);
+        return s;
+    }
     proc p(px: real, py: real, pz: real) {
         this.x = px;
         this.y = py;
@@ -119,34 +113,11 @@ record Particle {
     }
 }
 
-var bin_init_counter = 1;
-record Bin {
-    //var id: (int,int); //id of each bin
-    var id: int; //id of each bin
-    var atoms: list(int); // list of particle id's in each bin
-    var neighbors: [1..4] int; // indices of each bin's neighboring bin
-    var ncount: int; // count of number of particles in each bin
-    var x: (real,real); // precalculate the max_x and min_x values for the space the box occupies
-    var y: (real,real); // this is for easier neighbor list creation
-
-    proc init() { // record initializer
-        this.id = bin_init_counter;
-        bin_init_counter += 1;
-        this.ncount = 0;
-        this.x = (0.0,0.0);
-        this.y = (0.0,0.0);
-        for i in 1..4 {
-            this.neighbors[i] = -1;
-        }
-    }
-}
-
-
 // variables
 const r2cut = rcut*rcut,
       rcutsmall = 2.0**(1.0/6.0),
       r2cutsmall = rcutsmall*rcutsmall,
-      rwall = 74,//125.0*rcutsmall*sqrt(2.0),
+      rwall = 75,//125.0*rcutsmall*sqrt(2.0),
       pi = 4.0*atan(1.0),
       twopi = 2*pi,
       pio4 = pi*0.25,
@@ -168,18 +139,15 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
-      numPoints = 420, //number of boundary points (for circle w/ r-75)
+      numPoints = 900,//590, // number of boundary points
       numSol = 3200, // number of solution particles (3200 for circular, 800 for cardioid)
       fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
-
-
+const numTasks = here.numPUs();
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
 var worms: [wormsDomain] Particle;
-ptc_init_counter = 1;
 var solvent: [1..numSol] Particle;
-ptc_init_counter = 1;
 var bound: [1..numPoints] Particle;
 var savex: [1..np] real(64);
 var savey: [1..np] real(64);
@@ -194,16 +162,6 @@ var KEsol: [1..numSol] real;
 var KEworm_total: [1..nsteps] real;
 var KEsol_total: [1..nsteps] real; //workaround https://stackoverflow.com/questions/59753273/how-to-append-data-to-an-existing-file
 
-var numBins = ceil(hx/rcut):int;
-writeln("numBins:\t",numBins);
-//const binSpace = {1..numBins, 1..numBins};
-const binSpace = {1..numBins*numBins};
-var solbins : [1..numBins*numBins] Bin;
-var wormbins : [1..numBins*numBins] Bin;
-var binSpaceiodd : [1..(numBins*numBins)/2] int;
-var binSpacejodd : [1..(numBins*numBins)/2] int;
-var binSpaceieven : [1..(numBins*numBins)/2] int;
-var binSpacejeven : [1..(numBins*numBins)/2] int;
 
 var randStream = new RandomStream(real); // creating random number generator
 
@@ -213,27 +171,18 @@ var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
 //main
 proc main() {
     writeln("starting...",numTasks);
-    init_binspace();
-    init_worm_bins();
     init_worms();
-
-    if (fluid_cpl) {
-        init_fluid_bins();
-        init_fluid();
-    }
-
-    update_worm_cells(0);
-    update_fluid_cells(0);
+    if (fluid_cpl) {init_fluid();}
     // equilibrate the fluid
     for istep in 1..5000 {
         var ioper = 5000/10;
         if (istep%ioper == 0) {
             writeln("fluid equilibration...",istep);
         }
-        fluid_step(0,dt);
+        fluid_step(dt);
     }
     writeln("fluid equilibrated...5000dt");
-    write_xyz(0);
+    write_xyzv(0);
     //setting up stopwatch
     xt.start();
     for itime in 1..nsteps {
@@ -249,7 +198,7 @@ proc main() {
 	    ct.start();
         // first update positions and store old forces
         update_pos(itime);
-        intraworm_forces();
+        calc_forces();
         worm_wall_new();
         for i in 1..ncells {
             hhead[i] = -1; //
@@ -262,7 +211,7 @@ proc main() {
 
 
         if (fluid_cpl) {
-            fluid_step(itime,dt);
+            fluid_step(dt);
             KEsol_total[itime] = (+ reduce KEsol);
         } else {
             KEsol_total[itime] = 0.0;
@@ -276,7 +225,7 @@ proc main() {
         //write_xyz(itime);
         if (itime % save_interval == 0){
             wt.start();
-            write_xyz(itime);
+            write_xyzv(itime);
             wt.stop();
         }
     }
@@ -285,12 +234,7 @@ proc main() {
     write_macro(nsteps);
     writeln("Total Time:",xt.elapsed()," s");
 }
-
-proc test(i:Particle,j:Particle) {
-    writeln(i.id);
-    writeln(j.id);
-}
-// //functions
+//functions
 proc init_worms() {
     //array for locating neighbor cells
     var rand1:real; // temp fix for randSteam
@@ -447,12 +391,11 @@ proc update_pos(itime:int) {
     }
 }
 
-// TODO This needs to be renamed to "interworm_forces"
-proc intraworm_forces() {
+proc calc_forces() {
     var rsq:real,rand1:real,rand2:real,v1:real,v2:real,fac:real,g1:real,th:real;
     //zero out the force arrays and add Gaussian noise
     rsq = 0.0;
-    /* for iw in 1..nworms {
+    for iw in 1..nworms {
         for i in 1..np {
             while ((rsq >= 0.999) || (rsq <= 0.001)) {
                 rand1 = randStream.getNext();
@@ -468,7 +411,7 @@ proc intraworm_forces() {
             worms[iw,i].fx = g1*cos(th) - diss*worms[iw,i].vx;
             worms[iw,i].fy = g1*sin(th) - diss*worms[iw,i].vy;
         }
-    } */
+    }
     //first set of springs nearest neighbor springs
     forall iw in 1..nworms {
         var ip1:int,r:real,ff:real,ffx:real,ffy:real,dx:real,dy:real;
@@ -552,7 +495,7 @@ proc worm_wall() {
     var dx:real, dy:real, r:real, r2:real, th:real,
            xwall:real, ywall:real, rr2:real, ffor:real,
            dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
-    var ip1:int;
+    var ip1,iwalldrive:int;
     //put worm-wall interactions here, and dissipation force proportional to velocity
     for iw in 1..nworms{
         for i in 1..np{
@@ -584,7 +527,7 @@ proc worm_wall() {
                 worms[iw, i].fx += ffor*dx;
                 worms[iw, i].fy += ffor*dy;
 
-                //iwalldrive = 1; // made this a const parameter
+                iwalldrive = 1; // made this a const parameter
                 //Turning on dogic drive with the wall!!!
                 if (iwalldrive == 1) {
                     //first calculate unit vector along the worm
@@ -658,7 +601,7 @@ proc worm_wall_new() {
                 //if close enough to the wall, calculate wall forces
                 //use the short cut-off
                 if (r2 <= r2cut) {
-                    ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
+                    ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0)+fdepwall/r;
                     //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
                     worms[iw,i].fx += ffor*dx;
                     worms[iw,i].fy += ffor*dy;
@@ -734,7 +677,7 @@ proc cell_sort_old(itime:int) {
                 writeln(floor(worms[iworm,ip].x/dcell):int);
                 writeln(1+floor(worms[iworm,ip].x/dcell):int);
                 writeln("icell out of bounds\t",iworm," ",ip," ",worms[iworm,ip].x," ",worms[iworm,ip].vx," ",worms[iworm,ip].fx);
-                write_xyz(itime);
+                write_xyzv(itime);
                 halt();
             }
             if ((jcell > nycell) || (jcell < 1)) {
@@ -742,7 +685,7 @@ proc cell_sort_old(itime:int) {
                 writeln(worms[iworm,ip].y/dcell);
                 writeln(floor(worms[iworm,ip].y/dcell));
                 writeln("jcell out of bounds\t",iworm," ",ip," ",worms[iworm,ip].y," ",worms[iworm,ip].vx," ",worms[iworm,ip].fx);
-                write_xyz(itime);
+                write_xyzv(itime);
                 halt();
             }
             scell = icell + (jcell-1)*nxcell; // 1d-ndexing for 2d cells
@@ -877,6 +820,238 @@ proc cell_sort_old(itime:int) {
     }
 }
 
+proc cell_sort_new(itime:int) {
+    var dddx:real,dddy:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,dxi:real,dxj:real,
+        ri:real,rj:real,r:real,dx:real,dy:real,dyi:real,dyj:real;
+    var iworm:int,jworm:int,ip:int,jp:int,ii:int,jj:int,kk:int,i:int,ip1:int,
+        jp1:int,scell:int,scnab:int,inogo:int,icnab:int,jcnab:int,icell:int,jcell:int,
+        iiboolworm:int,jjboolworm:int,ib:int,jb:int;
+
+    for iworm in 1..nworms{ //sorting of worm particles into cells
+        for ip in 1..np {
+            ii = (iworm-1)*np+ip; //unique particle id 1<=ii<=nworms*np
+            icell = 1+floor(worms[iworm,ip].x/dcell):int; //finds where particle is in grid
+            jcell = 1+floor(worms[iworm,ip].y/dcell):int;
+            if ((icell > nxcell) || (icell < 1)) {
+                writeln("nxcell=",nxcell," icell=",icell);
+                writeln(worms[iworm,ip].x/dcell);
+                writeln(floor(worms[iworm,ip].x/dcell):int);
+                writeln(1+floor(worms[iworm,ip].x/dcell):int);
+                writeln("icell out of bounds\t",iworm," ",ip," ",worms[iworm,ip].x," ",worms[iworm,ip].vx," ",worms[iworm,ip].fx);
+                write_xyzv(itime);
+                halt();
+            }
+            if ((jcell > nycell) || (jcell < 1)) {
+                writeln("nycell=",nycell," jcell=",jcell);
+                writeln(worms[iworm,ip].y/dcell);
+                writeln(floor(worms[iworm,ip].y/dcell));
+                writeln("jcell out of bounds\t",iworm," ",ip," ",worms[iworm,ip].y," ",worms[iworm,ip].vy," ",worms[iworm,ip].fy);
+                write_xyzv(itime);
+                halt();
+            }
+            scell = icell + (jcell-1)*nxcell; // 1d-ndexing for 2d cells
+            if ((scell > ncells) || (scell < 1)) {
+                writeln("scell out of bounds",scell,"\t",icell,"\t",jcell);
+            }
+            ipointto[ii] = hhead[scell]; //
+            hhead[scell] = ii;
+        }
+    }
+    var total_worm_particles = np*nworms;
+    for ib in 1..numPoints { // sorting wall particles into cells
+        ii = total_worm_particles + ib; // unique id
+        icell = 1 + floor(bound[ib].x/dcell):int; // finds which cell particle is in
+        jcell = 1 + floor(bound[ib].y/dcell):int;
+        if ((icell > nxcell) || (icell < 1)) {
+                writeln("boundary particle out of cell bounds");
+                writeln("nxcell=",nxcell," icell=",icell);
+                halt();
+            }
+        if ((jcell > nycell) || (jcell < 1)) {
+            writeln("boundary particle out of cell bounds");
+            writeln("nycell=",nycell," jcell=",jcell);
+            halt();
+        }
+        scell = icell + (jcell-1)*nxcell; // 1-d "street-address" for 2d cells
+        if ((scell > ncells) || (scell < 1)) {
+            writeln("scell out of bounds",scell,"\t",icell,"\t",jcell);
+        }
+        ipointto[ii] = hhead[scell];
+        hhead[scell] = ii;
+    }
+    /*
+    for icell in 1..nxcell {
+       for jcell in 1..nycell {
+           scell = icell + (jcell-1)*nxcell;*/
+
+   for scell in 1..ncells {
+       	icell = scell%nxcell;
+        jcell = (scell-icell)/nxcell + 1;
+            if (hhead[scell] != -1){
+                //there are particles in the cell called scell so
+                //lets check all the neighbor cells
+                for idir in 1..9 {
+                    icnab = icell + ddx[idir];
+                    if (icnab > nxcell) {break;}
+                    if (icnab == 0) {break;}
+
+                    jcnab = jcell + ddy[idir];
+                    if (jcnab > nycell) {break;}
+                    if (jcnab == 0) {break;}
+                    scnab = icnab + (jcnab-1)*nxcell; //1d neighbor
+                    if (hhead[scnab] != -1) {
+                        //there are particles in the cell called scnab
+                        ii = hhead[scell]; // ii is the # of the head particle
+                        while (ii > 0) {
+                            if (ii > total_worm_particles) {
+                                iiboolworm = 0; // is ii a worm?
+                                ib = ii - total_worm_particles;
+                            } else {
+                                iiboolworm = 1;
+                                iworm = 1 + ((ii - 1)/np):int; // find which worm ii is in
+                                ip = ii - np*(iworm - 1); // which particle in the worm is ii?
+                            }
+                            jj = hhead[scnab];//  head particle of neighboring cell
+                            while (jj > 0) {
+                                if (jj >  total_worm_particles) {
+                                    jjboolworm = 0; // is jj a worm?
+                                    jb = jj - total_worm_particles;
+                                } else {
+                                    jjboolworm = 1;
+                                    jworm = 1 + ((jj - 1)/np):int;
+                                    jp = jj - np*(jworm - 1);
+                                }
+                                // worm-worm, worm-wall, wall-wall
+                                if((jjboolworm == 1) && ( iiboolworm == 1)) {
+                                    inogo = 0;
+                                    if ((iworm == jworm) && (abs(ip-jp) <= 2)) {
+                                        // on the same worm and close means no interaction calculated here
+                                        inogo = 1;
+                                    }
+
+                                    if ((ii < jj) && (inogo == 0)) {
+                                        dddx = worms[jworm,jp].x - worms[iworm, ip].x;
+                                        dddy = worms[jworm,jp].y - worms[iworm, ip].y;
+                                        r2 = dddx**2 + dddy**2;
+                                        riijj = sqrt(r2);
+                                        //add attractive force fdep between all pairs
+                                        if (r2 <= r2cutsmall) {
+                                            ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
+                                            ffx = ffor*dddx;
+                                            ffy = ffor*dddy;
+                                            worms[iworm, ip].fx += ffx;
+                                            worms[jworm, jp].fx -= ffx;
+                                            worms[iworm, ip].fy += ffy;
+                                            worms[jworm, jp].fy -= ffy;
+
+                                            //take these neighbors into account in calculating vxave and vyave
+                                            //vxave[iworm, ip] = vxave[iworm, ip] + vx[jworm, jp];
+                                            //vyave[iworm, ip] = vyave[iworm, ip] + vy[jworm, jp];
+                                            //nnab[iworm, ip] = nnab[iworm, ip] + 1;
+                                            //vxave[jworm, jp] = vxave[jworm, jp] + vx[iworm, ip];
+                                            //vyave[jworm, jp] = vyave[jworm, jp] + vy[iworm, ip];
+                                            //nnab[jworm, jp] = nnab[jworm, jp] + 1;
+
+                                            //add 'dogic drive' to interacting pairs
+                                            //first calculate unit vectors along each worm
+                                            ip1 = ip + 1;
+                                            if (ip1 <= np) {
+                                                dxi = worms[iworm, ip1].x - worms[iworm, ip].x;
+                                                dyi = worms[iworm, ip1].y - worms[iworm, ip].y;
+                                            } else {
+                                                dxi = worms[iworm, ip].x - worms[iworm, ip - 1].x;
+                                                dyi = worms[iworm, ip].y - worms[iworm, ip - 1].y;
+                                            }
+
+                                            jp1 = jp + 1;
+                                            if (jp1 <= np) {
+                                                dxj = worms[jworm, jp1].x - worms[jworm, jp].x;
+                                                dyj = worms[jworm, jp1].y - worms[jworm, jp].y;
+                                            } else {
+                                                dxj = worms[jworm, jp].x - worms[jworm, jp - 1].x;
+                                                dyj = worms[jworm, jp].y - worms[jworm, jp - 1].y;
+                                            }
+
+
+                                            //if the two vectors have any component pointing in opposite directions
+                                            if (dxi*dxj + dyi*dyj <= 0.0) {
+                                                //normalize those vectors to make them unit vectors
+                                                ri = sqrt(dxi*dxi + dyi*dyi);
+                                                dxi = dxi/ri;
+                                                dyi = dyi/ri;
+
+                                                rj = sqrt(dxj*dxj + dyj*dyj);
+                                                dxj = dxj/rj;
+                                                dyj = dyj/rj;
+                                                //now they are both unit vectors. Find the direction for the force...
+
+                                                dx = (dxi - dxj)/2.0;
+                                                dy = (dyi - dyj)/2.0;
+
+                                                //normalize
+
+                                                r = sqrt(dx*dx + dy*dy);
+                                                dx = dx/r;
+                                                dy = dy/r;
+
+                                                //add an extra attractive component where kinesin drive is present
+
+                                                ffx = fdogic*(dx) + 0.7*dddx/riijj;
+                                                ffy = fdogic*(dy) + 0.7*dddy/riijj;
+
+                                                //ffx=fdogic*(dx)
+                                                //ffy=fdogic*(dy)
+                                                worms[iworm, ip].fx += ffx;
+                                                worms[jworm, jp].fx -= ffx;
+                                                worms[iworm, ip].fy += ffy;
+                                                worms[jworm, jp].fy -= ffy;
+
+                                            }
+                                        }
+                                    }
+                                } else if ((iiboolworm == 1)&&(jjboolworm == 0)) {
+                                    // worm-wall (ii = worm, jj = wall)
+                                    dddx = worms[iworm,ip].x - bound[jb].x;
+                                    dddy = worms[iworm,ip].y - bound[jb].y;
+                                    r2 = dddx**2 + dddy**2;
+                                    riijj = sqrt(r2);
+                                    //add attractive force fdep between all pairs
+                                    if (r2 <= r2cutsmall) {
+                                        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //fdep is attractive forceTODO: shoudl fdep = -?
+                                        ffx = ffor*dddx;
+                                        ffy = ffor*dddy;
+                                        worms[iworm,ip].fx += ffx;
+                                        worms[iworm,ip].fy += ffy;
+                                        //writeln("worm-wall");
+                                    }
+                                } else if ((iiboolworm == 0)&&(jjboolworm == 1)){
+                                    // wall-worm (ii = wall, jj = worm)
+                                    dddx = bound[ib].x - worms[jworm,jp].x;
+                                    dddy = bound[ib].y - worms[jworm,jp].y;
+                                    r2 = dddx**2 + dddy**2;
+                                    riijj = sqrt(r2);
+                                    if (r2 <= r2cutsmall) {
+                                        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //fdep is attractive forceTODO: shoudl fdep = -?
+                                        ffx = ffor*dddx;
+                                        ffy = ffor*dddy;
+                                        worms[jworm,jp].fx += ffx;
+                                        worms[jworm,jp].fy += ffy;
+                                        //writeln("wall-worm");
+                                    }
+                                } else {
+                                    // wall-wall interaction
+                                }
+                                jj = ipointto[jj];
+                                }
+                            ii = ipointto[ii];
+                        }
+                    }
+                }
+            }
+        //}
+    }
+}
+
 proc update_vel() {
     forall iw in 1..nworms {
         foreach i in 1..np {
@@ -889,7 +1064,7 @@ proc update_vel() {
     }
 }
 
-//FLUID FUNCTIONS
+//Fluid Functions
 proc init_fluid() {
     var random_placement = false;
     if (random_placement) {
@@ -1037,7 +1212,6 @@ proc init_fluid() {
     for i in 1..numSol {
         KEsol[i] = 0.0;
     }
-    writeln("fluid init done");
 }
 
 proc fluid_multistep() {
@@ -1048,7 +1222,7 @@ proc fluid_multistep() {
     }
 }
 
-proc lj_thermo(i:int,j:int,r2cut_local:real) {
+proc lj_thermo(i,j,r2cut_local:real) {
     var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,r,rhatx,rhaty,omega,fdissx,fdissy,gauss,frand :real;
     dx = solvent[j].x - solvent[i].x;
     dy = solvent[j].y - solvent[i].y;
@@ -1095,7 +1269,7 @@ proc lj_thermo(i:int,j:int,r2cut_local:real) {
     }
 }
 
-proc lj(i:int,j:int,r2cut_local:real) {
+proc lj(i,j,r2cut_local:real) {
     var dx,dy,r2,ffor,ffx,ffy,sigma12,sigma6:real;
     //calculate distance to the wall
     dx = solvent[j].x - bound[i].x;
@@ -1134,194 +1308,16 @@ proc fluid_pos(dt_fluid:real) {
     }
 }
 
-// proc fluid_force_old() {
-//     // fluid-fluid
-//     var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega:real;
-//     for i in 1..numSol {
-//         // calculating the force
-//         for j in (i+1)..numSol {
-//             lj_thermo(i,j,r2cut);
-//         }
-//     }
-//     //fluid-boundary
-//     // var r2cutsol = r2cut
-//     var r2cutsol = sigma*2.0**(1.0/6.0);
-//     forall i in 1..numSol {
-//         // calculate the force on the boundaries.
-//         for ib in 1..numPoints  {
-//             lj(ib,i,r2cutsol);
-
-//         }
-//     }
-
-//     // fluid-worms
-//     var dz = fluid_offset;
-//     for i in 1..numSol{
-//         var dx,dy,r2,ffor,ffx,ffy:real;
-//         for iw in 1..nworms {
-//             for ip in 1..np {
-//                 dx = solvent[i].x - worms[iw,i].x;
-//                 dy = solvent[i].y - worms[iw,i].y;
-//                 r2 = (dx*dx + dy*dy + dz*dz);
-//                 if (r2 <= r2cutsmall) {
-//                     ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-//                     ffx = ffor*dx;
-//                     ffy = ffor*dy;
-//                     solvent[i].fx += ffx;
-//                     solvent[i].fy += ffy;
-//                     worms[iw,ip].fx -= ffx;
-//                     worms[iw,ip].fy -= ffy;
-//                 }
-//             }
-//         }
-//     }
-// }
-
-proc fluid_force() {
-    forall binid in binSpace {
-        if (solbins[binid].ncount > 1) {
-            // calculate the forces between atoms inside each bin
-            for icount in 0..solbins[binid].ncount-2 {
-                var i = solbins[binid].atoms[icount];
-                for jcount in (icount+1)..solbins[binid].ncount-1 {
-                    var j = solbins[binid].atoms[jcount];
-                    lj_thermo(i,j,r2cut);
-                }
-            }
+proc fluid_force_old() {
+    // fluid-fluid
+    var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega:real;
+    for i in 1..numSol {
+        // calculating the force
+        for j in (i+1)..numSol {
+            lj_thermo(i,j,r2cut);
         }
     }
-    // odd neighbors to the east (1)
-    forall binid in binSpaceiodd {
-        var binidnbor = solbins[binid].neighbors[1];
-        if (binidnbor != -1) {
-            if (solbins[binid].ncount > 0) && (solbins[binidnbor].ncount > 0) {
-                for icount in 0..solbins[binid].ncount-1 {
-                    var i = solbins[binid].atoms[icount];
-                    for jcount in 0..solbins[binidnbor].ncount-1 {
-                        var j = solbins[binidnbor].atoms[jcount];
-                        lj_thermo(i,j,r2cut);
-                    }
-                }
-            }
-        }
-    }
-    // even neighbors to the east (1)
-    forall binid in binSpaceieven {
-        var binidnbor = solbins[binid].neighbors[1];
-        if (binidnbor != 1) {
-            if (solbins[binid].ncount > 0) && (solbins[binidnbor].ncount > 0) {
-                for icount in 0..solbins[binid].ncount-1 {
-                    var i = solbins[binid].atoms[icount];
-                    for jcount in 0..solbins[binidnbor].ncount-1 {
-                        var j = solbins[binidnbor].atoms[jcount];
-                        lj_thermo(i,j,r2cut);
-                    }
-                }
-            }
-        }
-    }
-
-    // odd neighbors to the NE (2) (i+1,j+1)
-    forall binid in binSpaceiodd {
-        var binidnbor = solbins[binid].neighbors[2];
-        if (binidnbor != -1) {
-            if (solbins[binid].ncount > 0) && (solbins[binidnbor].ncount > 0) {
-                for icount in 0..solbins[binid].ncount-1 {
-                    var i = solbins[binid].atoms[icount];
-                    for jcount in 0..solbins[binidnbor].ncount-1 {
-                        var j = solbins[binidnbor].atoms[jcount];
-                        lj_thermo(i,j,r2cut);
-                    }
-                }
-            }
-        }
-    }
-
-    // even neighbors to the NE (2)
-    forall binid in binSpaceieven {
-        var binidnbor = solbins[binid].neighbors[2];
-        if (binidnbor != -1) { // check if neighbor is valid
-            if (solbins[binid].ncount > 0) && (solbins[binidnbor].ncount > 0) { // check if neighbor has any atoms at all
-                for icount in 0..solbins[binid].ncount-1 {
-                    var i = solbins[binid].atoms[icount];
-                    for jcount in 0..solbins[binidnbor].ncount-1 {
-                        var j = solbins[binidnbor].atoms[jcount];
-                        lj_thermo(i,j,r2cut);
-                    }
-                }
-            }
-        }
-    }
-
-    // odd neighbors to the N (3)
-    forall binid in binSpacejodd {
-        var binidnbor = solbins[binid].neighbors[3];
-        if (binidnbor != -1) {
-            if (solbins[binid].ncount > 0) && (solbins[binidnbor].ncount > 0) {
-                for icount in 0..solbins[binid].ncount-1 {
-                    var i = solbins[binid].atoms[icount];
-                    for jcount in 0..solbins[binidnbor].ncount-1 {
-                        var j = solbins[binidnbor].atoms[jcount];
-                        lj_thermo(i,j,r2cut);
-                    }
-
-                }
-            }
-        }
-    }
-
-    // even neighbors to the N (3)
-    forall binid in binSpacejeven {
-        var binidnbor = solbins[binid].neighbors[3];
-        if (binidnbor != -1) {
-            if (solbins[binid].ncount > 0) && (solbins[binidnbor].ncount > 0) {
-                for icount in 0..solbins[binid].ncount-1 {
-                    var i = solbins[binid].atoms[icount];
-                    for jcount in 0..solbins[binidnbor].ncount-1 {
-                        var j = solbins[binidnbor].atoms[jcount];
-                        lj_thermo(i,j,r2cut);
-                    }
-
-                }
-            }
-        }
-    }
-
-    // odd neighbors to the NW (4)
-    forall binid in binSpaceiodd {
-        var binidnbor = solbins[binid].neighbors[4];
-        if (binidnbor != -1) {
-            if (solbins[binid].ncount > 0) && (solbins[binidnbor].ncount > 0) {
-                for icount in 0..solbins[binid].ncount-1 {
-                    var i = solbins[binid].atoms[icount];
-                    for jcount in 0..solbins[binidnbor].ncount-1 {
-                        var j = solbins[binidnbor].atoms[jcount];
-                        lj_thermo(i,j,r2cut);
-                    }
-
-                }
-            }
-        }
-    }
-
-    // even neighbors to the NW (4)
-    forall binid in binSpaceieven {
-        var binidnbor = solbins[binid].neighbors[4];
-        if (binidnbor != -1) {
-            if (solbins[binid].ncount > 0) && (solbins[binidnbor].ncount > 0) {
-                for icount in 0..solbins[binid].ncount-1 {
-                    var i = solbins[binid].atoms[icount];
-                    for jcount in 0..solbins[binidnbor].ncount-1 {
-                        var j = solbins[binidnbor].atoms[jcount];
-                        lj_thermo(i,j,r2cut);
-                    }
-
-                }
-            }
-        }
-    }
-
-        //fluid-boundary
+    //fluid-boundary
     // var r2cutsol = r2cut
     var r2cutsol = sigma*2.0**(1.0/6.0);
     forall i in 1..numSol {
@@ -1369,243 +1365,13 @@ proc fluid_vel(dt_fluid:real) {
     }
 }
 
-proc fluid_step(istep:int,dt_fluid:real) {
+proc fluid_step(dt_fluid:real) {
     // update positions
     fluid_pos(dt_fluid);
-    update_fluid_cells(istep);
-    fluid_force();
+
+    fluid_force_old();
 
     fluid_vel(dt_fluid);
-}
-
-// CELL LIST FUNCTIONS
-proc update_fluid_cells(istep:int) {
-    // ncount array set to zero
-    // particle list set to empty
-    for binid in binSpace{
-        if solbins[binid].ncount > 0{
-            solbins[binid].ncount = 0;
-            solbins[binid].atoms.clear();
-        }
-    }
-    var ibin,jbin,binid :int;
-    for i in 1..numSol { // populating particles into bins
-        ibin=ceil(solvent[i].x/rcut):int;
-        jbin=ceil(solvent[i].y/rcut):int;
-        binid=(jbin-1)*numBins+ibin;
-        if (binid > numBins*numBins) {
-            //writeln(solvent[i].info());
-            write_xyz(istep);
-            //dump_particles();
-        } else if (binid < 1) {
-            //writeln(solvent[i].info());
-            write_xyz(istep);
-            //dump_particles();
-        }
-        //append i to particle_list for binid
-        solbins[binid].ncount += 1;
-        solbins[binid].atoms.pushBack(solvent[i].id);
-        //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
-
-
-    }
-    if (debug) {
-        writeln("recalculating bins");
-        for ibin in binSpace {
-            if solbins[ibin].ncount > 0 {
-            writeln(solbins[ibin].id,"\t",solbins[ibin].atoms);
-            }
-        }
-    }
-}
-
-proc update_worm_cells(istep:int) {
-    // ncount array set to zero
-    // particle list set to empty
-    for binid in binSpace{
-        if wormbins[binid].ncount > 0{
-            wormbins[binid].ncount = 0;
-            wormbins[binid].atoms.clear();
-        }
-    }
-    var ibin,jbin,binid,wormid :int;
-    for iw in 1..nworms { // populating particles into bins
-        for ip in 1..np {
-            ibin=ceil(worms[iw,ip].x/rcut):int;
-            jbin=ceil(worms[iw,ip].y/rcut):int;
-            binid=(jbin-1)*numBins+ibin;
-            wormid = (iw-1)*np+ip;
-
-            if (binid > numBins*numBins) {
-                //writeln(worms[iw,ip].info());
-                write_xyz(istep);
-                //dump_particles();
-            } else if (binid < 1) {
-                //writeln(worms[iw,ip].info());
-                write_xyz(istep);
-                //dump_particles();
-            }
-            //append i to particle_list for binid
-            wormbins[binid].ncount += 1;
-            wormbins[binid].atoms.pushBack(wormid);
-            //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
-        }
-    }
-    if (debug) {
-        writeln("recalculating bins");
-        for ibin in binSpace {
-            if wormbins[ibin].ncount > 0 {
-            writeln(wormbins[ibin].id,"\t",wormbins[ibin].atoms);
-            }
-        }
-    }
-}
-
-proc init_fluid_bins() {
-    // writeln((4/numBins):int +1); //row
-    // writeln(4%numBins); // col
-    var binid,ibinnab,jbinnab,binidnbor:int;
-    for ibin in 1..numBins {
-        for jbin in 1..numBins {
-            binid = (jbin-1)*numBins+ibin;
-            //  4   3   2
-            //     *   1
-            //
-            /*  1 = i+1,j
-                2 = i+1,j+1
-                3 = i,j+1
-                4 = i-1,j+1
-            */
-            ibinnab=ibin+1;
-            jbinnab=jbin;
-            if (ibinnab <= numBins) {
-                binidnbor=(jbinnab-1)*numBins+ibinnab;
-                solbins[binid].neighbors[1] = binidnbor;
-            } else {
-                solbins[binid].neighbors[1] = -1;
-            }
-
-            ibinnab=ibin+1;
-            jbinnab=jbin+1;
-            if (ibinnab <= numBins) && (jbinnab <= numBins) {
-                binidnbor=(jbinnab-1)*numBins+ibinnab;
-                solbins[binid].neighbors[2] = binidnbor;
-            } else {
-                solbins[binid].neighbors[2] = -1;
-            }
-
-            ibinnab=ibin;
-            jbinnab=jbin+1;
-            if (jbinnab <= numBins) {
-                binidnbor=(jbinnab-1)*numBins+ibinnab;
-                solbins[binid].neighbors[3] = binidnbor;
-            } else {
-                solbins[binid].neighbors[3] = -1;
-            }
-
-            ibinnab=ibin-1;
-            jbinnab=jbin+1;
-            if (ibinnab > 0) && (jbinnab <= numBins){
-                binidnbor=(jbinnab-1)*numBins+ibinnab;
-                solbins[binid].neighbors[4] = binidnbor;
-            } else {
-                solbins[binid].neighbors[4] = -1;
-            }
-
-        }
-    }
-        // bins[ibin].x[0] = (ibin[0]-1)*rcut;
-        // bins[ibin].x[1] = ibin[0]*rcut;
-        // bins[ibin].y[0] = (ibin[1]-1)*rcut;
-        // bins[ibin].y[1] = ibin[1]*rcut;
-
-}
-
-proc init_worm_bins() {
-    // writeln((4/numBins):int +1); //row
-    // writeln(4%numBins); // col
-    var binid,ibinnab,jbinnab,binidnbor:int;
-    for ibin in 1..numBins {
-        for jbin in 1..numBins {
-            binid = (jbin-1)*numBins+ibin;
-            //  4   3   2
-            //     *   1
-            //
-            /*  1 = i+1,j
-                2 = i+1,j+1
-                3 = i,j+1
-                4 = i-1,j+1
-            */
-            ibinnab=ibin+1;
-            jbinnab=jbin;
-            if (ibinnab <= numBins) {
-                binidnbor=(jbinnab-1)*numBins+ibinnab;
-                wormbins[binid].neighbors[1] = binidnbor;
-            } else {
-                wormbins[binid].neighbors[1] = -1;
-            }
-
-            ibinnab=ibin+1;
-            jbinnab=jbin+1;
-            if (ibinnab <= numBins) && (jbinnab <= numBins) {
-                binidnbor=(jbinnab-1)*numBins+ibinnab;
-                wormbins[binid].neighbors[2] = binidnbor;
-            } else {
-                wormbins[binid].neighbors[2] = -1;
-            }
-
-            ibinnab=ibin;
-            jbinnab=jbin+1;
-            if (jbinnab <= numBins) {
-                binidnbor=(jbinnab-1)*numBins+ibinnab;
-                wormbins[binid].neighbors[3] = binidnbor;
-            } else {
-                wormbins[binid].neighbors[3] = -1;
-            }
-
-            ibinnab=ibin-1;
-            jbinnab=jbin+1;
-            if (ibinnab > 0) && (jbinnab <= numBins){
-                binidnbor=(jbinnab-1)*numBins+ibinnab;
-                wormbins[binid].neighbors[4] = binidnbor;
-            } else {
-                wormbins[binid].neighbors[4] = -1;
-            }
-
-        }
-    }
-}
-
-proc init_binspace() {
-    // making lists of binids for different
-    var icount = 0;
-    for ibin in 1..numBins by 2 {
-        for jbin in 1..numBins {
-            icount += 1;
-            binSpaceiodd[icount] = (jbin-1)*numBins+ibin;
-        }
-    }
-    icount = 0;
-    for ibin in 2..numBins by 2 {
-        for jbin in 1..numBins {
-            icount +=1;
-            binSpaceieven[icount] = (jbin-1)*numBins+ibin;
-        }
-    }
-    icount = 0;
-    for ibin in 1..numBins {
-        for jbin in 1..numBins by 2 {
-            icount += 1;
-            binSpacejodd[icount] = (jbin-1)*numBins+ibin;
-        }
-    }
-    icount = 0;
-    for ibin in 1..numBins {
-        for jbin in 2..numBins by 2 {
-            icount += 1;
-            binSpacejeven[icount] = (jbin-1)*numBins+ibin;
-        }
-    }
 }
 
 // IO Functions
@@ -1672,6 +1438,69 @@ proc write_xyz(istep:int) {
     }
 }
 
+proc write_xyzv(istep:int) {
+    var dx :real, dy:real, xang:real, rx:real,ry:real,dot:real;
+    var ic:int;
+    var filename:string = "amatter%{07u}.xyz".format(istep);
+    //var filename = "amatter" + (istep:string) + ".xyz";
+    try {
+    var xyzfile = open(filename, ioMode.cw);
+    var myFileWriter = xyzfile.writer();
+    // number of active particles + 4 edge-defining particles + boundary + solvent (optional)
+    if (fluid_cpl) {
+        myFileWriter.writeln(nworms * np + 4 + numPoints + numSol);
+    } else {
+        myFileWriter.writeln(nworms*np + 4 + numPoints);
+    }
+    myFileWriter.writeln("# 0");
+    ic = 2;
+    for iw in 1..nworms {
+        dx = worms[iw,1].x - hxo2;
+        dy = worms[iw,1].y - hyo2;
+        xang = atan2(dy,dx);
+        rx = -sin(xang);
+        ry = cos(xang);
+        dot = (worms[iw,1].x - worms[iw,np].x)*rx + (worms[iw,1].y - worms[iw,np].y)*ry;
+        if (dot >= 0.0) {
+            for i in 1..np {
+                myFileWriter.writeln("A ",worms[iw,i].x," ",worms[iw,i].y," ", 0.0," ",worms[iw,i].vx," ",worms[iw,i].vy," ",0.0);
+                //myFileWriter.writeln("A ",x[iw,i]," ",y[iw,i]," ", 0.0," ",vx[iw,i]," ",vy[iw,i]," ",0.0);
+                ic += 1;
+            }
+        } else {
+            for i in 1..np {
+                myFileWriter.writeln("B ",worms[iw,i].x," ",worms[iw,i].y," ", 0.0," ",worms[iw,i].vx," ",worms[iw,i].vy," ",0.0);
+                //myFileWriter.writeln("B ",x[iw,i]," ",y[iw,i]," ", 0.0," ",vx[iw,i]," ",vy[iw,i]," ",0.0);
+                ic += 1;
+            }
+        }
+    }
+    for i in 1..numPoints {
+        myFileWriter.writeln("I ",bound[i].x," ",bound[i].y," ",0.0," ",0.0," ",0.0," ",0.0);
+        ic += 1;
+    }
+    if (fluid_cpl) {
+        for i in 1..numSol {
+            myFileWriter.writeln("S ",solvent[i].x," ",solvent[i].y," ",0.0," ",solvent[i].vx," ",solvent[i].vy," ",0.0);
+            ic += 1;
+        }
+    }
+    myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    //ic += 4;
+    // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    writeln(filename,"\t",ic," lines written");
+    //xyzfile.close();
+    } catch e: Error {
+        writeln(e);
+    }
+}
+
 proc write_macro(nsteps: int) {
     var filename:string = "energies.dat";
     try{
@@ -1687,8 +1516,25 @@ proc write_macro(nsteps: int) {
         writeln(e);
     }
 }
+// proc write_macro(istep: int, KE1: real, KE2: real) {
+//     var filename:string = "energies.dat";
+//     try {
+//         if (istep == 0) {
+//             var datfile = open(filename, ioMode.cw);
+//             var myFileWriter = datfile.writer();
+//             myFileWriter.writeln("timestep \t KEworm \t KEsol \n");
+//             //datfile.close();
+//         } else {
+//             var datfile = open(filename, ioMode.cw);
+//             var myFileWriter = datfile.writer();
+//             myFileWriter.writeln(istep,"\t",KE1,"\t",KE2);
+//             //datfile.close();
+//         }
+//     } catch e: Error {
+//         writeln(e);
+//     }
+// }
 
-// HELPER FUNCTIONS
 proc gaussRand(mean: real, stddev: real): real {
     var u1 = randStream.getNext();
     var u2 = randStream.getNext();
