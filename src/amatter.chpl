@@ -14,6 +14,7 @@ config const np = 40,
             nworms = 250,
             nsteps = 2000000    ,//00,
             fdogic = 0.06,
+            walldrive = true;
             fdogicwall = 0.0,
             fdep = 1.0, // TODO: change to 4.0?
             fdepwall = 0.0,
@@ -166,7 +167,6 @@ const r2cut = rcut*rcut,
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
-      iwalldrive = 1,
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 420, //number of boundary points (for circle w/ r-75)
       numSol = 3200, // number of solution particles (3200 for circular, 800 for cardioid)
@@ -638,7 +638,7 @@ proc worm_wall_new() {
         var dx:real, dy:real, r:real, r2:real, th:real,
            xwall:real, ywall:real, rr2:real, ffor:real,
            dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
-        var ip1:int;
+        var ip1,ib1:int;
         for i in 1..np{
             //dissipation proportional to v relative to local average
             // TODO swap vxave with intvx
@@ -658,10 +658,59 @@ proc worm_wall_new() {
                 //if close enough to the wall, calculate wall forces
                 //use the short cut-off
                 if (r2 <= r2cut) {
-                    //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
-                    ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+                    ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
+                    //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
                     worms[iw,i].fx += ffor*dx;
                     worms[iw,i].fy += ffor*dy;
+                    if (walldrive) {
+                        //first calculate unit vector along the worm
+                        ip1 = i + 1;
+                        if (ip1 <= np) {
+                            dxi = worms[iw, ip1].x - worms[iw, i].x;
+                            dyi = worms[iw, ip1].y - worms[iw, i].y;
+                        } else {
+                            dxi = worms[iw, i].x - worms[iw, i - 1].x;
+                            dyi = worms[iw, i].y - worms[iw, i - 1].y;
+                        }
+                        //make it a unit vector
+                        ri = sqrt(dxi*dxi + dyi*dyi);
+                        dxi = dxi/ri;
+                        dyi = dyi/ri;
+                        //calculate the unit vector along the wall
+                        ib1 = ib + 1;
+                        if (ib1 <= numPoints) {
+                            dxj = bound[ib1].x - bound[ib].x;
+                            dyj = bound[ib1].y - bound[ib].y;
+                        } else {
+                            dxj = bound[ib].x - bound[ib-1].x;
+                            dyj = bound[ib].y - bound[ib-1].y;
+                        }
+                        ri = sqrt(dxj*dxj + dyj*dyj);
+                        dxj = dxj/ri;
+                        dyj = dyj/ri;
+
+                        //if the vectors are not antiparallel, reverse the vector along the wall
+                        if (dxi*dxj + dyi*dyj > 0.0) {
+                            dxj = -dxj;
+                            dyj = -dyj;
+                        }
+                        //if the two vectors have any component pointing in opposite directions
+                        if (dxi*dxj + dyi*dyj < 0.0) {
+                            //Find the direction for the force...
+                            dx = (dxi - dxj)/2.0;
+                            dy = (dyi - dyj)/2.0;
+                            //normalize the direction vector
+                            ri = sqrt(dx*dx + dy*dy);
+                            dx = dx/ri;
+                            dy = dy/ri;
+
+                            //turn on extra-strong driving force
+                            ffx = fdogicwall*dx;
+                            ffy = fdogicwall*dy;
+                            worms[iw,i].fx += ffx;
+                            worms[iw,i].fy += ffy;
+                        }
+                }
                 }
             }
         }
