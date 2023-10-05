@@ -14,7 +14,7 @@ config const np = 40,
             nworms = 250,
             nsteps = 2000000    ,//00,
             fdogic = 0.06,
-            walldrive = true;
+            walldrive = true,
             fdogicwall = 0.0,
             fdep = 1.0, // TODO: change to 4.0?
             fdepwall = 0.0,
@@ -547,7 +547,7 @@ proc intraworm_forces() {
     }
 }
 
-proc calc_forces() {
+proc calc_forces(istep:int,dt:real) {
     forall binid in binSpace {
         if (bins[binid].ncount > 1) {
             // calculate the forces between atoms inside each bin
@@ -556,7 +556,7 @@ proc calc_forces() {
                 var itype = bins[binid].types[icount];
                 for jcount in (icount+1)..bins[binid].ncount-1 {
                     var j = bins[binid].atoms[jcount];
-                    var jtype = bins[binidnbor].types[jcount];
+                    var jtype = bins[binid].types[jcount];
                     cell_forces(i,j,itype,jtype);
                 }
             }
@@ -710,7 +710,9 @@ proc calc_forces() {
 proc cell_forces(i:int,j:int,itype:int,jtype:int) {
     //worm-worm interaction
     if (itype == 1) && (jtype == 1) {
-        var iworm,jworm,ip,jp,inogo : int;
+        var dddx:real,dddy:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,dxi:real,dxj:real,
+            ri:real,rj:real,r:real,dx:real,dy:real,dyi:real,dyj:real;
+        var iworm:int,jworm:int,ip:int,jp:int,ip1:int,jp1:int,inogo:int;
         iworm = 1 + ((i - 1)/np):int;
         ip = i - np*(iworm - 1);
         jworm = 1 + ((j - 1)/np):int;
@@ -811,7 +813,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
         var dx,dy,dz,r2,ffor,ffx,ffy:real;
         var iw,ip:int;
         iw = 1 + ((j - 1)/np):int; // find which worm j is in
-        ip = j - np*(iworm - 1); // which particle in the worm is j?
+        ip = j - np*(iw - 1); // which particle in the worm is j?
         dz = fluid_offset;
         dx = solvent[i].x - worms[iw,ip].x;
         dy = solvent[i].y - worms[iw,ip].y;
@@ -829,7 +831,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
         var dx,dy,dz,r2,ffor,ffx,ffy:real;
         var iw,ip:int;
         iw = 1 + ((i - 1)/np):int; // find which worm j is in
-        ip = i - np*(iworm - 1); // which particle in the worm is j?
+        ip = i - np*(iw - 1); // which particle in the worm is j?
         dz = fluid_offset;
         dx = solvent[j].x - worms[iw,ip].x;
         dy = solvent[j].y - worms[iw,ip].y;
@@ -862,25 +864,25 @@ proc dogic_wall(iw:int,ip:int,ib:int){
         dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
     var ip1,ib1:int;
     //calculate distance to the wall
-    dx = worms[iw,i].x-bound[ib].x;
-    dy = worms[iw,i].y-bound[ib].y;
+    dx = worms[iw,ip].x-bound[ib].x;
+    dy = worms[iw,ip].y-bound[ib].y;
     r2 = (dx*dx + dy*dy);
     //if close enough to the wall, calculate wall forces
     //use the short cut-off
     if (r2 <= r2cut) {
-        ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
+        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-        worms[iw,i].fx += ffor*dx;
-        worms[iw,i].fy += ffor*dy;
+        worms[iw,ip].fx += ffor*dx;
+        worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
             //first calculate unit vector along the worm
-            ip1 = i + 1;
+            ip1 = ip + 1;
             if (ip1 <= np) {
-                dxi = worms[iw, ip1].x - worms[iw, i].x;
-                dyi = worms[iw, ip1].y - worms[iw, i].y;
+                dxi = worms[iw, ip1].x - worms[iw, ip].x;
+                dyi = worms[iw, ip1].y - worms[iw, ip].y;
             } else {
-                dxi = worms[iw, i].x - worms[iw, i - 1].x;
-                dyi = worms[iw, i].y - worms[iw, i - 1].y;
+                dxi = worms[iw, ip].x - worms[iw, ip - 1].x;
+                dyi = worms[iw, ip].y - worms[iw, ip - 1].y;
             }
             //make it a unit vector
             ri = sqrt(dxi*dxi + dyi*dyi);
@@ -917,8 +919,8 @@ proc dogic_wall(iw:int,ip:int,ib:int){
                 //turn on extra-strong driving force
                 ffx = fdogicwall*dx;
                 ffy = fdogicwall*dy;
-                worms[iw,i].fx += ffx;
-                worms[iw,i].fy += ffy;
+                worms[iw,ip].fx += ffx;
+                worms[iw,ip].fy += ffy;
             }
         }
     }
@@ -1166,8 +1168,8 @@ proc fluid_pos(dt_fluid:real) {
         // soly[i] += solvy[i] * dt;
 
         // doing a velocity half-step here
-        solvent[i].vx += 0.5*dt*solvent[i].fx;
-        solvent[i].vy += 0.5*dt*solvent[i].fy;
+        solvent[i].vx += 0.5*dt_fluid*solvent[i].fx;
+        solvent[i].vy += 0.5*dt_fluid*solvent[i].fy;
         solvent[i].vz = 0.0; // just in case
         solvent[i].fx = 0.0;
         solvent[i].fy = 0.0;
@@ -1273,7 +1275,7 @@ proc update_cells(istep:int) {
         bins[binid].scount += 1;
         bins[binid].ncount += 1;
         bins[binid].atoms.pushBack(solvent[i].id);
-        bins[binid].types.pushBack(solvent[i].ptype);s
+        bins[binid].types.pushBack(solvent[i].ptype);
         //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
     }
     var wormid : int;
@@ -1558,32 +1560,31 @@ proc write_params() {
     try {
         var paramsfile = open(filename, ioMode.cw);
         var myFileWriter = paramsfile.writer();
-        myFileWriter.writeln("np\t",np.type,"\t",np,"\n",
-                             "nworms\t",nworms.type,"\t",nworms,"\n",
-                             "nsteps\t",nsteps.type,"\t",nsteps,"\n",
-                             "fdogic\t",fdogic.type,"\t",fdogic,"\n",
-                             "walldrive\t",walldrive.type,"\t",walldrive,"\n",
-                             "fdogicwall\t",fdogicwall.type,"\t",fdogicwall,"\n",
-                             "fdep\t",fdep.type,"\t",fdep,"\n",
-                             "fdepwall\t",fdepwall.type,"\t",fdepwall,"\n",
-                             "diss\t",diss.type,"\t",diss,"\n",
-                             "dt\t",dt.type,"\t",dt,"\n",
-                             "kspring\t",kspring.type,"\t",kspring,"\n",
-                             "kbend\t",kbend.type,"\t",kbend,"\n",
-                             "length0\t",length0.type,"\t",length0,"\n",
-                             "rcut\t",rcut.type,"\t",rcut,"\n",
-                             "save_interval\t",save_interval.type,"\t",save_interval,"\n",
-                             "boundary\t",boundary.type,"\t",boundary,"\n",
-                             "fluid_cpl\t",fluid_cpl.type,"\t",fluid_cpl,"\n",
-                             "debug\t",debug.type,"\t",debug,"\n",
-                             "thermo\t",thermo.type,"\t",thermo,"\n",
-                             "kbt\t",kbt.type,"\t",kbt,"\n",
-                             "sigma\t",sigma.type,"\t",sigma,"\n",
-                             "gamma\t",gamma,type,"\t",gamma,"\n",
-                             "numPoints\t",numPoints.type,"\t",numPoints,"\n",
-                             "numSol\t",numSol.type,"\t",numSol,"\n",
-                             "fluid_offset\t",fluid_offset.type,"\t",fluid_offset,"\n"
-                             )
+        myFileWriter.writeln("np\t",np.type:string,"\t",np);
+        myFileWriter.writeln("nworms\t",nworms.type:string,"\t",nworms);
+        myFileWriter.writeln("nsteps\t",nsteps.type:string,"\t",nsteps);
+        myFileWriter.writeln("fdogic\t",fdogic.type:string,"\t",fdogic);
+        myFileWriter.writeln("walldrive\t",walldrive.type:string,"\t",walldrive);
+        myFileWriter.writeln("fdogicwall\t",fdogicwall.type:string,"\t",fdogicwall);
+        myFileWriter.writeln("fdep\t",fdep.type:string,"\t",fdep);
+        myFileWriter.writeln("fdepwall\t",fdepwall.type:string,"\t",fdepwall);
+        myFileWriter.writeln("diss\t",diss.type:string,"\t",diss);
+        myFileWriter.writeln("dt\t",dt.type:string,"\t",dt);
+        myFileWriter.writeln("kspring\t",kspring.type:string,"\t",kspring);
+        myFileWriter.writeln("kbend\t",kbend.type:string,"\t",kbend);
+        myFileWriter.writeln("length0\t",length0.type:string,"\t",length0);
+        myFileWriter.writeln("rcut\t",rcut.type:string,"\t",rcut);
+        myFileWriter.writeln("save_interval\t",save_interval.type:string,"\t",save_interval);
+        myFileWriter.writeln("boundary\t",boundary.type:string,"\t",boundary);
+        myFileWriter.writeln("fluid_cpl\t",fluid_cpl.type:string,"\t",fluid_cpl);
+        myFileWriter.writeln("debug\t",debug.type:string,"\t",debug);
+        myFileWriter.writeln("thermo\t",thermo.type:string,"\t",thermo);
+        myFileWriter.writeln("kbt\t",kbt.type:string,"\t",kbt);
+        myFileWriter.writeln("sigma\t",sigma.type:string,"\t",sigma);
+        myFileWriter.writeln("gamma\t",gamma.type:string,"\t",gamma);
+        myFileWriter.writeln("numPoints\t",numPoints.type:string,"\t",numPoints);
+        myFileWriter.writeln("numSol\t",numSol.type:string,"\t",numSol);
+        myFileWriter.writeln("fluid_offset\t",fluid_offset.type:string,"\t",fluid_offset);
         paramsfile.fsync();
         writeln("params.dat written");
     } catch e: Error {
@@ -1649,7 +1650,7 @@ proc worm_wall() {
                 worms[iw, i].fx += ffor*dx;
                 worms[iw, i].fy += ffor*dy;
 
-                //iwalldrive = 1; // made this a const parameter
+                var iwalldrive = 1; // made this a const parameter
                 //Turning on dogic drive with the wall!!!
                 if (iwalldrive == 1) {
                     //first calculate unit vector along the worm
@@ -1723,7 +1724,7 @@ proc worm_wall_new() {
                 //if close enough to the wall, calculate wall forces
                 //use the short cut-off
                 if (r2 <= r2cut) {
-                    ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
+                    ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r;
                     //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
                     worms[iw,i].fx += ffor*dx;
                     worms[iw,i].fy += ffor*dy;
