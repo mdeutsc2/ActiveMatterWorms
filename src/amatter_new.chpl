@@ -710,18 +710,100 @@ proc calc_forces() {
 proc cell_forces(i:int,j:int,itype:int,jtype:int) {
     //worm-worm interaction
     if (itype == 1) && (jtype == 1) {
-        
+        var iworm,jworm,ip,jp,inogo : int;
+        iworm = 1 + ((i - 1)/np):int;
+        ip = i - np*(iworm - 1);
+        jworm = 1 + ((j - 1)/np):int;
+        jp = j - np*(jworm - 1);
+
+        inogo = 0;
+        if ((iworm == jworm) && (abs(ip-jp) <= 2)) {
+            // on the same worm and close means no interaction calculated here
+            inogo = 1;
+        }
+        if (inogo == 0) {
+            dddx = worms[jworm, jp].x - worms[iworm, ip].x;
+            dddy = worms[jworm, jp].y - worms[iworm, ip].y;
+            r2 = dddx**2 + dddy**2;
+            riijj = sqrt(r2);
+            //add attractive force fdep between all pairs
+            if (r2 <= r2cutsmall) {
+                ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
+                ffx = ffor*dddx;
+                ffy = ffor*dddy;
+                worms[iworm,ip].fx += ffx;
+                worms[jworm,jp].fx -= ffx;
+                worms[iworm,ip].fy += ffy;
+                worms[jworm,jp].fy -= ffy;
+
+                //add 'dogic drive' to interacting pairs
+                //first calculate unit vectors along each worm
+                ip1 = ip + 1;
+                if (ip1 <= np) {
+                    dxi = worms[iworm,ip1].x - worms[iworm, ip].x;
+                    dyi = worms[iworm,ip1].y - worms[iworm, ip].y;
+                } else {
+                    dxi = worms[iworm, ip].x - worms[iworm, ip - 1].x;
+                    dyi = worms[iworm, ip].y - worms[iworm, ip - 1].y;
+                }
+
+                jp1 = jp + 1;
+                if (jp1 <= np) {
+                    dxj = worms[jworm, jp1].x - worms[jworm, jp].x;
+                    dyj = worms[jworm, jp1].y - worms[jworm, jp].x;
+                } else {
+                    dxj = worms[jworm, jp].x - worms[jworm, jp - 1].x;
+                    dyj = worms[jworm, jp].y - worms[jworm, jp - 1].y;
+                }
+
+
+                //if the two vectors have any component pointing in opposite directions
+                if (dxi*dxj + dyi*dyj <= 0.0) {
+                    //normalize those vectors to make them unit vectors
+                    ri = sqrt(dxi*dxi + dyi*dyi);
+                    dxi = dxi/ri;
+                    dyi = dyi/ri;
+
+                    rj = sqrt(dxj*dxj + dyj*dyj);
+                    dxj = dxj/rj;
+                    dyj = dyj/rj;
+                    //now they are both unit vectors. Find the direction for the force...
+
+                    dx = (dxi - dxj)/2.0;
+                    dy = (dyi - dyj)/2.0;
+
+                    //normalize
+
+                    r = sqrt(dx*dx + dy*dy);
+                    dx = dx/r;
+                    dy = dy/r;
+
+                    //add an extra attractive component where kinesin drive is present
+
+                    ffx = fdogic*(dx) + 0.7*dddx/riijj;
+                    ffy = fdogic*(dy) + 0.7*dddy/riijj;
+
+                    //ffx=fdogic*(dx)
+                    //ffy=fdogic*(dy)
+
+                    worms[iworm,ip].fx += ffx;
+                    worms[jworm,jp].fx -= ffx;
+                    worms[iworm,ip].fy += ffy;
+                    worms[jworm,jp].fy -= ffy;
+                }
+            }
+        }
     }
     //worm-boundary interaction
     if ((itype == 1) && (jtype == 3)) {
         var iw,ip:int;
         iw = 1 + ((i - 1)/np):int; // find which worm j is in
-        ip = i - np*(iworm - 1); // which particle in the worm is j?
+        ip = i - np*(iw - 1); // which particle in the worm is j?
         dogic_wall(iw,ip,j);
     } else if ((itype == 3) && (jtype == 1)) {
         var iw,ip:int;
         iw = 1 + ((j - 1)/np):int; // find which worm j is in
-        ip = j - np*(iworm - 1); // which particle in the worm is j?
+        ip = j - np*(iw - 1); // which particle in the worm is j?
         dogic_wall(iw,ip,i);
     }
     //solvent-worm interaction
@@ -1328,7 +1410,7 @@ proc init_binspace() {
     }
 }
 
-// IO Functions
+// IO FUNCTIONS
 proc write_xyz(istep:int) {
     var dx :real, dy:real, xang:real, rx:real,ry:real,dot:real;
     var ic:int;
@@ -1509,11 +1591,6 @@ proc write_params() {
     }
 }
 
-proc sudden_halt(istep:int) {
-    write_xyzv(istep);
-    write_macro(nsteps);
-}
-
 // HELPER FUNCTIONS
 proc gaussRand(mean: real, stddev: real): real {
     var u1 = randStream.getNext();
@@ -1526,6 +1603,11 @@ proc gaussRand(mean: real, stddev: real): real {
         gauss = -2.5;
     }
     return gauss;
+}
+
+proc sudden_halt(istep:int) {
+    write_xyzv(istep);
+    write_macro(nsteps);
 }
 
 
