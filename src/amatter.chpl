@@ -18,7 +18,7 @@ config const np = 40,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
-            save_interval = 10,
+            save_interval = 500,
             boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
@@ -174,8 +174,8 @@ proc main() {
     init_worms();
     if (fluid_cpl) {init_fluid();}
     // equilibrate the fluid
-    for istep in 1..500 {
-        var ioper = 500/10;
+    for istep in 1..5000 {
+        var ioper = 5000/10;
         if (istep%ioper == 0) {
             writeln("fluid equilibration...",istep);
         }
@@ -422,9 +422,9 @@ proc calc_forces() {
             r = sqrt(dx*dx + dy*dy);
             r2 = r*r;
 
-            //ff = -kspring*(r - length0)/r;
+            ff = -kspring*(r - length0)/r;
             // FENE spring
-            ff = -(kspring*r)/(1-(r/length2)**2);
+            //ff = -(kspring*r)/(1-(r/length2)**2);
             // FENE-LJ https://docs.lammps.org/bond_fene.html
             //ff = -0.5*kspring*length0*length0*log(1.0-(r/length0)**2) - 48.0*r2**(-7.0) + 24.0*r2**(-4.0);  
             ffx = ff*dx;
@@ -528,7 +528,9 @@ proc worm_wall() {
                 rr2 = dx*dx + dy*dy;
                 r = sqrt(rr2);
                 //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
-                ffor = -48.0*rr2**(-7.0) + 24.0*rr2**(-4.0);
+                //ffor = -48.0*rr2**(-7.0) + 24.0*rr2**(-4.0);
+                // soft-spring potential
+                ffor = -24.0*rr2**(-4.0);
                 worms[iw, i].fx += ffor*dx;
                 worms[iw, i].fy += ffor*dy;
 
