@@ -134,7 +134,7 @@ const r2cut = rcut*rcut,
       gnoise = 0.80/sqrt(10.0)*0.8,
       dt2o2 = dt*dt*0.50,
       dto2 = dt*0.50,
-      length2 = 2.0*length0,
+      length2 = 2.0*length0, // FENE spring max length
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
@@ -424,9 +424,9 @@ proc calc_forces() {
 
             //ff = -kspring*(r - length0)/r;
             // FENE spring
-            //ff = kspring/(1-(r-length0)*(r-length0)); 
+            ff = -(kspring*r)/(1-(r/length2)**2);
             // FENE-LJ https://docs.lammps.org/bond_fene.html
-            ff = -0.5*kspring*length0*length0*ln(1-(r/length0)**2) - 48.0*r2**(-7.0) + 24.0*r2**(-4.0);  
+            //ff = -0.5*kspring*length0*length0*log(1.0-(r/length0)**2) - 48.0*r2**(-7.0) + 24.0*r2**(-4.0);  
             ffx = ff*dx;
             ffy = ff*dy;
             worms[iw,ip1].fx += ffx;
