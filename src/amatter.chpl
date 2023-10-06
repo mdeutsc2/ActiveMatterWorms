@@ -139,7 +139,7 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
-      numPoints = 900,//590, // number of boundary points
+      numPoints = 589, // number of boundary points
       numSol = 3200, // number of solution particles (3200 for circular, 800 for cardioid)
       fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
@@ -394,24 +394,24 @@ proc update_pos(itime:int) {
 proc calc_forces() {
     var rsq:real,rand1:real,rand2:real,v1:real,v2:real,fac:real,g1:real,th:real;
     //zero out the force arrays and add Gaussian noise
-    rsq = 0.0;
-    for iw in 1..nworms {
-        for i in 1..np {
-            while ((rsq >= 0.999) || (rsq <= 0.001)) {
-                rand1 = randStream.getNext();
-                rand2 = randStream.getNext();
-                v1 = 2.0*rand1 - 1.0;
-                v2 = 2.0*rand2 - 1.0;
-                rsq = v1*v1 + v2*v2;
-            }
-            rand1 = randStream.getNext();
-            fac = sqrt(-2.0*log(rsq)/rsq);
-            g1 = v1*fac*gnoise;
-            th = rand1*twopi;
-            worms[iw,i].fx = g1*cos(th) - diss*worms[iw,i].vx;
-            worms[iw,i].fy = g1*sin(th) - diss*worms[iw,i].vy;
-        }
-    }
+    // rsq = 0.0;
+    // for iw in 1..nworms {
+    //     for i in 1..np {
+    //         while ((rsq >= 0.999) || (rsq <= 0.001)) {
+    //             rand1 = randStream.getNext();
+    //             rand2 = randStream.getNext();
+    //             v1 = 2.0*rand1 - 1.0;
+    //             v2 = 2.0*rand2 - 1.0;
+    //             rsq = v1*v1 + v2*v2;
+    //         }
+    //         rand1 = randStream.getNext();
+    //         fac = sqrt(-2.0*log(rsq)/rsq);
+    //         g1 = v1*fac*gnoise;
+    //         th = rand1*twopi;
+    //         worms[iw,i].fx = g1*cos(th) - diss*worms[iw,i].vx;
+    //         worms[iw,i].fy = g1*sin(th) - diss*worms[iw,i].vy;
+    //     }
+    // }
     //first set of springs nearest neighbor springs
     forall iw in 1..nworms {
         var ip1:int,r:real,ff:real,ffx:real,ffy:real,dx:real,dy:real;
@@ -421,7 +421,8 @@ proc calc_forces() {
             dy = worms[iw,ip1].y - worms[iw,i].y;
             r = sqrt(dx*dx + dy*dy);
 
-            ff = -kspring*(r - length0)/r;
+            //ff = -kspring*(r - length0)/r;
+            ff = kspring/(1-(r-length0)*(r-length0)) // FENE spring
             ffx = ff*dx;
             ffy = ff*dy;
             worms[iw,ip1].fx += ffx;
