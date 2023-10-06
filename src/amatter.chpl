@@ -422,7 +422,7 @@ proc calc_forces() {
             r = sqrt(dx*dx + dy*dy);
 
             //ff = -kspring*(r - length0)/r;
-            ff = kspring/(1-(r-length0)*(r-length0)) // FENE spring
+            ff = kspring/(1-(r-length0)*(r-length0)); // FENE spring
             ffx = ff*dx;
             ffy = ff*dy;
             worms[iw,ip1].fx += ffx;
