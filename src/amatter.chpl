@@ -597,7 +597,7 @@ proc worm_wall_new() {
             //now that we have used them, zero out vxave and vyave, recalculate below
             //worms[iw,i].vxave = worms[iw,i].vx;
             //worms[iw,i].vyave = worms[iw,i].vy;
-            nnab[iw, i] = 1;
+            //nnab[iw, i] = 1;
 
             // calculate the force on the boundaries.
             for ib in 1..numPoints  {
@@ -608,7 +608,8 @@ proc worm_wall_new() {
                 //if close enough to the wall, calculate wall forces
                 //use the short cut-off
                 if (r2 <= r2cut) {
-                    ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0)+fdepwall/r;
+                    r = sqrt(r2);
+                    ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
                     //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
                     worms[iw,i].fx += ffor*dx;
                     worms[iw,i].fy += ffor*dy;
@@ -632,8 +633,8 @@ proc worm_wall_new() {
                             dxj = bound[ib1].x - bound[ib].x;
                             dyj = bound[ib1].y - bound[ib].y;
                         } else {
-                            dxj = bound[ib].x - bound[ib-1].x;
-                            dyj = bound[ib].y - bound[ib-1].y;
+                            dxj = bound[ib].x - bound[1].x;
+                            dyj = bound[ib].y - bound[1].y;
                         }
                         ri = sqrt(dxj*dxj + dyj*dyj);
                         dxj = dxj/ri;
