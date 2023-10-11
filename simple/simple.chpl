@@ -261,32 +261,32 @@ proc update_position(loc) {
         solvent[i].x += solvent[i].vx*dt + (solvent[i].fx/2)*(dt**2);
         solvent[i].y += solvent[i].vy*dt + (solvent[i].fy/2)*(dt**2);
         //periodic boundary conditions
-        // if solvent[i].x > L {
-        //     solvent[i].x = solvent[i].x - L;
-        // } else if solvent[i].x < 0.0 {
-        //     solvent[i].x = solvent[i].x + L;
-        // }
-        // if solvent[i].y > L {
-        //     solvent[i].y = solvent[i].y - L;
-        // } else if solvent[i].y < 0.0 {
-        //     solvent[i].y = solvent[i].y + L;
-        // }
+        if solvent[i].x > L {
+            solvent[i].x = solvent[i].x - L;
+        } else if solvent[i].x < 0.0 {
+            solvent[i].x = solvent[i].x + L;
+        }
+        if solvent[i].y > L {
+            solvent[i].y = solvent[i].y - L;
+        } else if solvent[i].y < 0.0 {
+            solvent[i].y = solvent[i].y + L;
+        }
 
         solvent[i].vx += 0.5*dt*solvent[i].fx;
         solvent[i].vy += 0.5*dt*solvent[i].fy;
         // collide with boundaries
-        if isclose(solvent[i].x, L, rtol = 1e-3, atol = 0.0) {
-            solvent[i].vx = -1.0*solvent[i].vx;
-        }
-        if solvent[i].x <= 0.01 {
-            solvent[i].vx = -1.0*solvent[i].vx;
-        }
-        if isclose(solvent[i].y, L, rtol = 1e-3, atol = 0.0) {
-            solvent[i].vy = -1.0*solvent[i].vy;
-        }
-        if (solvent[i].y <= 0.01) {
-            solvent[i].vy = -1.0*solvent[i].vy;
-        }
+        // if isclose(solvent[i].x, L, rtol = 1e-3, atol = 0.0) {
+        //     solvent[i].vx = -1.0*solvent[i].vx;
+        // }
+        // if solvent[i].x <= 0.01 {
+        //     solvent[i].vx = -1.0*solvent[i].vx;
+        // }
+        // if isclose(solvent[i].y, L, rtol = 1e-3, atol = 0.0) {
+        //     solvent[i].vy = -1.0*solvent[i].vy;
+        // }
+        // if (solvent[i].y <= 0.01) {
+        //     solvent[i].vy = -1.0*solvent[i].vy;
+        // }
         solvent[i].fx = 0.0;
         solvent[i].fy = 0.0;
     }
