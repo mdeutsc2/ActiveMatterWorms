@@ -4,6 +4,7 @@ use IO;
 use IO.FormattedIO;
 use Time; // for stopwatch
 use List;
+use GPU;
 
 config const debug = false,
             L = 100.0, // size of the simulation box in x and y
@@ -141,7 +142,7 @@ const numTasks = here.numPUs();
 if here.gpus.isEmpty() {
     writeln("no gpus");
 } else {
-    writeln("gpus");
+    writeln("gpus",here.gpus);
 }
 
 proc main () {
@@ -184,7 +185,7 @@ proc main () {
     var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
     write_xyz(0);
     //calc_forces_old();
-    calc_forces();
+    calc_forces(here.gpus[0]);
     var vel_mag = 0.0;
     //setting up stopwatch
     xt.start();
@@ -192,7 +193,8 @@ proc main () {
         if (istep % print_interval == 0) {
 	    xt.stop();
 	    total_time = xt.elapsed();
-            amom[(istep/print_interval):int] = 0.0;
+            /*
+	    amom[(istep/print_interval):int] = 0.0;
             xmom[(istep/print_interval):int] = 0.0;
             ymom[(istep/print_interval):int] = 0.0;
             var xcom,ycom,rx,ry: real;
@@ -217,6 +219,7 @@ proc main () {
             xmom[(istep/print_interval):int] = xmom[(istep/print_interval):int]/numParticles;
             ymom[(istep/print_interval):int] = ymom[(istep/print_interval):int]/numParticles;
             KE_total[(istep/print_interval):int] = (+ reduce KE);
+	    */
             vel_mag = sqrt((max reduce solvent.vx)**2 + (max reduce solvent.vy)**2);
             writeln("Step: ",istep,"\t",
                     istep/total_time,"iter/s\tCalc:",
@@ -230,13 +233,13 @@ proc main () {
         }
 	    ct.start();
         // update positions
-        update_position();
+        update_position(here);
         update_cells(istep);
 
         //calc_forces_old();
-        calc_forces();
+        calc_forces(here.gpus[0]);
 
-        update_velocities();
+        update_velocities(here);
 
 
         ct.stop();
@@ -246,12 +249,13 @@ proc main () {
             wt.stop();
         }
     }
-    write_macro(nsteps);
+    //write_macro(nsteps);
     xt.stop();
     writeln("Total Time:",xt.elapsed()," s");
 }
 
-proc update_position() {
+proc update_position(loc) {
+    on loc {
     // update positions
     forall i in 1..numParticles {
         solvent[i].x += solvent[i].vx*dt + (solvent[i].fx/2)*(dt**2);
@@ -285,6 +289,7 @@ proc update_position() {
         }
         solvent[i].fx = 0.0;
         solvent[i].fy = 0.0;
+    }
     }
 }
 
@@ -403,8 +408,9 @@ proc calc_forces_old () {
     }
 }
 
-proc calc_forces() {
+proc calc_forces(loc) {
     // loop over all bins
+    on loc {
     forall binid in binSpace {
         if (bins[binid].ncount > 1) {
             // calculate the forces between atoms inside each bin
@@ -417,8 +423,9 @@ proc calc_forces() {
             }
         }
     }
-
+    }
     // odd neighbors to the east (1)
+    on loc {
     forall binid in binSpaceiodd {
         //var binid=(jbin-1)*numBins+ibin;
         var binidnbor = bins[binid].neighbors[1];
@@ -435,7 +442,9 @@ proc calc_forces() {
             }
         }
     }
+    }
     // even neighbors to the east (1)
+    on loc {
     forall binid in binSpaceieven {
     // for ibin in 2..numBins by 2 {
     //     for jbin in 1..numBins {
@@ -455,8 +464,9 @@ proc calc_forces() {
             }
         //}
     }
-
+    }
     // odd neighbors to the NE (2) (i+1,j+1)
+    on loc {
     forall binid in binSpaceiodd {
     // for ibin in 1..numBins by 2 {
     //     for jbin in 1..numBins {
@@ -475,8 +485,9 @@ proc calc_forces() {
             }
         //}
     }
-
+    }
     // even neighbors to the NE (2)
+    on loc {
     forall binid in binSpaceieven {
     // for ibin in 2..numBins by 2 { // can we do this with every i, but every other j?
     //     for jbin in 1..numBins {
@@ -496,8 +507,9 @@ proc calc_forces() {
             }
         //}
     }
-
+    }
     // odd neighbors to the N (3)
+    on loc {
     forall binid in binSpacejodd {
     // for ibin in 1..numBins {
     //     for jbin in 1..numBins by 2 {
@@ -517,8 +529,9 @@ proc calc_forces() {
             }
         //}
     }
-
+    }
     // even neighbors to the N (3)
+    on loc {
     forall binid in binSpacejeven {
     // for ibin in 1..numBins {
     //     for jbin in 2..numBins by 2 {
@@ -538,8 +551,9 @@ proc calc_forces() {
             }
         //}
     }
-
+    }
     // odd neighbors to the NW (4)
+    on loc {
     forall binid in binSpaceiodd {
     // for ibin in 1..numBins by 2 {
     //     for jbin in 1..numBins {
@@ -559,8 +573,9 @@ proc calc_forces() {
             }
         //}
     }
-
+    }
     // even neighbors to the NW (4)
+    on loc {
     forall binid in binSpaceieven {
     // for ibin in 2..numBins by 2 {
     //     for jbin in 1..numBins {
@@ -580,10 +595,12 @@ proc calc_forces() {
             }
         //}
     }
+    }
 }
 
-proc update_velocities() {
+proc update_velocities(loc) {
     //update velocities
+    on loc {
     forall i in 1..numParticles {
         //solvent[i].vx += 0.5*dt*(solvent[i].fxold + solvent[i].fx);
         //solvent[i].vy += 0.5*dt*(solvent[i].fyold + solvent[i].fy);
@@ -593,6 +610,7 @@ proc update_velocities() {
         solvent[i].vy += 0.5*dt*solvent[i].fy;
         // calculating kinetic energy here too
         KE[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
+    }
     }
 }
 
