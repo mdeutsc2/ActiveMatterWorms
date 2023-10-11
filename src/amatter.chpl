@@ -608,8 +608,8 @@ proc worm_wall_new() {
                 //if close enough to the wall, calculate wall forces
                 //use the short cut-off
                 if (r2 <= r2cut) {
-                    ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0)+fdepwall/r;
-                    //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+                    //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0)+fdepwall/r;
+                    ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
                     worms[iw,i].fx += ffor*dx;
                     worms[iw,i].fy += ffor*dy;
                     if (walldrive) {
