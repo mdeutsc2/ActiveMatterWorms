@@ -16,5 +16,8 @@ $(OUTPUT): $(SOURCE)
 debug: $(SOURCE)
 	$(CHPL) $(DEBUGFLAGS) $(SOURCE) -o $(OUTPUT)
 
-cuda: $(SOURCE)
-	CHPL_GPU=nvidia $(CHPL) $(GPUFLAGS) $(SOURCE) -o $(OUTPUT)
+clean:
+	rm *.x
+
+cuda: simple2.chpl
+	CHPL_GPU=nvidia $(CHPL) $(CHPLFLAGS) simple2.chpl -o simple2.x

@@ -233,13 +233,13 @@ proc main () {
         }
 	    ct.start();
         // update positions
-        update_position(here);
+        update_position(here.gpus[0]);
         update_cells(istep);
 
         //calc_forces_old();
         calc_forces(here.gpus[0]);
 
-        update_velocities(here);
+        update_velocities(here.gpus[0]);
 
 
         ct.stop();
