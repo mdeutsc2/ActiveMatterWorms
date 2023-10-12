@@ -9,8 +9,8 @@ config const np = 40,
             nsteps = 2000000    ,//00,
             fdogic = 0.06,
             walldrive = false,
-            fdogicwall = 1.0,
-            fdep = 1.0, // TODO: change to 4.0?
+            fdogicwall = 0.0,
+            fdep = 0.0, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.08,
             dt = 0.001, //0.02
@@ -426,7 +426,7 @@ proc calc_forces() {
             // FENE spring
             //ff = -(kspring*r)/(1-(r/length2)**2);
             // FENE-LJ https://docs.lammps.org/bond_fene.html
-            //ff = -0.5*kspring*length0*length0*log(1.0-(r/length0)**2) - 48.0*r2**(-7.0) + 24.0*r2**(-4.0);  
+            //ff = -0.5*kspring*length0*length0*log(1.0-(r/length0)**2) - 48.0*r2**(-7.0) + 24.0*r2**(-4.0);
             ffx = ff*dx;
             ffy = ff*dy;
             worms[iw,ip1].fx += ffx;
@@ -609,8 +609,8 @@ proc worm_wall_new() {
                 //use the short cut-off
                 if (r2 <= r2cut) {
                     r = sqrt(r2);
-                    ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
-                    //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+                    //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
+                    ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
                     worms[iw,i].fx += ffor*dx;
                     worms[iw,i].fy += ffor*dy;
                     if (walldrive) {
