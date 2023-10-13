@@ -12,9 +12,9 @@ const numTasks = here.numPUs();
 // configuration
 config const np = 40,
             nworms = 250,
-            nsteps = 2000,//000    ,//00,
+            nsteps = 2000000    ,//00,
             fdogic = 0.06,
-            walldrive = true,
+            walldrive = false,
             fdogicwall = 0.0,
             fdep = 1.0, // TODO: change to 4.0?
             fdepwall = 0.0,
@@ -24,7 +24,7 @@ config const np = 40,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
-            save_interval = 2500,
+            save_interval = 250,
             boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
@@ -177,7 +177,7 @@ const r2cut = rcut*rcut,
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 420, //number of boundary points (for circle w/ r-75)
       numSol = 3200, // number of solution particles (3200 for circular, 800 for cardioid)
-      fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
+      fluid_offset = 3.0;//r2cutsmall-0.1;//3.0; // z-offset of fluid
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
 var worms: [wormsDomain] Particle;
@@ -243,7 +243,7 @@ proc main() {
     }
     update_cells(0); //again after fluid
     writeln("fluid equilibrated...5000dt");
-    write_xyzv(0);
+    write_xyz(0);
     //setting up stopwatch
     xt.start();
     for itime in 1..nsteps {
@@ -259,6 +259,8 @@ proc main() {
 	    ct.start();
         // first update positions and store old forces
         update_pos(itime);
+
+        update_cells(itime);
 
         intraworm_forces();
 
@@ -276,7 +278,7 @@ proc main() {
 	    ct.stop();
         if (itime % save_interval == 0){
             wt.start();
-            write_xyzv(itime);
+            write_xyz(itime);
             wt.stop();
         }
     }
@@ -1263,10 +1265,10 @@ proc update_cells(istep:int) {
         jbin=ceil(solvent[i].y/rcut):int;
         binid=(jbin-1)*numBins+ibin;
         if (binid > numBins*numBins) {
-            //writeln(solvent[i].info());
+            writeln(solvent[i].info());
             sudden_halt(istep);
         } else if (binid < 1) {
-            //writeln(solvent[i].info());
+            writeln(solvent[i].info());
             sudden_halt(istep);
         }
         //append i to particle_list for binid
@@ -1284,10 +1286,10 @@ proc update_cells(istep:int) {
             binid=(jbin-1)*numBins+ibin;
             wormid = (iw-1)*np+ip;
             if (binid > numBins*numBins) {
-                //writeln(solvent[i].info());
+                writeln(worms[iw,ip].info());
                 sudden_halt(istep);
             } else if (binid < 1) {
-                //writeln(solvent[i].info());
+                writeln(worms[iw,ip].info());
                 sudden_halt(istep);
             }
             //append i to particle_list for binid
@@ -1307,14 +1309,6 @@ proc update_cells(istep:int) {
         bins[binid].ncount += 1;
         bins[binid].atoms.pushBack(bound[ib].id);
         bins[binid].types.pushBack(bound[ib].ptype);
-    }
-    if (debug) {
-        writeln("recalculating bins");
-        for ibin in binSpace {
-            if bins[ibin].ncount > 0 {
-            writeln(bins[ibin].id,"\t",bins[ibin].atoms);
-            }
-        }
     }
 }
 
@@ -1375,7 +1369,6 @@ proc init_bins() {
         // bins[ibin].x[1] = ibin[0]*rcut;
         // bins[ibin].y[0] = (ibin[1]-1)*rcut;
         // bins[ibin].y[1] = ibin[1]*rcut;
-
 }
 
 proc init_binspace() {
@@ -1608,7 +1601,6 @@ proc sudden_halt(istep:int) {
     write_xyzv(istep);
     write_macro(nsteps);
 }
-
 
 // OLD FUNCTIONS
 
