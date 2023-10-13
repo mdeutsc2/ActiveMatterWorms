@@ -8,8 +8,8 @@ config const np = 40,
             nworms = 250,
             nsteps = 2000000    ,//00,
             fdogic = 0.06,
-            walldrive = false,
-            fdogicwall = 0.0,
+            walldrive = true,
+            fdogicwall = 0.06,
             fdep = 0.0, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.08,
@@ -171,6 +171,7 @@ var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
 //main
 proc main() {
     writeln("starting...",numTasks);
+    write_params();
     init_worms();
     if (fluid_cpl) {init_fluid();}
     // equilibrate the fluid
@@ -1524,6 +1525,44 @@ proc write_macro(nsteps: int) {
         writeln(e);
     }
 }
+
+proc write_params() {
+    var filename:string = "params.dat";
+    try {
+        var paramsfile = open(filename, ioMode.cw);
+        var myFileWriter = paramsfile.writer();
+        myFileWriter.writeln("np\t",np.type:string,"\t",np);
+        myFileWriter.writeln("nworms\t",nworms.type:string,"\t",nworms);
+        myFileWriter.writeln("nsteps\t",nsteps.type:string,"\t",nsteps);
+        myFileWriter.writeln("fdogic\t",fdogic.type:string,"\t",fdogic);
+        myFileWriter.writeln("walldrive\t",walldrive.type:string,"\t",walldrive);
+        myFileWriter.writeln("fdogicwall\t",fdogicwall.type:string,"\t",fdogicwall);
+        myFileWriter.writeln("fdep\t",fdep.type:string,"\t",fdep);
+        myFileWriter.writeln("fdepwall\t",fdepwall.type:string,"\t",fdepwall);
+        myFileWriter.writeln("diss\t",diss.type:string,"\t",diss);
+        myFileWriter.writeln("dt\t",dt.type:string,"\t",dt);
+        myFileWriter.writeln("kspring\t",kspring.type:string,"\t",kspring);
+        myFileWriter.writeln("kbend\t",kbend.type:string,"\t",kbend);
+        myFileWriter.writeln("length0\t",length0.type:string,"\t",length0);
+        myFileWriter.writeln("rcut\t",rcut.type:string,"\t",rcut);
+        myFileWriter.writeln("save_interval\t",save_interval.type:string,"\t",save_interval);
+        myFileWriter.writeln("boundary\t",boundary.type:string,"\t",boundary);
+        myFileWriter.writeln("fluid_cpl\t",fluid_cpl.type:string,"\t",fluid_cpl);
+        myFileWriter.writeln("debug\t",debug.type:string,"\t",debug);
+        myFileWriter.writeln("thermo\t",thermo.type:string,"\t",thermo);
+        myFileWriter.writeln("kbt\t",kbt.type:string,"\t",kbt);
+        myFileWriter.writeln("sigma\t",sigma.type:string,"\t",sigma);
+        myFileWriter.writeln("gamma\t",gamma.type:string,"\t",gamma);
+        myFileWriter.writeln("numPoints\t",numPoints.type:string,"\t",numPoints);
+        myFileWriter.writeln("numSol\t",numSol.type:string,"\t",numSol);
+        myFileWriter.writeln("fluid_offset\t",fluid_offset.type:string,"\t",fluid_offset);
+        paramsfile.fsync();
+        writeln("params.dat written");
+    } catch e: Error {
+        writeln(e);
+    }
+}
+
 // proc write_macro(istep: int, KE1: real, KE2: real) {
 //     var filename:string = "energies.dat";
 //     try {
