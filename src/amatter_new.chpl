@@ -12,7 +12,7 @@ const numTasks = here.numPUs();
 // configuration
 config const np = 40,
             nworms = 250,
-            nsteps = 2000000    ,//00,
+            nsteps = 2000,//000    ,//00,
             fdogic = 0.06,
             walldrive = true,
             fdogicwall = 0.0,
@@ -24,7 +24,7 @@ config const np = 40,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
-            save_interval = 250,
+            save_interval = 2500,
             boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
@@ -179,9 +179,6 @@ const r2cut = rcut*rcut,
       numSol = 3200, // number of solution particles (3200 for circular, 800 for cardioid)
       fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
-
-
-
 var wormsDomain: domain(2) = {1..nworms,1..np};
 var worms: [wormsDomain] Particle;
 ptc_init_counter = 1;
@@ -220,7 +217,7 @@ var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
 proc main() {
     writeln("starting...",numTasks);
     // save params to file
-    write_params(); 
+    write_params();
     // initialize the alternating loops over bins
     init_binspace();
     // initialize bins and neighboring bin lists
@@ -236,14 +233,15 @@ proc main() {
     update_cells(0);
     // equilibrate the fluid
     if (fluid_cpl) {
-    for istep in 1..5000 {
-        var ioper = 5000/10;
-        if (istep%ioper == 0) {
-            writeln("fluid equilibration...",istep);
-        }
-        fluid_step(0,dt);
+      for istep in 1..5000 {
+          var ioper = 5000/10;
+          if (istep%ioper == 0) {
+              writeln("fluid equilibration...",istep);
+          }
+          fluid_step(0,dt);
+      }
     }
-    }
+    update_cells(0); //again after fluid
     writeln("fluid equilibrated...5000dt");
     write_xyzv(0);
     //setting up stopwatch
@@ -287,7 +285,6 @@ proc main() {
     write_macro(nsteps);
     writeln("Total Time:",xt.elapsed()," s");
 }
-
 
 // //functions
 proc init_worms() {
@@ -376,6 +373,7 @@ proc init_worms() {
         for i in 1..numPoints {
             bound[i].x = ca * (1 - cos(thetaValues[i])) * cos(thetaValues[i]) + hxo2 + ca;
             bound[i].y = ca * (1 - cos(thetaValues[i])) * sin(thetaValues[i]) + hyo2;
+            bound[i].ptype = 3;
         }
         //now place worm particles
         for iw in 1..nworms {
@@ -582,7 +580,7 @@ proc calc_forces(istep:int,dt:real) {
     // even neighbors to the east (1)
     forall binid in binSpaceieven {
         var binidnbor = bins[binid].neighbors[1];
-        if (binidnbor != 1) {
+        if (binidnbor != -1) {
             if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
                 for icount in 0..bins[binid].ncount-1 {
                     var i = bins[binid].atoms[icount];
@@ -852,9 +850,9 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
     }
     //solvent-boundary interaction
     if ((itype == 2) && (jtype == 3)) {
-        lj(i,j,sigma*r2cutsmall);
-    } else if ((itype == 3) && (jtype == 2)) {
         lj(j,i,sigma*r2cutsmall);
+    } else if ((itype == 3) && (jtype == 2)) {
+        lj(i,j,sigma*r2cutsmall);
     }
 }
 
