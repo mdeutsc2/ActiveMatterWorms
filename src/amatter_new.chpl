@@ -1178,24 +1178,24 @@ proc fluid_pos(dt_fluid:real) {
 }
 
 proc fluid_force_old() {
-    //     // fluid-fluid
-    //     var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega:real;
-    //     for i in 1..numSol {
-    //         // calculating the force
-    //         for j in (i+1)..numSol {
-    //             lj_thermo(i,j,r2cut);
-    //         }
-    //     }
-    //     //fluid-boundary
-    //     // var r2cutsol = r2cut
-    //     var r2cutsol = sigma*2.0**(1.0/6.0);
-    //     forall i in 1..numSol {
-    //         // calculate the force on the boundaries.
-    //         for ib in 1..numPoints  {
-    //             lj(ib,i,r2cutsol);
+         // fluid-fluid
+       var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega:real;
+         for i in 1..numSol {
+             // calculating the force
+             for j in (i+1)..numSol {
+                 lj_thermo(i,j,r2cut);
+             }
+         }
+         //fluid-boundary
+         // var r2cutsol = r2cut
+         var r2cutsol = sigma*2.0**(1.0/6.0);
+         forall i in 1..numSol {
+             // calculate the force on the boundaries.
+             for ib in 1..numPoints  {
+                 lj(ib,i,r2cutsol);
 
-    //         }
-    //     }
+             }
+         }
 
     //     // fluid-worms
     //     var dz = fluid_offset;
