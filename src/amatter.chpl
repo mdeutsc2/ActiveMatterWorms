@@ -870,6 +870,7 @@ proc dogic_wall(iw:int,ip:int,ib:int){
     //if close enough to the wall, calculate wall forces
     //use the short cut-off
     if (r2 <= r2cut) {
+        r = sqrt(r2);
         ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
         worms[iw,ip].fx += ffor*dx;
