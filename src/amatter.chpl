@@ -10,8 +10,8 @@ use List;
 
 const numTasks = here.numPUs();
 // configuration
-config const np = 40,
-            nworms = 250,
+config const np = 16,
+            nworms = 625,
             nsteps = 2000000    ,//00,
             fdogic = 0.06,
             walldrive = false,
@@ -25,7 +25,7 @@ config const np = 40,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
             save_interval = 250,
-            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
+            boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
@@ -175,9 +175,9 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
-      numPoints = 420, //number of boundary points (for circle w/ r-75)
-      numSol = 3200, // number of solution particles (3200 for circular, 800 for cardioid)
-      fluid_offset = 3.0;//r2cutsmall-0.1;//3.0; // z-offset of fluid
+      numPoints = 589, //number of boundary points (for circle w/ r-75)
+      numSol = 800, // number of solution particles (3200 for circular, 800 for cardioid)
+      fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
 var worms: [wormsDomain] Particle;
@@ -367,6 +367,7 @@ proc init_worms() {
         var thetaValues: [1..numPoints] real;
         var ca = 1.5*(rwall/2);
         var totalArcLength = 8 * ca;
+        writeln("cardioid cirum: ",totalArcLength, "\t",totalArcLength/r2cutsmall);
         for i in 1..numPoints {
             equidistantArcLengths[i] = totalArcLength * (i - 1) / (numPoints - 1);
             thetaValues[i] = 4 * asin(sqrt(equidistantArcLengths[i] / totalArcLength));
@@ -848,7 +849,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
     }
     //solvent-solvent interaction
     if (itype == 2) && (jtype == 2) {
-        lj_thermo(i,j,r2cut);
+        lj_thermo(i,j,r2cutsmall);
     }
     //solvent-boundary interaction
     if ((itype == 2) && (jtype == 3)) {
@@ -871,8 +872,9 @@ proc dogic_wall(iw:int,ip:int,ib:int){
     //use the short cut-off
     if (r2 <= r2cut) {
         r = sqrt(r2);
-        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
+        //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+        ffor = (1/r)**4.0;
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
@@ -1141,9 +1143,24 @@ proc lj_thermo(i:int,j:int,r2cut_local:real) {
 
 proc lj(i:int,j:int,r2cut_local:real) {
     var dx,dy,r2,ffor,ffx,ffy,sigma12,sigma6:real;
+    var min_x,min_y,min_d,xc,yc:real;
+    var ca = 1.5*(rwall/2);
+    min_d = 10000.0**2;
     //calculate distance to the wall
     dx = solvent[j].x - bound[i].x;
     dy = solvent[j].y - bound[i].y;
+    // for t in theta {
+    //     xc = ca * (1 - sin(t)) * cos(t);
+    //     yc = ca * (1 - sin(t)) * sin(t);
+    //     r2 = (xc-solvent[i].x)**2 + (yc - solvent[i].y)**2;
+    //     if  r2 <= min_d {
+    //         min_d = sqrt(r2);
+    //         min_x = xc;
+    //         min_y = yc;
+    //     }
+    // }
+    // dx = solvent[i].x - min_x;
+    // dy = solvent[i].y - min_y;
     r2 = (dx*dx + dy*dy);
     //if close enough to the wall, calculate wall forces
     //use the short cut-off
@@ -1152,7 +1169,8 @@ proc lj(i:int,j:int,r2cut_local:real) {
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
         sigma12 = sigma**12;
         sigma6 = sigma**6;
-        ffor = 48.0*sigma12*r2**(-7.0) -24*sigma6*r2**(-4.0);
+        //ffor = 48.0*sigma12*r2**(-7.0) -24*sigma6*r2**(-4.0);
+        ffor = (1/sqrt(r2))**4.0;
         solvent[j].fx += ffor*dx;
         solvent[j].fy += ffor*dy;
     }
@@ -1189,13 +1207,14 @@ proc fluid_force_old() {
          }
          //fluid-boundary
          // var r2cutsol = r2cut
-         var r2cutsol = sigma*2.0**(1.0/6.0);
+         var r2cutsol = sigma*r2cutsmall;
          forall i in 1..numSol {
              // calculate the force on the boundaries.
-             for ib in 1..numPoints  {
-                 lj(ib,i,r2cutsol);
+            //  for ib in 1..numPoints  {
+            //      lj(ib,i,r2cutsol);
 
-             }
+            //  }
+            lj(1,i,r2cutsol);
          }
 
     //     // fluid-worms
