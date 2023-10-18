@@ -176,7 +176,8 @@ const r2cut = rcut*rcut,
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 589, //number of boundary points (for circle w/ r-75)
-      numSol = 800, // number of solution particles (3200 for circular, 800 for cardioid)
+      numSol = 7000, // cardiod number of solution particles 
+      //numsol = 3200, // disk number of solution particls
       fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
@@ -231,7 +232,7 @@ proc main() {
 
     // populate the bins with lists of atoms
     update_cells(0);
-    // equilibrate the fluid
+    //equilibrate the fluid
     if (fluid_cpl) {
       for istep in 1..5000 {
           var ioper = 5000/10;
@@ -244,6 +245,7 @@ proc main() {
     update_cells(0); //again after fluid
     writeln("fluid equilibrated...5000dt");
     write_xyz(0);
+    halt();
     //setting up stopwatch
     xt.start();
     for itime in 1..nsteps {
@@ -403,7 +405,7 @@ proc init_worms() {
                 // fxold[iw,i] = 0.0;
                 // fyold[iw,i] = 0.0;
             }
-            thetanow += 4.0*dth;
+            thetanow += 2.0*dth;
         }
 
     } else if (boundary == 3) {
@@ -945,6 +947,11 @@ proc update_vel() {
 //FLUID FUNCTIONS
 proc init_fluid() {
     var random_placement = false;
+    if (boundary == 1){
+        writeln("fluid density=",numSol/(pi*rwall**2));
+    } else if (boundary == 2){
+        writeln("fluid density=",(6*pi*(1.5*(rwall/2))**2)/numSol);
+    }
     if (random_placement) {
         // put the solvent particles in a random x and random y
         if (boundary == 1) {
@@ -993,9 +1000,44 @@ proc init_fluid() {
                 }
             }
         } else if (boundary == 2) {
+            var x_try,y_try,r_try,theta_try,r_cardioid,dist:real;
+            var placed = false;
             // cardioid boundary
-            writeln("haven't put in cardioid fluid yet");
-            halt();
+            var ca = 1.5*(rwall/2);
+            var ccx = hxo2 + ca; // center of the cardiod
+            var ccy = hyo2;
+            var min_x = min reduce bound.x;
+            var max_x = max reduce bound.x;
+            var min_y = min reduce bound.y;
+            var max_y = max reduce bound.y;
+            var numPlaced = 1;
+            for i in 1..numSol {
+                while placed == false {
+                    var r_value = (ca-5) * (1 - cos(pi * randStream.getNext()));
+                    var theta = 2.0 * pi * randStream.getNext();
+                    var r_card = ca*(1-cos(theta));
+                    var x_try = r_value * cos(theta)+ccx-1;
+                    var y_try = r_value * sin(theta)+ccy;
+                    if r_value < r_card-2 {
+                        for j in 1..numPlaced {
+                            if sqrt((x_try - solvent[j].x)**2 + (y_try - solvent[j].y)**2) < rcut {
+                                placed = false;
+                                break;
+                            } else {
+                                solvent[i].x = x_try;
+                                solvent[i].y = y_try;
+                                solvent[i].vx = 0.0;
+                                solvent[i].vy = 0.0;
+                                solvent[i].ptype = 2;
+                                numPlaced += 1;
+                                placed = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                placed = false;
+            }
         } else if (boundary == 3) {
             // channel boundary
             writeln("haven't put in channel fluid");
@@ -1051,24 +1093,26 @@ proc init_fluid() {
                 }
             }
             // circular boundary
-            var fluid_a = sqrt(2)*0.75*(max_x-hxo2); // box size of fluid
+            writeln("Worm extent for fluid:\t",max_x,"\t",max_y);
+            var fluid_a = sqrt(2)*(max_x-hxo2); // box size of fluid
             var fluid_px = fluid_a + hxo2;
             var fluid_mx = fluid_a - hxo2;
             var fluid_py = fluid_a + hyo2;
             var fluid_my = fluid_a - hyo2;
-            var spacing = 1.5;
+            var spacing = 1.0;
             var row_length = numSol/(floor(fluid_a/(rcutsmall*spacing)):int);
+            writeln("numSol ",numSol);
             writeln("Row:",row_length,"\t",row_length**2,"\t",fluid_a,"\t",fluid_a/(rcutsmall*spacing));
             if (row_length**2 > numSol) {
                 writeln("fluid density too high, fixme!");
-                halt();
+                //halt();
             }
             var row,col:real;
             for i in 1..numSol {
                 row = i % row_length;
                 col = ((i - row)/row_length)-1;
-                solvent[i].x = hxo2-0.75*(max_x-hxo2) + spacing*rcutsmall*row;
-                solvent[i].y = hyo2-0.75*(max_y-hyo2) + spacing*rcutsmall*col;
+                solvent[i].x = hxo2-0.45*(max_x-hxo2) + spacing*rcutsmall*col + 1;
+                solvent[i].y = hyo2-1.1*(max_y-hyo2) + spacing*rcutsmall*row - 2;
                 solvent[i].z = 0.0;
                 solvent[i].vx = 0.0; //taken care of by type init
                 solvent[i].vy = 0.0;
@@ -1143,24 +1187,9 @@ proc lj_thermo(i:int,j:int,r2cut_local:real) {
 
 proc lj(i:int,j:int,r2cut_local:real) {
     var dx,dy,r2,ffor,ffx,ffy,sigma12,sigma6:real;
-    var min_x,min_y,min_d,xc,yc:real;
-    var ca = 1.5*(rwall/2);
-    min_d = 10000.0**2;
     //calculate distance to the wall
     dx = solvent[j].x - bound[i].x;
     dy = solvent[j].y - bound[i].y;
-    // for t in theta {
-    //     xc = ca * (1 - sin(t)) * cos(t);
-    //     yc = ca * (1 - sin(t)) * sin(t);
-    //     r2 = (xc-solvent[i].x)**2 + (yc - solvent[i].y)**2;
-    //     if  r2 <= min_d {
-    //         min_d = sqrt(r2);
-    //         min_x = xc;
-    //         min_y = yc;
-    //     }
-    // }
-    // dx = solvent[i].x - min_x;
-    // dy = solvent[i].y - min_y;
     r2 = (dx*dx + dy*dy);
     //if close enough to the wall, calculate wall forces
     //use the short cut-off
@@ -1210,11 +1239,11 @@ proc fluid_force_old() {
          var r2cutsol = sigma*r2cutsmall;
          forall i in 1..numSol {
              // calculate the force on the boundaries.
-            //  for ib in 1..numPoints  {
-            //      lj(ib,i,r2cutsol);
+             for ib in 1..numPoints  {
+                 lj(ib,i,r2cutsol);
 
-            //  }
-            lj(1,i,r2cutsol);
+             }
+            //lj(1,i,r2cutsol);
          }
 
     //     // fluid-worms
