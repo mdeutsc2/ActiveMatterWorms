@@ -7,7 +7,7 @@ BUILDDIR = build/
 OUTPUT = amatter.x
 SETUP_SCRIPT = /mnt/SCRATCH/chapel-1.31.0/util/setchplenv.bash
 
-CHPLFLAGS = --fast --savec=$(BUILDDIR) --optimize --ldflags -v --print-passes --print-commands --print-callstack-on-error
+CHPLFLAGS = --fast --savec=$(BUILDDIR) --optimize --vectorize --specialize --optimize-loop-iterators --print-passes --print-commands --print-callstack-on-error
 DEBUGFLAGS = -g --savec=$(BUILDDIR) --ldflags -v --print-passes --print-commands --checks --print-callstack-on-error
 GPUFLAGS = --fast --optimize --ldflags -v--print-passes --print-commands --gpu-arch=sm60 --gpu-specialization
 
