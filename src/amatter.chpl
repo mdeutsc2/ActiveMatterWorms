@@ -25,7 +25,7 @@ config const np = 16,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
             save_interval = 250,
-            boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel
+            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
@@ -176,8 +176,8 @@ const r2cut = rcut*rcut,
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 589, //number of boundary points (for circle w/ r-75)
-      numSol = 7000, // cardiod number of solution particles 
-      //numsol = 3200, // disk number of solution particls
+      //numSol = 7000, // cardiod number of solution particles 
+      numSol = 8000, // disk number of solution particls
       fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
@@ -950,7 +950,7 @@ proc init_fluid() {
     if (boundary == 1){
         writeln("fluid density=",numSol/(pi*rwall**2));
     } else if (boundary == 2){
-        writeln("fluid density=",(6*pi*(1.5*(rwall/2))**2)/numSol);
+        writeln("fluid density=",numSol/(6*pi*(1.5*(rwall/2))**2));
     }
     if (random_placement) {
         // put the solvent particles in a random x and random y
@@ -1055,12 +1055,12 @@ proc init_fluid() {
             var fluid_mx = fluid_a - hxo2;
             var fluid_py = fluid_a + hxo2;
             var fluid_my = fluid_a - hyo2;
-            var spacing = 1.5;
+            var spacing = 1.0;
             var row_length = numSol/(floor(fluid_a/(rcutsmall*spacing)):int);
             writeln("Row:",row_length,"\t",row_length**2,"\t",fluid_a,"\t",fluid_a/(rcutsmall*spacing));
             if (row_length**2 > numSol) {
                 writeln("fluid density too high, fixme!");
-                halt();
+                //halt();
             }
             var row,col:real;
             for i in 1..numSol {
