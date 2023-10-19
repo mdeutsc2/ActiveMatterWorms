@@ -245,7 +245,7 @@ proc main() {
     update_cells(0); //again after fluid
     writeln("fluid equilibrated...5000dt");
     write_xyz(0);
-    halt();
+    //halt();
     //setting up stopwatch
     xt.start();
     for itime in 1..nsteps {
