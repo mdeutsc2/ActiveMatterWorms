@@ -12,11 +12,11 @@ const numTasks = here.numPUs();
 // configuration
 config const np = 16,
             nworms = 625,
-            nsteps = 2000000    ,//00,
+            nsteps = 4000000    ,//00,
             fdogic = 0.06,
-            walldrive = false,
-            fdogicwall = 0.0,
-            fdep = 1.0, // TODO: change to 4.0?
+            walldrive = true,
+            fdogicwall = 0.06,
+            fdep = 0.0, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.08,
             dt = 0.001, //0.02
@@ -24,12 +24,12 @@ config const np = 16,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
-            save_interval = 250,
+            save_interval = 1000,
             boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
-            kbt = 0.5,
+            kbt = 0.25,
             sigma = 2.0;
 
 var ptc_init_counter = 1;
@@ -175,9 +175,9 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
-      numPoints = 589, //number of boundary points (for circle w/ r-75)
+      numPoints = 1200,//589, //number of boundary points (for circle w/ r-75)
       //numSol = 7000, // cardiod number of solution particles 
-      numSol = 8000, // disk number of solution particls
+      numSol = 6000,//8000, // disk number of solution particls
       fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
