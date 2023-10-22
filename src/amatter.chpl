@@ -14,8 +14,8 @@ config const np = 16,
             nworms = 625,
             nsteps = 4000000    ,//00,
             fdogic = 0.06,
-            walldrive = true,
-            fdogicwall = 0.06,
+            walldrive = false,
+            fdogicwall = 0.0,
             fdep = 0.0, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.08,
@@ -25,7 +25,7 @@ config const np = 16,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
             save_interval = 1000,
-            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
+            boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
@@ -176,8 +176,8 @@ const r2cut = rcut*rcut,
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 1200,//589, //number of boundary points (for circle w/ r-75)
-      //numSol = 7000, // cardiod number of solution particles 
-      numSol = 6000,//8000, // disk number of solution particls
+      numSol = 7000, // cardiod number of solution particles
+      //numSol = 6000,//8000, // disk number of solution particls
       fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
@@ -244,7 +244,8 @@ proc main() {
     }
     update_cells(0); //again after fluid
     writeln("fluid equilibrated...5000dt");
-    write_xyz(0);
+
+    write_xyzv(0);
     //halt();
     //setting up stopwatch
     xt.start();
@@ -280,7 +281,7 @@ proc main() {
 	    ct.stop();
         if (itime % save_interval == 0){
             wt.start();
-            write_xyz(itime);
+            write_xyzv(itime);
             wt.stop();
         }
     }
@@ -451,11 +452,11 @@ proc update_pos(itime:int) {
 }
 
 proc intraworm_forces() {
-    var rsq:real,rand1:real,rand2:real,v1:real,v2:real,fac:real,g1:real,th:real;
     //zero out the force arrays and add Gaussian noise
-    rsq = 0.0;
-    /* for iw in 1..nworms {
+    forall iw in 1..nworms {
+      var rsq:real,rand1:real,rand2:real,v1:real,v2:real,fac:real,g1:real,th:real;
         for i in 1..np {
+            rsq = 0.0;
             while ((rsq >= 0.999) || (rsq <= 0.001)) {
                 rand1 = randStream.getNext();
                 rand2 = randStream.getNext();
@@ -470,7 +471,7 @@ proc intraworm_forces() {
             worms[iw,i].fx = g1*cos(th) - diss*worms[iw,i].vx;
             worms[iw,i].fy = g1*sin(th) - diss*worms[iw,i].vy;
         }
-    } */
+    }
     //first set of springs nearest neighbor springs
     forall iw in 1..nworms {
         var ip1:int,r:real,ff:real,ffx:real,ffy:real,dx:real,dy:real;
@@ -1093,6 +1094,10 @@ proc init_fluid() {
                 }
             }
             // circular boundary
+	    if (np*nworms != 10000) {
+		max_x = 127.427;
+		max_y = 126.69;
+	    }
             writeln("Worm extent for fluid:\t",max_x,"\t",max_y);
             var fluid_a = sqrt(2)*(max_x-hxo2); // box size of fluid
             var fluid_px = fluid_a + hxo2;
