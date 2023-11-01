@@ -25,12 +25,14 @@ config const np = 40,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
-            save_interval = 2500,
+            save_interval = 500,
             boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
-            kbt = 0.5,
+            kbt = 0.25,
+	        numSol = 7000, // cardiod number of solution particles
+	        //numSol = 6000, //8000, // disk number of solution particles
             sigma = 2.0;
 
 var ptc_init_counter = 1;
@@ -176,8 +178,7 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
-      numPoints = 420, //number of boundary points (for circle w/ r-75)
-      numSol = 3200, // number of solution particles (3200 for circular, 800 for cardioid)
+      numPoints = 1200,//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
 
 
@@ -187,7 +188,12 @@ var total_time = 0.0;
 var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
 //main
 proc main() {
-    var loc = here.gpus[0];
+    var loc:locale;
+    if here.gpus.isEmpty() {
+        loc = here;
+    } else {
+        loc = here.gpus[0];
+    }
     on loc {
       // defining arrays
       var wormsDomain: domain(2) = {1..nworms,1..np};
@@ -235,56 +241,55 @@ proc main() {
             if (istep%ioper == 0) {
                 writeln("fluid equilibration...",istep);
             }
-            fluid_step(0,dt,solvent);
+            fluid_step(0,dt,solvent,bound,KEsol);
         }
       }
-    }
-    /*
+        update_cells(bins,solvent,bound,worms,binSpace,0); //again after fluid
+        writeln("fluid equilibrated...5000dt");
+        write_xyzv(0,worms,solvent,bound);
+    
+        //setting up stopwatch
+        xt.start();
+        for itime in 1..nsteps {
+            //writeln(itime);
+            t = (itime:real) *dt;
+            
+            if (itime % 100 == 0) {
+                xt.stop();
+                total_time = xt.elapsed();
+                writeln("Step: ",itime,"\t",itime/total_time,"iter/s\tCalc:",(ct.elapsed()/total_time)*100,"%\tIO:",(wt.elapsed()/total_time)*100," %\tElapsed:",total_time," s\tEst:",(nsteps/itime)*total_time," s");
+                xt.start();
+                }
+            ct.start();
+            // first update positions and store old forces
+            update_pos(itime,dt,worms,solvent);
 
+            update_cells(bins,solvent,bound,worms,binSpace,itime);
 
-    update_cells(0); //again after fluid
-    writeln("fluid equilibrated...5000dt");
-    write_xyzv(0);
-    //setting up stopwatch
-    xt.start();
-    for itime in 1..nsteps {
-        //writeln(itime);
-        t = (itime:real) *dt;
+            intraworm_forces(worms);
 
-        if (itime % 100 == 0) {
-            xt.stop();
-            total_time = xt.elapsed();
-            writeln("Step: ",itime,"\t",itime/total_time,"iter/s\tCalc:",(ct.elapsed()/total_time)*100,"%\tIO:",(wt.elapsed()/total_time)*100," %\tElapsed:",total_time," s\tEst:",(nsteps/itime)*total_time," s");
-            xt.start();
+            calc_forces(bins,worms,solvent,bound,binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven);
+
+            if (fluid_cpl) {
+                KEsol_total[itime] = (+ reduce KEsol);
+            } else {
+                KEsol_total[itime] = 0.0;
             }
-	    ct.start();
-        // first update positions and store old forces
-        update_pos(itime);
 
-        intraworm_forces();
+            update_vel(worms,KEworm,dt,solvent,KEsol);
+            KEworm_total[itime] = (+ reduce KEworm);
 
-        calc_forces(itime,dt);
-
-        if (fluid_cpl) {
-            KEsol_total[itime] = (+ reduce KEsol);
-        } else {
-            KEsol_total[itime] = 0.0;
+            ct.stop();
+            if (itime % save_interval == 0){
+                wt.start();
+                write_xyzv(itime,worms,solvent,bound);
+                wt.stop();
+            }
         }
-
-        update_vel();
-        KEworm_total[itime] = (+ reduce KEworm);
-
-	    ct.stop();
-        if (itime % save_interval == 0){
-            wt.start();
-            write_xyzv(itime);
-            wt.stop();
-        }
+        //finalize();
+        xt.stop();
+        write_macro(nsteps,KEworm_total,KEsol_total);
     }
-    //finalize();
-    xt.stop();
-    write_macro(nsteps);
-    */
     writeln("Total Time:",xt.elapsed()," s");
 }
 
@@ -354,6 +359,7 @@ proc init_worms(ref worms:[] Particle,
         var thetaValues: [1..numPoints] real;
         var ca = 1.5*(rwall/2);
         var totalArcLength = 8 * ca;
+	writeln("cardioid circum: ",totalArcLength, "\t",totalArcLength/r2cutsmall);
         for i in 1..numPoints {
             equidistantArcLengths[i] = totalArcLength * (i - 1) / (numPoints - 1);
             thetaValues[i] = 4 * asin(sqrt(equidistantArcLengths[i] / totalArcLength));
@@ -418,7 +424,7 @@ proc init_worms(ref worms:[] Particle,
     writeln("init done");
 }
 
-proc update_pos(itime:int) {
+proc update_pos(itime:int,dt:real,ref worms: [] Particle, ref solvent: [] Particle) {
     //forall iw in 1..nworms {
     forall iw in 1..nworms {
        foreach i in 1..np {
@@ -431,10 +437,10 @@ proc update_pos(itime:int) {
             worms[iw,i].fz = 0.0;
         }
     }
-    fluid_pos(dt);
+    fluid_pos(dt,solvent);
 }
 
-proc intraworm_forces() {
+proc intraworm_forces(ref worms: [] Particle) {
     var rsq:real,rand1:real,rand2:real,v1:real,v2:real,fac:real,g1:real,th:real;
     //zero out the force arrays and add Gaussian noise
     rsq = 0.0;
@@ -534,7 +540,11 @@ proc intraworm_forces() {
     }
 }
 
-proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven) {
+proc calc_forces(ref bins: [] Bin,
+                 ref worms: [] Particle,
+                 ref solvent: [] Particle,
+                 ref bound: [] Particle,
+                 binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven) {
     forall binid in binSpace {
         if (bins[binid].ncount > 1) {
             // calculate the forces between atoms inside each bin
@@ -544,7 +554,7 @@ proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven)
                 for jcount in (icount+1)..bins[binid].ncount-1 {
                     var j = bins[binid].atoms[jcount];
                     var jtype = bins[binid].types[jcount];
-                    cell_forces(i,j,itype,jtype);
+                    cell_forces(i,j,itype,jtype,worms,solvent,bound);
                 }
             }
         }
@@ -560,7 +570,7 @@ proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven)
                     for jcount in 0..bins[binidnbor].ncount-1 {
                         var j = bins[binidnbor].atoms[jcount];
                         var jtype = bins[binidnbor].types[jcount];
-                        cell_forces(i,j,itype,jtype);
+                        cell_forces(i,j,itype,jtype,worms,solvent,bound);
                     }
                 }
             }
@@ -577,7 +587,7 @@ proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven)
                     for jcount in 0..bins[binidnbor].ncount-1 {
                         var j = bins[binidnbor].atoms[jcount];
                         var jtype = bins[binidnbor].types[jcount];
-                        cell_forces(i,j,itype,jtype);
+                        cell_forces(i,j,itype,jtype,worms,solvent,bound);
                     }
                 }
             }
@@ -595,7 +605,7 @@ proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven)
                     for jcount in 0..bins[binidnbor].ncount-1 {
                         var j = bins[binidnbor].atoms[jcount];
                         var jtype = bins[binidnbor].types[jcount];
-                        cell_forces(i,j,itype,jtype);
+                        cell_forces(i,j,itype,jtype,worms,solvent,bound);
                     }
                 }
             }
@@ -613,7 +623,7 @@ proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven)
                     for jcount in 0..bins[binidnbor].ncount-1 {
                         var j = bins[binidnbor].atoms[jcount];
                         var jtype = bins[binidnbor].types[jcount];
-                        cell_forces(i,j,itype,jtype);
+                        cell_forces(i,j,itype,jtype,worms,solvent,bound);
                     }
                 }
             }
@@ -631,7 +641,7 @@ proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven)
                     for jcount in 0..bins[binidnbor].ncount-1 {
                         var j = bins[binidnbor].atoms[jcount];
                         var jtype = bins[binidnbor].types[jcount];
-                        cell_forces(i,j,itype,jtype);
+                        cell_forces(i,j,itype,jtype,worms,solvent,bound);
                     }
                 }
             }
@@ -649,7 +659,7 @@ proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven)
                     for jcount in 0..bins[binidnbor].ncount-1 {
                         var j = bins[binidnbor].atoms[jcount];
                         var jtype = bins[binidnbor].types[jcount];
-                        cell_forces(i,j,itype,jtype);
+                        cell_forces(i,j,itype,jtype,worms,solvent,bound);
                     }
 
                 }
@@ -668,7 +678,7 @@ proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven)
                     for jcount in 0..bins[binidnbor].ncount-1 {
                         var j = bins[binidnbor].atoms[jcount];
                         var jtype = bins[binidnbor].types[jcount];
-                        cell_forces(i,j,itype,jtype);
+                        cell_forces(i,j,itype,jtype,worms,solvent,bound);
                     }
                 }
             }
@@ -686,7 +696,7 @@ proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven)
                     for jcount in 0..bins[binidnbor].ncount-1 {
                         var j = bins[binidnbor].atoms[jcount];
                         var jtype = bins[binidnbor].types[jcount];
-                        cell_forces(i,j,itype,jtype);
+                        cell_forces(i,j,itype,jtype,worms,solvent,bound);
                     }
                 }
             }
@@ -695,8 +705,8 @@ proc calc_forces(binSpace,binSpaceiodd,binSpacejodd,binSpaceieven,binSpacejeven)
 }
 
 proc cell_forces(i:int,j:int,itype:int,jtype:int,
-                 ref solvent:[] Particle,
-                 ref worms: [] Particle,
+                 ref worms:[] Particle,
+                 ref solvent: [] Particle,
                  ref bound: [] Particle) {
     //worm-worm interaction
     if (itype == 1) && (jtype == 1) {
@@ -791,12 +801,12 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int,
         var iw,ip:int;
         iw = 1 + ((i - 1)/np):int; // find which worm j is in
         ip = i - np*(iw - 1); // which particle in the worm is j?
-        dogic_wall(iw,ip,j);
+        dogic_wall(iw,ip,j,worms,bound);
     } else if ((itype == 3) && (jtype == 1)) {
         var iw,ip:int;
         iw = 1 + ((j - 1)/np):int; // find which worm j is in
         ip = j - np*(iw - 1); // which particle in the worm is j?
-        dogic_wall(iw,ip,i);
+        dogic_wall(iw,ip,i,worms,bound);
     }
     //solvent-worm interaction
     if ((itype == 2) && (jtype == 1)) {
@@ -842,13 +852,13 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int,
     }
     //solvent-boundary interaction
     if ((itype == 2) && (jtype == 3)) {
-        lj(j,i,sigma*r2cutsmall);
+        lj(j,i,sigma*r2cutsmall,solvent,bound);
     } else if ((itype == 3) && (jtype == 2)) {
-        lj(i,j,sigma*r2cutsmall);
+        lj(i,j,sigma*r2cutsmall,solvent,bound);
     }
 }
 
-proc dogic_wall(iw:int,ip:int,ib:int){
+proc dogic_wall(iw:int,ip:int,ib:int,ref worms: [] Particle, ref bound: [] Particle){
     var dx:real, dy:real, r:real, r2:real, th:real,
         xwall:real, ywall:real, rr2:real, ffor:real,
         dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
@@ -860,8 +870,10 @@ proc dogic_wall(iw:int,ip:int,ib:int){
     //if close enough to the wall, calculate wall forces
     //use the short cut-off
     if (r2 <= r2cut) {
-        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
+	r = sqrt(r2);
+        //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+	ffor = (1/r)**4.0;
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
@@ -916,7 +928,7 @@ proc dogic_wall(iw:int,ip:int,ib:int){
     }
 }
 
-proc update_vel() {
+proc update_vel(ref worms: [] Particle, ref KEworm: [] real,dt:real,ref solvent: [] Particle, ref KEsol: [] real) {
     forall iw in 1..nworms {
         foreach i in 1..np {
             worms[iw, i].vx += dto2*(worms[iw,i].fx + worms[iw,i].fxold);
@@ -926,7 +938,7 @@ proc update_vel() {
             KEworm[iw*i] = 0.5*(worms[iw,i].vx * worms[iw,i].vx + worms[iw,i].vy * worms[iw,i].vy);
         }
     }
-    fluid_vel(dt);
+    fluid_vel(dt,solvent, KEsol);
 }
 
 //FLUID FUNCTIONS
@@ -1002,12 +1014,12 @@ proc init_fluid(ref solvent:[] Particle,
             var fluid_mx = fluid_a - hxo2;
             var fluid_py = fluid_a + hxo2;
             var fluid_my = fluid_a - hyo2;
-            var spacing = 1.5;
+            var spacing = 1.0;
             var row_length = numSol/(floor(fluid_a/(rcutsmall*spacing)):int);
             writeln("Row:",row_length,"\t",row_length**2,"\t",fluid_a,"\t",fluid_a/(rcutsmall*spacing));
             if (row_length**2 > numSol) {
                 writeln("fluid density too high, fixme!");
-                halt();
+                //halt();
             }
             var row,col:real;
             for i in 1..numSol {
@@ -1040,24 +1052,30 @@ proc init_fluid(ref solvent:[] Particle,
                 }
             }
             // circular boundary
-            var fluid_a = sqrt(2)*0.75*(max_x-hxo2); // box size of fluid
+	    if (np*nworms != 10000) {
+		max_x = 127.427;
+		max_y = 126.69;
+	    }
+	    writeln("Worm extent for fluid:\t",max_x,"\t",max_y);
+            var fluid_a = sqrt(2)*(max_x-hxo2); // box size of fluid
             var fluid_px = fluid_a + hxo2;
             var fluid_mx = fluid_a - hxo2;
             var fluid_py = fluid_a + hyo2;
             var fluid_my = fluid_a - hyo2;
-            var spacing = 1.5;
+            var spacing = 1.0;
             var row_length = numSol/(floor(fluid_a/(rcutsmall*spacing)):int);
+	    writeln("numSol ",numSol);
             writeln("Row:",row_length,"\t",row_length**2,"\t",fluid_a,"\t",fluid_a/(rcutsmall*spacing));
             if (row_length**2 > numSol) {
                 writeln("fluid density too high, fixme!");
-                halt();
+                //halt();
             }
             var row,col:real;
             for i in 1..numSol {
                 row = i % row_length;
                 col = ((i - row)/row_length)-1;
-                solvent[i].x = hxo2-0.75*(max_x-hxo2) + spacing*rcutsmall*row;
-                solvent[i].y = hyo2-0.75*(max_y-hyo2) + spacing*rcutsmall*col;
+                solvent[i].x = hxo2-0.45*(max_x-hxo2) + spacing*rcutsmall*col + 1;
+                solvent[i].y = hyo2-1.1*(max_y-hyo2) + spacing*rcutsmall*row - 2;
                 solvent[i].z = 0.0;
                 solvent[i].vx = 0.0; //taken care of by type init
                 solvent[i].vy = 0.0;
@@ -1146,7 +1164,8 @@ proc lj(i:int,j:int,r2cut_local:real,
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
         sigma12 = sigma**12;
         sigma6 = sigma**6;
-        ffor = 48.0*sigma12*r2**(-7.0) -24*sigma6*r2**(-4.0);
+        //ffor = 48.0*sigma12*r2**(-7.0) -24*sigma6*r2**(-4.0);
+	ffor = (1/sqrt(r2))**4.0;
         solvent[j].fx += ffor*dx;
         solvent[j].fy += ffor*dy;
     }
@@ -1215,7 +1234,7 @@ proc fluid_force_old(ref solvent: [] Particle,
     //     }
 }
 
-proc fluid_vel(dt_fluid:real,ref solvent: [] Particle) {
+proc fluid_vel(dt_fluid:real,ref solvent: [] Particle, ref KEsol: [] real) {
     //update velocities
     forall i in 1..numSol {
         //solvent[i].vx += 0.5*dt_fluid*(solvent[i].fxold + solvent[i].fx);
@@ -1231,13 +1250,14 @@ proc fluid_vel(dt_fluid:real,ref solvent: [] Particle) {
 
 proc fluid_step(istep:int,dt_fluid:real,
                 ref solvent: [] Particle,
-                ref bound: [] Particle) {
+                ref bound: [] Particle,
+                ref KEsol: [] real) {
     // update positions
     fluid_pos(dt_fluid,solvent);
     // update_fluid_cells(istep);
     fluid_force_old(solvent,bound);
 
-    fluid_vel(dt_fluid,solvent);
+    fluid_vel(dt_fluid,solvent,KEsol);
 }
 
 // CELL LIST FUNCTIONS
@@ -1266,10 +1286,10 @@ proc update_cells(ref bins:[] Bin,
         jbin=ceil(solvent[i].y/rcut):int;
         binid=(jbin-1)*numBins+ibin;
         if (binid > numBins*numBins) {
-            //writeln(solvent[i].info());
+            writeln(solvent[i].info());
             sudden_halt(istep,worms,solvent,bound);
         } else if (binid < 1) {
-            //writeln(solvent[i].info());
+            writeln(solvent[i].info());
             sudden_halt(istep,worms,solvent,bound);
         }
         //append i to particle_list for binid
@@ -1287,10 +1307,10 @@ proc update_cells(ref bins:[] Bin,
             binid=(jbin-1)*numBins+ibin;
             wormid = (iw-1)*np+ip;
             if (binid > numBins*numBins) {
-                //writeln(solvent[i].info());
+                writeln(worms[iw,ip].info());
                 sudden_halt(istep,worms,solvent,bound);
             } else if (binid < 1) {
-                //writeln(solvent[i].info());
+                writeln(worms[iw,ip].info());
                 sudden_halt(istep,worms,solvent,bound);
             }
             //append i to particle_list for binid
