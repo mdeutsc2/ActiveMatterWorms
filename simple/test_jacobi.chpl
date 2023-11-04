@@ -29,6 +29,5 @@ proc jacobi(loc,n) {
       forall i in 1..n { B[i] = 0.33333 * (A[i-1] + A[i] + A[i+1]); }
       forall i in 1..n { A[i] = 0.33333 * (B[i-1] + B[i] + B[i+1]); }
     }
-    //writeln(A);
   }
 }

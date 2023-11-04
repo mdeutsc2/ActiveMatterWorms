@@ -20,7 +20,7 @@ config const np = 40,
             fdep = 1.0, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.08,
-            dt = 0.001, //0.02
+            dt = 0.002, //0.02
             kspring = 57.146436,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
@@ -31,8 +31,8 @@ config const np = 40,
             debug = false,
             thermo = true, // turn thermostat on?
             kbt = 0.25,
-	        numSol = 7000, // cardiod number of solution particles
-	        //numSol = 6000, //8000, // disk number of solution particles
+	          numSol = 7000, // cardiod number of solution particles
+	          //numSol = 6000, //8000, // disk number of solution particles
             sigma = 2.0;
 
 var ptc_init_counter = 1;
@@ -188,12 +188,7 @@ var total_time = 0.0;
 var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
 //main
 proc main() {
-    var loc:locale;
-    if here.gpus.isEmpty() {
-        loc = here;
-    } else {
-        loc = here.gpus[0];
-    }
+    var loc = here;
     on loc {
       // defining arrays
       var wormsDomain: domain(2) = {1..nworms,1..np};
@@ -247,13 +242,12 @@ proc main() {
         update_cells(bins,solvent,bound,worms,binSpace,0); //again after fluid
         writeln("fluid equilibrated...5000dt");
         write_xyzv(0,worms,solvent,bound);
-    
         //setting up stopwatch
         xt.start();
         for itime in 1..nsteps {
             //writeln(itime);
             t = (itime:real) *dt;
-            
+
             if (itime % 100 == 0) {
                 xt.stop();
                 total_time = xt.elapsed();
@@ -1112,11 +1106,6 @@ proc lj_thermo(ref solvent: [] Particle,i:int,j:int,r2cut_local:real) {
         ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
         ffx = ffor*dx;
         ffy = ffor*dy;
-        if (debug) {
-            if (i == 1) || (j == 1) {
-                writeln("LJ ",i," ",j," ",sqrt(r2)," ",sqrt(r2cut_local)," ",ffx," ",ffy," ",dx," ",dy);
-            }
-        }
         solvent[i].fx += ffx;
         solvent[i].fy += ffy;
         solvent[j].fx -= ffx;
@@ -1286,10 +1275,10 @@ proc update_cells(ref bins:[] Bin,
         jbin=ceil(solvent[i].y/rcut):int;
         binid=(jbin-1)*numBins+ibin;
         if (binid > numBins*numBins) {
-            writeln(solvent[i].info());
+            //writeln(solvent[i].info());
             sudden_halt(istep,worms,solvent,bound);
         } else if (binid < 1) {
-            writeln(solvent[i].info());
+            //writeln(solvent[i].info());
             sudden_halt(istep,worms,solvent,bound);
         }
         //append i to particle_list for binid
@@ -1307,10 +1296,10 @@ proc update_cells(ref bins:[] Bin,
             binid=(jbin-1)*numBins+ibin;
             wormid = (iw-1)*np+ip;
             if (binid > numBins*numBins) {
-                writeln(worms[iw,ip].info());
+                //writeln(worms[iw,ip].info());
                 sudden_halt(istep,worms,solvent,bound);
             } else if (binid < 1) {
-                writeln(worms[iw,ip].info());
+                //writeln(worms[iw,ip].info());
                 sudden_halt(istep,worms,solvent,bound);
             }
             //append i to particle_list for binid

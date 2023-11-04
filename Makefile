@@ -3,14 +3,13 @@
 CHPL = chpl
 SRCDIR = src/
 SOURCE = $(SRCDIR)amatter.chpl
+#SOURCE = $(SRCDIR)amatter_new_gpu.chpl
 BUILDDIR = build/
 OUTPUT = amatter.x
-SETUP_SCRIPT = /mnt/SCRATCH/chapel-1.31.0/util/setchplenv.bash
 
 CHPLFLAGS = --fast --savec=$(BUILDDIR) --optimize --vectorize --specialize --optimize-loop-iterators --print-passes --print-commands --print-callstack-on-error
 DEBUGFLAGS = -g --savec=$(BUILDDIR) --ldflags -v --print-passes --print-commands --checks --print-callstack-on-error
-GPUFLAGS = --fast --optimize --ldflags -v--print-passes --print-commands --gpu-arch=sm60 --gpu-specialization
-
+GPUFLAGS = --fast --optimize --ldflags -v --print-passes --print-commands --gpu-specialization --ccflags=--cuda-path=/usr/lib/cuda --report-gpu
 
 all: $(OUTPUT)
 
@@ -23,14 +22,11 @@ clean:
 debug: $(SOURCE)
 	$(CHPL) $(DEBUGFLAGS) $(SOURCE) -o $(OUTPUT)
 
-setup:
-	source $(SETUP_SCRIPT)
+cuda:
+	$(CHPL) $(GPUFLAGS) $(SOURCE) -o $(OUTPUT)
 
 run:
 	set -e; \
-	if [ ! -e "$(OUTPUT)" ]; then \
-		$(MAKE) all; \
-	fi; \
 	dirname=data_$$(date +%d_%m_%Y); \
 	if [ -d "$$dirname" ]; then \
 		count=2; \
