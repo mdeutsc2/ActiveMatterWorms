@@ -13,7 +13,7 @@ def compute_director(particle_frame: Frame, cellsize):
     origin = particle_frame.r.min(axis=0)
     box_max = particle_frame.r.max(axis=0)
     box_size = box_max - origin
-    box_shape = tuple(np.ceil((box_size + 0.0001) / cellsize).astype(np.int))
+    box_shape = tuple(np.ceil((box_size + 0.0001) / cellsize).astype(np.int64))
     n_cells = np.prod(box_shape)
 
     N = np.zeros(box_shape, dtype=int)
@@ -26,7 +26,7 @@ def compute_director(particle_frame: Frame, cellsize):
     for i in range(len(particle_frame)):
         r = particle_frame.get(i)
         t = particle_frame.get_t(i)
-        cell = np.floor((r - origin) / cellsize).astype(np.int)
+        cell = np.floor((r - origin) / cellsize).astype(np.int64)
         N[cell[0], cell[1], cell[2]] += 1
 
         for a in range(3):

@@ -47,11 +47,11 @@ def compute_theta(frame, cellsize):
     origin = frame["origin"]
     box_size = frame["box_size"]
     frame["cellsize"] = cellsize
-    box_shape = tuple(np.ceil((box_size + 0.0001) / cellsize).astype(np.int))
+    box_shape = tuple(np.ceil((box_size + 0.0001) / cellsize).astype(np.int64))
     theta = np.zeros(box_shape[:2])
     for i in range(num_sites):
         r, v = R[i], V[i]
-        cell = np.floor((r - origin) / cellsize).astype(np.int)
+        cell = np.floor((r - origin) / cellsize).astype(np.int64)
         theta[cell[0], cell[1]] = math.atan2(v[1], v[0])
     frame["theta"] = theta
     return frame
@@ -226,7 +226,7 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--input", type=str, required=True, help="A director field sequence XYZV file")
     parser.add_argument("-o", "--output", type=str, default="defects.xyz")
     parser.add_argument("-np", "--num_processes", type=int, default=cpu_count() + 1)
-    parser.add_argument("-c", "--cellsize", type=float, required=True)
+    parser.add_argument("-c", "--cellsize", type=float, required=True) # 2 in make_directory_field.py
     args = parser.parse_args()
 
     print(f"Reading {args.input} ...")
