@@ -1,2 +1,0 @@
-../../amatter.x --walldrive=true --fdogicwall=1.0 --fdep=1.0 > output.txt
-../../amatter.x --walldrive=false --fdep=8.0 > output.txt
