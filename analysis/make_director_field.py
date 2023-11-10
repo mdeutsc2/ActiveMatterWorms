@@ -68,8 +68,8 @@ if __name__ == "__main__":
                 process_args = [(frame, args.cellsize) for frame in frame_batch]
                 results = pool.starmap(compute_director, process_args)
                 for director_field in results:
-                    out.write(f"{len(director_field)}\n")
-                    out.write("type,x,y,z,nx,ny,nz,s,N\n")
+                    out.write(f"# {len(director_field)}\n")
+                    out.write("# type,x,y,z,nx,ny,nz,s,N\n")
                     for x in director_field:
                         x,y,z,vx,vy,vz,s,n = tuple(x)
                         out.write("A %f %f %f %f %f %f %f %f\n" % (x,y,z,vx,-vy,vz,s,n))
