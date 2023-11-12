@@ -65,7 +65,7 @@ def get_particle_vecs_frame(N,iframe,pos_data,disp=True):
             #print(ip,worm_view[iw][ip],vec)
     return vector_field
 
-def interp_particle_vecs(vector_field,disp=True):
+def interp_particle_vecs(vector_field,num_interpolation_points,interpolation_type,disp=True):
     #extend of the particles in +x,-x,+y,-y
     max_x = np.max(vector_field[:,0])
     min_x = np.min(vector_field[:,0])
@@ -76,14 +76,14 @@ def interp_particle_vecs(vector_field,disp=True):
         print("Y:",min_y,max_y,max_y-min_y)
 
     # create structured grid
-    num_interpolation_points = 100
+    #num_interpolation_points = 100
     grid_x,grid_y = np.meshgrid(np.linspace(min_x,max_x,num=num_interpolation_points),
                                 np.linspace(min_y,max_y,num=num_interpolation_points))
     # Create points for interpolation
     points = np.column_stack((vector_field[:,0], vector_field[:,1]))
     # Interpolate the x and y components separately using bilinear interpolation
-    grid_u = interpolate.griddata(points, vector_field[:,3], (grid_x, grid_y), method='linear')
-    grid_v = interpolate.griddata(points, vector_field[:,4], (grid_x, grid_y), method='linear')
+    grid_u = interpolate.griddata(points, vector_field[:,3], (grid_x, grid_y), method=interpolation_type)
+    grid_v = interpolate.griddata(points, vector_field[:,4], (grid_x, grid_y), method=interpolation_type)
     # merged everything back together to make single object
     structured_vector_field = np.column_stack((grid_x.flatten(), grid_y.flatten(), grid_u.flatten(), grid_v.flatten()))
     # normalize the vector parts
@@ -95,3 +95,48 @@ def interp_particle_vecs(vector_field,disp=True):
     np.nan_to_num(structured_vector_field[:,2], copy=False, nan=0.0)
     np.nan_to_num(structured_vector_field[:,3], copy=False, nan=0.0)
     return structured_vector_field
+
+def get_energy_simple(vector_grid,num_interpolation_points,disp=True):
+    if disp:
+        print(vector_grid.shape)
+    vecs = vector_grid.reshape(num_interpolation_points,num_interpolation_points,4)
+    max_x = np.max(vector_grid[-1,0])
+    min_x = np.min(vector_grid[0,0])
+    max_y = np.max(vector_grid[-1,1])
+    min_y = np.min(vector_grid[1,1])
+    u = vecs[:,:,2]
+    v = vecs[:,:,3]
+    grid_x,grid_y = np.meshgrid(np.linspace(min_x,max_x,num=num_interpolation_points),
+                                np.linspace(min_y,max_y,num=num_interpolation_points))
+    E = np.zeros((num_interpolation_points,num_interpolation_points))
+    for i in np.arange(num_interpolation_points):
+        for j in np.arange(num_interpolation_points):
+            jnab = j
+            inab = i + 1
+            if inab >= num_interpolation_points-1:
+                inab = i
+            dp = u[i,j]*u[inab,jnab] + v[i,j]*v[inab,jnab]
+            E[i,j] += 1-(dp*dp)
+
+            jnab = j
+            inab = i - 1
+            if inab <= 0:
+                inab = i
+            dp = u[i,j]*u[inab,jnab] + v[i,j]*v[inab,jnab]
+            E[i,j] += 1-(dp*dp)
+
+            inab = i
+            jnab = j + 1
+            if jnab >= num_interpolation_points-1:
+                jnab = j
+            dp = u[i,j]*u[inab,jnab] + v[i,j]*v[inab,jnab]
+            E[i,j] += 1-(dp*dp)
+
+            inab = i
+            jnab = j - 1
+            if jnab <= 0:
+                jnab = j
+            dp = u[i,j]*u[inab,jnab] + v[i,j]*v[inab,jnab]
+            E[i,j] += 1-(dp*dp)
+    E_norm = (E-np.min(E))/(np.max(E)-np.min(E))
+    return E_norm
