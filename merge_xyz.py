@@ -59,7 +59,7 @@ def main():
     with zipfile.Zipfile(loczip,"w",zipfile.ZIP_DEFLATED) as zf:
         for i,t in tqdm.tqdm(enumerate(xyzfilelist),total=len(xyzfilelist)):
             zf.write(t,arcname=xyzfile_basenames[i])
-    print(len(xyzfilelist)+" files ("+total_size+") >>> "+loczip+"("+getsize(loczip)")")
+    print(len(xyzfilelist)+" files ("+total_size+") >>> "+loczip+"("+getsize(loczip)+")")
 
 
     get_md5(loczip,loczip)
