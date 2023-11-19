@@ -49,7 +49,7 @@ def main():
         file.close()
         merged_file.write(data)
         xyzfile_basenames.append(basename(filename))
-        total_size += getsize(f)
+        total_size += getsize(filename)
 
     merged_file.close()
     get_md5(input_string,input_string.split(".")[0])
