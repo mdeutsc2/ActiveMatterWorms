@@ -4,8 +4,17 @@ from os.path import isfile, isdir, join, basename, getsize
 import glob
 import tqdm
 import hashlib
+import zipfile
 import argparse
 
+def human_size(nbytes):
+    suffixes = ['B','KB','MB','GB','TB','PB']
+    i=0
+    while nbytes >= 1024 and i < len(suffixes)-1:
+        nbytes /= 1024
+        i += 1
+    f = ('%.2f' % nbytes).rstrip('0').rstrip('.')
+    return '%s %s' % (f, suffixes[i])
 
 def get_md5(input_string,md5_file_string):
     print("checking data...")
@@ -29,6 +38,7 @@ def main():
     parser = argparse.ArgumentParser(description='Example script with command-line option')
     parser.add_argument('input_string', type=str, help='Input string from command line')
     parser.add_argument("-d","--delete",help="delete raw files after compression",default=True)
+    parser.add_argument("-c","--compresslevel",help="compression level for zlib",default=9)
 
     args = parser.parse_args()
 
@@ -53,19 +63,21 @@ def main():
 
     merged_file.close()
     get_md5(input_string,input_string.split(".")[0])
-
+    
+    print('compressing data...')
     # zipping up the raw data files
     loczip = input_string.split(".")[0]+".zip"
-    with zipfile.Zipfile(loczip,"w",zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(loczip,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=args.compresslevel) as zf:
         for i,t in tqdm.tqdm(enumerate(xyzfilelist),total=len(xyzfilelist)):
             zf.write(t,arcname=xyzfile_basenames[i])
-    print(len(xyzfilelist)+" files ("+total_size+") >>> "+loczip+"("+getsize(loczip)+")")
+    print(len(xyzfilelist)," files (",human_size(total_size),") >>> ",loczip,"(",human_size(getsize(loczip)),")")
 
 
     get_md5(loczip,loczip)
-
-    # for f in xyzfilelist:
-    #     remove(f)
+    print("Removing duplicate files...?",args.delete)
+    if args.delete:
+        for f in xyzfilelist:
+            remove(f)
     
     
     
