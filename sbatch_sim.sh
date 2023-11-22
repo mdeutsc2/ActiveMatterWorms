@@ -11,7 +11,7 @@ set -e
 #loading modules
 module load cmake/3.25.2
 module load cuda/11.8.0
-
+module load gnu/12.3.0
 #executable section
 source /users/PGS0213/mdeutsc2/chapel-1.31.0/util/setchplenv.bash
 make clean
