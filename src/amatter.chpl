@@ -353,6 +353,7 @@ proc init_worms() {
                 xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
                 //TODO give them an initial velocity going around the circle
                 worms[iw,i].ptype = 1;
+                worms[iw,i].m = 1.0; // setting mass
                 // vx[iw,i] = 0.0; // NOTE: this is all set by initializer
                 // vy[iw,i] = 0.0;
                 // vxave[iw,i] = 0.0;
@@ -397,6 +398,7 @@ proc init_worms() {
                 xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
                 //TODO give them an initial velocity going around the circle
                 worms[iw,i].ptype = 1;
+                worms[iw,i].m = 1.0; // setting mass
                 // vx[iw,i] = 0.0;
                 // vy[iw,i] = 0.0;
                 // vxave[iw,i] = 0.0;
@@ -1139,6 +1141,7 @@ proc init_fluid() {
     for i in 1..numSol {
         KEsol[i] = 0.0;
         solvent[i].ptype = 2;
+        solvent[i].m = 1.0;
     }
     writeln("fluid init done");
 }
