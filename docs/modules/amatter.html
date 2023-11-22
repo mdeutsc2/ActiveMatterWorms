@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>amatter &mdash; chpldoc 0.0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="chpldoc documentation" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> chpldoc
+          </a>
+              <div class="version">
+                0.0.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">chpldoc documentation</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">amatter</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">chpldoc</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>amatter</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/modules/amatter.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <span class="target" id="module-amatter"></span><div class="section" id="amatter">
+<h1>amatter<a class="headerlink" href="#amatter" title="Permalink to this headline">¶</a></h1>
+<p><strong>Usage</strong></p>
+<div class="highlight-chapel notranslate"><div class="highlight"><pre><span></span><span class="k">use</span> <span class="nx">amatter</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>or</p>
+<div class="highlight-chapel notranslate"><div class="highlight"><pre><span></span><span class="k">import</span> <span class="nx">amatter</span><span class="p">;</span>
+</pre></div>
+</div>
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.numTasks">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">numTasks</span></span> <span class="pre">=</span> <span class="pre">here.numPUs()</span><a class="headerlink" href="#amatter.numTasks" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.np">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">np</span></span> <span class="pre">=</span> <span class="pre">16</span><a class="headerlink" href="#amatter.np" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.nworms">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">nworms</span></span> <span class="pre">=</span> <span class="pre">625</span><a class="headerlink" href="#amatter.nworms" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.nsteps">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">nsteps</span></span> <span class="pre">=</span> <span class="pre">4000000</span><a class="headerlink" href="#amatter.nsteps" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.fdogic">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">fdogic</span></span> <span class="pre">=</span> <span class="pre">0.06</span><a class="headerlink" href="#amatter.fdogic" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.walldrive">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">walldrive</span></span> <span class="pre">=</span> <span class="pre">false</span><a class="headerlink" href="#amatter.walldrive" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.fdogicwall">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">fdogicwall</span></span> <span class="pre">=</span> <span class="pre">0.0</span><a class="headerlink" href="#amatter.fdogicwall" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.fdep">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">fdep</span></span> <span class="pre">=</span> <span class="pre">0.0</span><a class="headerlink" href="#amatter.fdep" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.fdepwall">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">fdepwall</span></span> <span class="pre">=</span> <span class="pre">0.0</span><a class="headerlink" href="#amatter.fdepwall" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.diss">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">diss</span></span> <span class="pre">=</span> <span class="pre">0.08</span><a class="headerlink" href="#amatter.diss" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.dt">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">dt</span></span> <span class="pre">=</span> <span class="pre">0.001</span><a class="headerlink" href="#amatter.dt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.kspring">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">kspring</span></span> <span class="pre">=</span> <span class="pre">57.146436</span><a class="headerlink" href="#amatter.kspring" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.kbend">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">kbend</span></span> <span class="pre">=</span> <span class="pre">40.0</span><a class="headerlink" href="#amatter.kbend" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.length0">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">length0</span></span> <span class="pre">=</span> <span class="pre">0.8</span><a class="headerlink" href="#amatter.length0" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.rcut">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">rcut</span></span> <span class="pre">=</span> <span class="pre">2.5</span><a class="headerlink" href="#amatter.rcut" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.save_interval">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">save_interval</span></span> <span class="pre">=</span> <span class="pre">1000</span><a class="headerlink" href="#amatter.save_interval" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.boundary">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">boundary</span></span> <span class="pre">=</span> <span class="pre">2</span><a class="headerlink" href="#amatter.boundary" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.fluid_cpl">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">fluid_cpl</span></span> <span class="pre">=</span> <span class="pre">true</span><a class="headerlink" href="#amatter.fluid_cpl" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.debug">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">debug</span></span> <span class="pre">=</span> <span class="pre">false</span><a class="headerlink" href="#amatter.debug" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.thermo">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">thermo</span></span> <span class="pre">=</span> <span class="pre">true</span><a class="headerlink" href="#amatter.thermo" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.kbt">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">kbt</span></span> <span class="pre">=</span> <span class="pre">0.25</span><a class="headerlink" href="#amatter.kbt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.numSol">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">numSol</span></span> <span class="pre">=</span> <span class="pre">7000</span><a class="headerlink" href="#amatter.numSol" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.sigma">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">sigma</span></span> <span class="pre">=</span> <span class="pre">2.0</span><a class="headerlink" href="#amatter.sigma" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.ptc_init_counter">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">ptc_init_counter</span></span> <span class="pre">=</span> <span class="pre">1</span><a class="headerlink" href="#amatter.ptc_init_counter" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl record">
+<dt class="sig sig-object chpl" id="amatter.Particle">
+<em class="property"><span class="pre">record</span> </em><span class="sig-name descname"><span class="pre">Particle</span></span><a class="headerlink" href="#amatter.Particle" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.id">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">id</span></span><span class="pre">:</span> <span class="pre">int</span><a class="headerlink" href="#amatter.Particle.id" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.x">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">x</span></span><span class="pre">:</span> <span class="pre">real</span><a class="headerlink" href="#amatter.Particle.x" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.y">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">y</span></span><span class="pre">:</span> <span class="pre">x.type</span><a class="headerlink" href="#amatter.Particle.y" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.z">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">z</span></span><span class="pre">:</span> <span class="pre">y.type</span><a class="headerlink" href="#amatter.Particle.z" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.vx">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">vx</span></span><span class="pre">:</span> <span class="pre">real</span><a class="headerlink" href="#amatter.Particle.vx" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.vy">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">vy</span></span><span class="pre">:</span> <span class="pre">vx.type</span><a class="headerlink" href="#amatter.Particle.vy" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.vz">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">vz</span></span><span class="pre">:</span> <span class="pre">vy.type</span><a class="headerlink" href="#amatter.Particle.vz" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.vxave">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">vxave</span></span><span class="pre">:</span> <span class="pre">real</span><a class="headerlink" href="#amatter.Particle.vxave" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.vyave">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">vyave</span></span><span class="pre">:</span> <span class="pre">vxave.type</span><a class="headerlink" href="#amatter.Particle.vyave" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.vzave">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">vzave</span></span><span class="pre">:</span> <span class="pre">vyave.type</span><a class="headerlink" href="#amatter.Particle.vzave" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.fx">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">fx</span></span><span class="pre">:</span> <span class="pre">real</span><a class="headerlink" href="#amatter.Particle.fx" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.fy">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">fy</span></span><span class="pre">:</span> <span class="pre">fx.type</span><a class="headerlink" href="#amatter.Particle.fy" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.fz">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">fz</span></span><span class="pre">:</span> <span class="pre">fy.type</span><a class="headerlink" href="#amatter.Particle.fz" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.fxold">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">fxold</span></span><span class="pre">:</span> <span class="pre">real</span><a class="headerlink" href="#amatter.Particle.fxold" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.fyold">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">fyold</span></span><span class="pre">:</span> <span class="pre">fxold.type</span><a class="headerlink" href="#amatter.Particle.fyold" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.fzold">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">fzold</span></span><span class="pre">:</span> <span class="pre">fyold.type</span><a class="headerlink" href="#amatter.Particle.fzold" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.m">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">m</span></span><span class="pre">:</span> <span class="pre">real</span><a class="headerlink" href="#amatter.Particle.m" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Particle.ptype">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">ptype</span></span><span class="pre">:</span> <span class="pre">int</span><a class="headerlink" href="#amatter.Particle.ptype" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl method">
+<dt class="sig sig-object chpl" id="amatter.Particle.init">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">init</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.Particle.init" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl method">
+<dt class="sig sig-object chpl" id="amatter.Particle.info">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">info</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.Particle.info" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl method">
+<dt class="sig sig-object chpl" id="amatter.Particle.p">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">p</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">px:</span> <span class="pre">real</span></em>, <em class="sig-param"><span class="pre">py:</span> <span class="pre">real</span></em>, <em class="sig-param"><span class="pre">pz:</span> <span class="pre">real</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.Particle.p" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl method">
+<dt class="sig sig-object chpl">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">p</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
+<dd></dd></dl>
+
+<dl class="chpl method">
+<dt class="sig sig-object chpl" id="amatter.Particle.v">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">v</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">velx:</span> <span class="pre">real</span></em>, <em class="sig-param"><span class="pre">vely:</span> <span class="pre">real</span></em>, <em class="sig-param"><span class="pre">velz:</span> <span class="pre">real</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.Particle.v" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl method">
+<dt class="sig sig-object chpl">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">v</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
+<dd></dd></dl>
+
+<dl class="chpl method">
+<dt class="sig sig-object chpl" id="amatter.Particle.f">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">f</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">forcex:</span> <span class="pre">real</span></em>, <em class="sig-param"><span class="pre">forcey:</span> <span class="pre">real</span></em>, <em class="sig-param"><span class="pre">forcez:</span> <span class="pre">real</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.Particle.f" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl method">
+<dt class="sig sig-object chpl">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">f</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
+<dd></dd></dl>
+
+<dl class="chpl method">
+<dt class="sig sig-object chpl" id="amatter.Particle.set">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">p:</span> <span class="pre">Particle</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.Particle.set" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.bin_init_counter">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">bin_init_counter</span></span> <span class="pre">=</span> <span class="pre">1</span><a class="headerlink" href="#amatter.bin_init_counter" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl record">
+<dt class="sig sig-object chpl" id="amatter.Bin">
+<em class="property"><span class="pre">record</span> </em><span class="sig-name descname"><span class="pre">Bin</span></span><a class="headerlink" href="#amatter.Bin" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Bin.id">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">id</span></span><span class="pre">:</span> <span class="pre">int</span><a class="headerlink" href="#amatter.Bin.id" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Bin.atoms">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">atoms</span></span><span class="pre">:</span> <span class="pre">list(int)</span><a class="headerlink" href="#amatter.Bin.atoms" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Bin.types">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">types</span></span><span class="pre">:</span> <span class="pre">list(int)</span><a class="headerlink" href="#amatter.Bin.types" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Bin.neighbors">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">neighbors</span></span><span class="pre">:</span> <span class="pre">[1..4]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.Bin.neighbors" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Bin.ncount">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">ncount</span></span><span class="pre">:</span> <span class="pre">int</span><a class="headerlink" href="#amatter.Bin.ncount" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Bin.wcount">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">wcount</span></span><span class="pre">:</span> <span class="pre">int</span><a class="headerlink" href="#amatter.Bin.wcount" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Bin.scount">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">scount</span></span><span class="pre">:</span> <span class="pre">int</span><a class="headerlink" href="#amatter.Bin.scount" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Bin.bcount">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">bcount</span></span><span class="pre">:</span> <span class="pre">int</span><a class="headerlink" href="#amatter.Bin.bcount" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Bin.x">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">x</span></span><span class="pre">:</span> <span class="pre">(real,</span> <span class="pre">real)</span><a class="headerlink" href="#amatter.Bin.x" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl attribute">
+<dt class="sig sig-object chpl" id="amatter.Bin.y">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">y</span></span><span class="pre">:</span> <span class="pre">(real,</span> <span class="pre">real)</span><a class="headerlink" href="#amatter.Bin.y" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl method">
+<dt class="sig sig-object chpl" id="amatter.Bin.init">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">init</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.Bin.init" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.r2cut">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">r2cut</span></span> <span class="pre">=</span> <span class="pre">rcut</span> <span class="pre">*</span> <span class="pre">rcut</span><a class="headerlink" href="#amatter.r2cut" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.rcutsmall">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">rcutsmall</span></span> <span class="pre">=</span> <span class="pre">2.0**(1.0</span> <span class="pre">/</span> <span class="pre">6.0)</span><a class="headerlink" href="#amatter.rcutsmall" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.r2cutsmall">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">r2cutsmall</span></span> <span class="pre">=</span> <span class="pre">rcutsmall</span> <span class="pre">*</span> <span class="pre">rcutsmall</span><a class="headerlink" href="#amatter.r2cutsmall" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.rwall">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">rwall</span></span> <span class="pre">=</span> <span class="pre">74</span><a class="headerlink" href="#amatter.rwall" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.pi">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">pi</span></span> <span class="pre">=</span> <span class="pre">4.0</span> <span class="pre">*</span> <span class="pre">atan(1.0)</span><a class="headerlink" href="#amatter.pi" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.twopi">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">twopi</span></span> <span class="pre">=</span> <span class="pre">2</span> <span class="pre">*</span> <span class="pre">pi</span><a class="headerlink" href="#amatter.twopi" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.pio4">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">pio4</span></span> <span class="pre">=</span> <span class="pre">pi</span> <span class="pre">*</span> <span class="pre">0.25</span><a class="headerlink" href="#amatter.pio4" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.density">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">density</span></span> <span class="pre">=</span> <span class="pre">nworms</span> <span class="pre">*</span> <span class="pre">np</span> <span class="pre">/</span> <span class="pre">(pi</span> <span class="pre">*</span> <span class="pre">rwall**2)</span><a class="headerlink" href="#amatter.density" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.hx">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">hx</span></span> <span class="pre">=</span> <span class="pre">2.0</span> <span class="pre">*</span> <span class="pre">rwall</span> <span class="pre">+</span> <span class="pre">1.0</span><a class="headerlink" href="#amatter.hx" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.hy">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">hy</span></span> <span class="pre">=</span> <span class="pre">hx</span><a class="headerlink" href="#amatter.hy" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.hyo2">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">hyo2</span></span> <span class="pre">=</span> <span class="pre">hy</span> <span class="pre">/</span> <span class="pre">2</span><a class="headerlink" href="#amatter.hyo2" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.hxo2">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">hxo2</span></span> <span class="pre">=</span> <span class="pre">hx</span> <span class="pre">/</span> <span class="pre">2</span><a class="headerlink" href="#amatter.hxo2" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.nxcell">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">nxcell</span></span> <span class="pre">=</span> <span class="pre">(hx</span> <span class="pre">/</span> <span class="pre">rcutsmall)</span> <span class="pre">:</span> <span class="pre">int</span> <span class="pre">-</span> <span class="pre">1</span><a class="headerlink" href="#amatter.nxcell" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.nycell">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">nycell</span></span> <span class="pre">=</span> <span class="pre">(hy</span> <span class="pre">/</span> <span class="pre">rcutsmall)</span> <span class="pre">:</span> <span class="pre">int</span> <span class="pre">-</span> <span class="pre">1</span><a class="headerlink" href="#amatter.nycell" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.dcell">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">dcell</span></span> <span class="pre">=</span> <span class="pre">hx</span> <span class="pre">/</span> <span class="pre">nxcell</span> <span class="pre">:</span> <span class="pre">real</span><a class="headerlink" href="#amatter.dcell" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.ncells">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">ncells</span></span> <span class="pre">=</span> <span class="pre">nxcell</span> <span class="pre">*</span> <span class="pre">nycell</span><a class="headerlink" href="#amatter.ncells" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.nstepso500">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">nstepso500</span></span> <span class="pre">=</span> <span class="pre">nsteps</span> <span class="pre">/</span> <span class="pre">500</span><a class="headerlink" href="#amatter.nstepso500" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.gnoise">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">gnoise</span></span> <span class="pre">=</span> <span class="pre">0.80</span> <span class="pre">/</span> <span class="pre">sqrt(10.0)</span> <span class="pre">*</span> <span class="pre">0.8</span><a class="headerlink" href="#amatter.gnoise" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.dt2o2">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">dt2o2</span></span> <span class="pre">=</span> <span class="pre">dt</span> <span class="pre">*</span> <span class="pre">dt</span> <span class="pre">*</span> <span class="pre">0.50</span><a class="headerlink" href="#amatter.dt2o2" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.dto2">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">dto2</span></span> <span class="pre">=</span> <span class="pre">dt</span> <span class="pre">*</span> <span class="pre">0.50</span><a class="headerlink" href="#amatter.dto2" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.length2">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">length2</span></span> <span class="pre">=</span> <span class="pre">2.0</span> <span class="pre">*</span> <span class="pre">length0</span><a class="headerlink" href="#amatter.length2" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.lengthmax">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">lengthmax</span></span> <span class="pre">=</span> <span class="pre">length0</span> <span class="pre">*</span> <span class="pre">(np</span> <span class="pre">-</span> <span class="pre">1)</span> <span class="pre">:</span> <span class="pre">real</span><a class="headerlink" href="#amatter.lengthmax" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.r2inside">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">r2inside</span></span> <span class="pre">=</span> <span class="pre">(rwall</span> <span class="pre">-</span> <span class="pre">rcutsmall)</span> <span class="pre">*</span> <span class="pre">(rwall</span> <span class="pre">-</span> <span class="pre">rcutsmall)</span><a class="headerlink" href="#amatter.r2inside" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.a">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">a</span></span> <span class="pre">=</span> <span class="pre">0.24</span><a class="headerlink" href="#amatter.a" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.gamma">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">gamma</span></span> <span class="pre">=</span> <span class="pre">3.0</span><a class="headerlink" href="#amatter.gamma" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.numPoints">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">numPoints</span></span> <span class="pre">=</span> <span class="pre">1200</span><a class="headerlink" href="#amatter.numPoints" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.fluid_offset">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">fluid_offset</span></span> <span class="pre">=</span> <span class="pre">r2cutsmall</span> <span class="pre">-</span> <span class="pre">0.1</span><a class="headerlink" href="#amatter.fluid_offset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.wormsDomain">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">wormsDomain</span></span><span class="pre">:</span> <span class="pre">domain(2)</span> <span class="pre">=</span> <span class="pre">{1..nworms,</span> <span class="pre">1..np}</span><a class="headerlink" href="#amatter.wormsDomain" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.worms">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">worms</span></span><span class="pre">:</span> <span class="pre">[wormsDomain]</span> <span class="pre">Particle</span><a class="headerlink" href="#amatter.worms" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.solvent">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">solvent</span></span><span class="pre">:</span> <span class="pre">[1..numSol]</span> <span class="pre">Particle</span><a class="headerlink" href="#amatter.solvent" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.bound">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">bound</span></span><span class="pre">:</span> <span class="pre">[1..numPoints]</span> <span class="pre">Particle</span><a class="headerlink" href="#amatter.bound" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.savex">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">savex</span></span><span class="pre">:</span> <span class="pre">[1..np]</span> <span class="pre">real(64)</span><a class="headerlink" href="#amatter.savex" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.savey">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">savey</span></span><span class="pre">:</span> <span class="pre">[1..np]</span> <span class="pre">real(64)</span><a class="headerlink" href="#amatter.savey" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.ireverse">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">ireverse</span></span><span class="pre">:</span> <span class="pre">[1..nworms]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.ireverse" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.ddx">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">ddx</span></span><span class="pre">:</span> <span class="pre">[1..9]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.ddx" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.ddy">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">ddy</span></span><span class="pre">:</span> <span class="pre">[1..9]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.ddy" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.hhead">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">hhead</span></span><span class="pre">:</span> <span class="pre">[1..ncells]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.hhead" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.ipointto">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">ipointto</span></span><span class="pre">:</span> <span class="pre">[1..nworms*np+numPoints]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.ipointto" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.nnab">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">nnab</span></span><span class="pre">:</span> <span class="pre">[wormsDomain]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.nnab" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.KEworm">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">KEworm</span></span><span class="pre">:</span> <span class="pre">[1..nworms*np]</span> <span class="pre">real</span><a class="headerlink" href="#amatter.KEworm" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.KEsol">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">KEsol</span></span><span class="pre">:</span> <span class="pre">[1..numSol]</span> <span class="pre">real</span><a class="headerlink" href="#amatter.KEsol" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.KEworm_total">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">KEworm_total</span></span><span class="pre">:</span> <span class="pre">[1..nsteps]</span> <span class="pre">real</span><a class="headerlink" href="#amatter.KEworm_total" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.KEsol_total">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">KEsol_total</span></span><span class="pre">:</span> <span class="pre">[1..nsteps]</span> <span class="pre">real</span><a class="headerlink" href="#amatter.KEsol_total" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.numBins">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">numBins</span></span> <span class="pre">=</span> <span class="pre">ceil(hx</span> <span class="pre">/</span> <span class="pre">rcut):</span> <span class="pre">int</span><a class="headerlink" href="#amatter.numBins" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.binSpace">
+<em class="property"><span class="pre">const</span> </em><span class="sig-name descname"><span class="pre">binSpace</span></span> <span class="pre">=</span> <span class="pre">{1..numBins</span> <span class="pre">*</span> <span class="pre">numBins}</span><a class="headerlink" href="#amatter.binSpace" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.bins">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">bins</span></span><span class="pre">:</span> <span class="pre">[1..numBins*numBins]</span> <span class="pre">Bin</span><a class="headerlink" href="#amatter.bins" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.binSpaceiodd">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">binSpaceiodd</span></span><span class="pre">:</span> <span class="pre">[1..numBins*numBins/2]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.binSpaceiodd" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.binSpacejodd">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">binSpacejodd</span></span><span class="pre">:</span> <span class="pre">[1..numBins*numBins/2]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.binSpacejodd" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.binSpaceieven">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">binSpaceieven</span></span><span class="pre">:</span> <span class="pre">[1..numBins*numBins/2]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.binSpaceieven" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.binSpacejeven">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">binSpacejeven</span></span><span class="pre">:</span> <span class="pre">[1..numBins*numBins/2]</span> <span class="pre">int</span><a class="headerlink" href="#amatter.binSpacejeven" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.randStream">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">randStream</span></span> <span class="pre">=</span> <span class="pre">new</span> <span class="pre">RandomStream(real)</span><a class="headerlink" href="#amatter.randStream" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.t">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">t</span></span> <span class="pre">=</span> <span class="pre">0.0</span><a class="headerlink" href="#amatter.t" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.total_time">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">total_time</span></span> <span class="pre">=</span> <span class="pre">0.0</span><a class="headerlink" href="#amatter.total_time" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.ct">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">ct</span></span><span class="pre">:</span> <span class="pre">stopwatch</span><a class="headerlink" href="#amatter.ct" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.wt">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">wt</span></span><span class="pre">:</span> <span class="pre">stopwatch</span><a class="headerlink" href="#amatter.wt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl data">
+<dt class="sig sig-object chpl" id="amatter.xt">
+<em class="property"><span class="pre">var</span> </em><span class="sig-name descname"><span class="pre">xt</span></span><span class="pre">:</span> <span class="pre">stopwatch</span><a class="headerlink" href="#amatter.xt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.main">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.main" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.init_worms">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">init_worms</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.init_worms" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.update_pos">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">update_pos</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">itime:</span> <span class="pre">int</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.update_pos" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.intraworm_forces">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">intraworm_forces</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.intraworm_forces" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.calc_forces">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">calc_forces</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">istep:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">dt:</span> <span class="pre">real</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.calc_forces" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.cell_forces">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">cell_forces</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">i:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">j:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">itype:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">jtype:</span> <span class="pre">int</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.cell_forces" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.dogic_wall">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">dogic_wall</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">iw:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">ip:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">ib:</span> <span class="pre">int</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.dogic_wall" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.update_vel">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">update_vel</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.update_vel" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.init_fluid">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">init_fluid</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.init_fluid" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.lj_thermo">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">lj_thermo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">i:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">j:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">r2cut_local:</span> <span class="pre">real</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.lj_thermo" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.lj">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">lj</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">i:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">j:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">r2cut_local:</span> <span class="pre">real</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.lj" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.fluid_pos">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">fluid_pos</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">dt_fluid:</span> <span class="pre">real</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.fluid_pos" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.fluid_force_old">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">fluid_force_old</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.fluid_force_old" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.fluid_vel">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">fluid_vel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">dt_fluid:</span> <span class="pre">real</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.fluid_vel" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.fluid_step">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">fluid_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">istep:</span> <span class="pre">int</span></em>, <em class="sig-param"><span class="pre">dt_fluid:</span> <span class="pre">real</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.fluid_step" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.update_cells">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">update_cells</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">istep:</span> <span class="pre">int</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.update_cells" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.init_bins">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">init_bins</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.init_bins" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.init_binspace">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">init_binspace</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.init_binspace" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.write_xyz">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">write_xyz</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">istep:</span> <span class="pre">int</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.write_xyz" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.write_xyzv">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">write_xyzv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">istep:</span> <span class="pre">int</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.write_xyzv" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.write_macro">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">write_macro</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">nsteps:</span> <span class="pre">int</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.write_macro" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.write_params">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">write_params</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.write_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.gaussRand">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">gaussRand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">mean:</span> <span class="pre">real</span></em>, <em class="sig-param"><span class="pre">stddev:</span> <span class="pre">real</span></em><span class="sig-paren">)</span><span class="pre">:</span> <span class="pre">real</span><a class="headerlink" href="#amatter.gaussRand" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.sudden_halt">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">sudden_halt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">istep:</span> <span class="pre">int</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.sudden_halt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.worm_wall">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">worm_wall</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.worm_wall" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.worm_wall_new">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">worm_wall_new</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.worm_wall_new" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.cell_sort_old">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">cell_sort_old</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">itime:</span> <span class="pre">int</span></em><span class="sig-paren">)</span><a class="headerlink" href="#amatter.cell_sort_old" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.fluid_force">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">fluid_force</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.fluid_force" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="chpl function">
+<dt class="sig sig-object chpl" id="amatter.fluid_multistep">
+<em class="property"><span class="pre">proc</span> </em><span class="sig-name descname"><span class="pre">fluid_multistep</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#amatter.fluid_multistep" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="chpldoc documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2015.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+ 
+
+
+
+</body>
+</html>

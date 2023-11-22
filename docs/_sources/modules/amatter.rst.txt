@@ -1,0 +1,319 @@
+.. default-domain:: chpl
+
+.. module:: amatter
+
+amatter
+=======
+**Usage**
+
+.. code-block:: chapel
+
+   use amatter;
+
+
+or
+
+.. code-block:: chapel
+
+   import amatter;
+
+.. data:: const numTasks = here.numPUs()
+
+.. data:: const np = 16
+
+.. data:: const nworms = 625
+
+.. data:: const nsteps = 4000000
+
+.. data:: const fdogic = 0.06
+
+.. data:: const walldrive = false
+
+.. data:: const fdogicwall = 0.0
+
+.. data:: const fdep = 0.0
+
+.. data:: const fdepwall = 0.0
+
+.. data:: const diss = 0.08
+
+.. data:: const dt = 0.001
+
+.. data:: const kspring = 57.146436
+
+.. data:: const kbend = 40.0
+
+.. data:: const length0 = 0.8
+
+.. data:: const rcut = 2.5
+
+.. data:: const save_interval = 1000
+
+.. data:: const boundary = 2
+
+.. data:: const fluid_cpl = true
+
+.. data:: const debug = false
+
+.. data:: const thermo = true
+
+.. data:: const kbt = 0.25
+
+.. data:: const numSol = 7000
+
+.. data:: const sigma = 2.0
+
+.. data:: var ptc_init_counter = 1
+
+.. record:: Particle
+
+   .. attribute:: var id: int
+
+   .. attribute:: var x: real
+
+   .. attribute:: var y: x.type
+
+   .. attribute:: var z: y.type
+
+   .. attribute:: var vx: real
+
+   .. attribute:: var vy: vx.type
+
+   .. attribute:: var vz: vy.type
+
+   .. attribute:: var vxave: real
+
+   .. attribute:: var vyave: vxave.type
+
+   .. attribute:: var vzave: vyave.type
+
+   .. attribute:: var fx: real
+
+   .. attribute:: var fy: fx.type
+
+   .. attribute:: var fz: fy.type
+
+   .. attribute:: var fxold: real
+
+   .. attribute:: var fyold: fxold.type
+
+   .. attribute:: var fzold: fyold.type
+
+   .. attribute:: var m: real
+
+   .. attribute:: var ptype: int
+
+   .. method:: proc init()
+
+   .. method:: proc info()
+
+   .. method:: proc p(px: real, py: real, pz: real)
+
+   .. method:: proc p()
+
+   .. method:: proc v(velx: real, vely: real, velz: real)
+
+   .. method:: proc v()
+
+   .. method:: proc f(forcex: real, forcey: real, forcez: real)
+
+   .. method:: proc f()
+
+   .. method:: proc set(p: Particle)
+
+.. data:: var bin_init_counter = 1
+
+.. record:: Bin
+
+   .. attribute:: var id: int
+
+   .. attribute:: var atoms: list(int)
+
+   .. attribute:: var types: list(int)
+
+   .. attribute:: var neighbors: [1..4] int
+
+   .. attribute:: var ncount: int
+
+   .. attribute:: var wcount: int
+
+   .. attribute:: var scount: int
+
+   .. attribute:: var bcount: int
+
+   .. attribute:: var x: (real, real)
+
+   .. attribute:: var y: (real, real)
+
+   .. method:: proc init()
+
+.. data:: const r2cut = rcut * rcut
+
+.. data:: const rcutsmall = 2.0**(1.0 / 6.0)
+
+.. data:: const r2cutsmall = rcutsmall * rcutsmall
+
+.. data:: const rwall = 74
+
+.. data:: const pi = 4.0 * atan(1.0)
+
+.. data:: const twopi = 2 * pi
+
+.. data:: const pio4 = pi * 0.25
+
+.. data:: const density = nworms * np / (pi * rwall**2)
+
+.. data:: const hx = 2.0 * rwall + 1.0
+
+.. data:: const hy = hx
+
+.. data:: const hyo2 = hy / 2
+
+.. data:: const hxo2 = hx / 2
+
+.. data:: const nxcell = (hx / rcutsmall) : int - 1
+
+.. data:: const nycell = (hy / rcutsmall) : int - 1
+
+.. data:: const dcell = hx / nxcell : real
+
+.. data:: const ncells = nxcell * nycell
+
+.. data:: const nstepso500 = nsteps / 500
+
+.. data:: const gnoise = 0.80 / sqrt(10.0) * 0.8
+
+.. data:: const dt2o2 = dt * dt * 0.50
+
+.. data:: const dto2 = dt * 0.50
+
+.. data:: const length2 = 2.0 * length0
+
+.. data:: const lengthmax = length0 * (np - 1) : real
+
+.. data:: const r2inside = (rwall - rcutsmall) * (rwall - rcutsmall)
+
+.. data:: const a = 0.24
+
+.. data:: const gamma = 3.0
+
+.. data:: const numPoints = 1200
+
+.. data:: const fluid_offset = r2cutsmall - 0.1
+
+.. data:: var wormsDomain: domain(2) = {1..nworms, 1..np}
+
+.. data:: var worms: [wormsDomain] Particle
+
+.. data:: var solvent: [1..numSol] Particle
+
+.. data:: var bound: [1..numPoints] Particle
+
+.. data:: var savex: [1..np] real(64)
+
+.. data:: var savey: [1..np] real(64)
+
+.. data:: var ireverse: [1..nworms] int
+
+.. data:: var ddx: [1..9] int
+
+.. data:: var ddy: [1..9] int
+
+.. data:: var hhead: [1..ncells] int
+
+.. data:: var ipointto: [1..nworms*np+numPoints] int
+
+.. data:: var nnab: [wormsDomain] int
+
+.. data:: var KEworm: [1..nworms*np] real
+
+.. data:: var KEsol: [1..numSol] real
+
+.. data:: var KEworm_total: [1..nsteps] real
+
+.. data:: var KEsol_total: [1..nsteps] real
+
+.. data:: var numBins = ceil(hx / rcut): int
+
+.. data:: const binSpace = {1..numBins * numBins}
+
+.. data:: var bins: [1..numBins*numBins] Bin
+
+.. data:: var binSpaceiodd: [1..numBins*numBins/2] int
+
+.. data:: var binSpacejodd: [1..numBins*numBins/2] int
+
+.. data:: var binSpaceieven: [1..numBins*numBins/2] int
+
+.. data:: var binSpacejeven: [1..numBins*numBins/2] int
+
+.. data:: var randStream = new RandomStream(real)
+
+.. data:: var t = 0.0
+
+.. data:: var total_time = 0.0
+
+.. data:: var ct: stopwatch
+
+.. data:: var wt: stopwatch
+
+.. data:: var xt: stopwatch
+
+.. function:: proc main()
+
+.. function:: proc init_worms()
+
+.. function:: proc update_pos(itime: int)
+
+.. function:: proc intraworm_forces()
+
+.. function:: proc calc_forces(istep: int, dt: real)
+
+.. function:: proc cell_forces(i: int, j: int, itype: int, jtype: int)
+
+.. function:: proc dogic_wall(iw: int, ip: int, ib: int)
+
+.. function:: proc update_vel()
+
+.. function:: proc init_fluid()
+
+.. function:: proc lj_thermo(i: int, j: int, r2cut_local: real)
+
+.. function:: proc lj(i: int, j: int, r2cut_local: real)
+
+.. function:: proc fluid_pos(dt_fluid: real)
+
+.. function:: proc fluid_force_old()
+
+.. function:: proc fluid_vel(dt_fluid: real)
+
+.. function:: proc fluid_step(istep: int, dt_fluid: real)
+
+.. function:: proc update_cells(istep: int)
+
+.. function:: proc init_bins()
+
+.. function:: proc init_binspace()
+
+.. function:: proc write_xyz(istep: int)
+
+.. function:: proc write_xyzv(istep: int)
+
+.. function:: proc write_macro(nsteps: int)
+
+.. function:: proc write_params()
+
+.. function:: proc gaussRand(mean: real, stddev: real): real
+
+.. function:: proc sudden_halt(istep: int)
+
+.. function:: proc worm_wall()
+
+.. function:: proc worm_wall_new()
+
+.. function:: proc cell_sort_old(itime: int)
+
+.. function:: proc fluid_force()
+
+.. function:: proc fluid_multistep()
+

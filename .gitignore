@@ -198,5 +198,3 @@ ModelManifest.xml
 *.md5
 *.ipynb_checkpoints/
 *.jupyter/
-# executables
-*.x

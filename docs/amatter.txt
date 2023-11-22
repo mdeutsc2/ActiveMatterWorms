@@ -1,0 +1,226 @@
+amatter
+
+Usage:
+   use amatter;
+
+or
+
+   import amatter;
+
+   const numTasks = here.numPUs()
+   const np = 16
+
+const nworms = 625
+
+const nsteps = 4000000
+
+const fdogic = 0.06
+
+const walldrive = false
+
+const fdogicwall = 0.0
+
+const fdep = 0.0
+
+const fdepwall = 0.0
+
+const diss = 0.08
+
+const dt = 0.001
+
+const kspring = 57.146436
+
+const kbend = 40.0
+
+const length0 = 0.8
+
+const rcut = 2.5
+
+const save_interval = 1000
+
+const boundary = 2
+
+const fluid_cpl = true
+
+const debug = false
+
+const thermo = true
+
+const kbt = 0.25
+
+const numSol = 7000
+
+const sigma = 2.0
+
+   var ptc_init_counter = 1
+   Record: Particle
+      var id: int
+      var x: real
+
+   var y: x.type
+
+   var z: y.type
+
+      var vx: real
+
+   var vy: vx.type
+
+   var vz: vy.type
+
+      var vxave: real
+
+   var vyave: vxave.type
+
+   var vzave: vyave.type
+
+      var fx: real
+
+   var fy: fx.type
+
+   var fz: fy.type
+
+      var fxold: real
+
+   var fyold: fxold.type
+
+   var fzold: fyold.type
+
+      var m: real
+      var ptype: int
+      proc init()
+      proc info()
+      proc p(px: real, py: real, pz: real)
+      proc p()
+      proc v(velx: real, vely: real, velz: real)
+      proc v()
+      proc f(forcex: real, forcey: real, forcez: real)
+      proc f()
+      proc set(p: Particle)
+   var bin_init_counter = 1
+   Record: Bin
+      var id: int
+      var atoms: list(int)
+      var types: list(int)
+      var neighbors: [1..4] int
+      var ncount: int
+      var wcount: int
+      var scount: int
+      var bcount: int
+      var x: (real, real)
+      var y: (real, real)
+      proc init()
+   const r2cut = rcut * rcut
+
+const rcutsmall = 2.0**(1.0 / 6.0)
+
+const r2cutsmall = rcutsmall * rcutsmall
+
+const rwall = 74
+
+const pi = 4.0 * atan(1.0)
+
+const twopi = 2 * pi
+
+const pio4 = pi * 0.25
+
+const density = nworms * np / (pi * rwall**2)
+
+const hx = 2.0 * rwall + 1.0
+
+const hy = hx
+
+const hyo2 = hy / 2
+
+const hxo2 = hx / 2
+
+const nxcell = (hx / rcutsmall) : int - 1
+
+const nycell = (hy / rcutsmall) : int - 1
+
+const dcell = hx / nxcell : real
+
+const ncells = nxcell * nycell
+
+const nstepso500 = nsteps / 500
+
+const gnoise = 0.80 / sqrt(10.0) * 0.8
+
+const dt2o2 = dt * dt * 0.50
+
+const dto2 = dt * 0.50
+
+const length2 = 2.0 * length0
+
+const lengthmax = length0 * (np - 1) : real
+
+const r2inside = (rwall - rcutsmall) * (rwall - rcutsmall)
+
+const a = 0.24
+
+const gamma = 3.0
+
+const numPoints = 1200
+
+const fluid_offset = r2cutsmall - 0.1
+
+   var wormsDomain: domain(2) = {1..nworms, 1..np}
+   var worms: [wormsDomain] Particle
+   var solvent: [1..numSol] Particle
+   var bound: [1..numPoints] Particle
+   var savex: [1..np] real(64)
+   var savey: [1..np] real(64)
+   var ireverse: [1..nworms] int
+   var ddx: [1..9] int
+   var ddy: [1..9] int
+   var hhead: [1..ncells] int
+   var ipointto: [1..nworms*np+numPoints] int
+   var nnab: [wormsDomain] int
+   var KEworm: [1..nworms*np] real
+   var KEsol: [1..numSol] real
+   var KEworm_total: [1..nsteps] real
+   var KEsol_total: [1..nsteps] real
+   var numBins = ceil(hx / rcut): int
+   const binSpace = {1..numBins * numBins}
+   var bins: [1..numBins*numBins] Bin
+   var binSpaceiodd: [1..numBins*numBins/2] int
+   var binSpacejodd: [1..numBins*numBins/2] int
+   var binSpaceieven: [1..numBins*numBins/2] int
+   var binSpacejeven: [1..numBins*numBins/2] int
+   var randStream = new RandomStream(real)
+   var t = 0.0
+   var total_time = 0.0
+   var ct: stopwatch
+
+var wt: stopwatch
+
+var xt: stopwatch
+
+   proc main()
+   proc init_worms()
+   proc update_pos(itime: int)
+   proc intraworm_forces()
+   proc calc_forces(istep: int, dt: real)
+   proc cell_forces(i: int, j: int, itype: int, jtype: int)
+   proc dogic_wall(iw: int, ip: int, ib: int)
+   proc update_vel()
+   proc init_fluid()
+   proc lj_thermo(i: int, j: int, r2cut_local: real)
+   proc lj(i: int, j: int, r2cut_local: real)
+   proc fluid_pos(dt_fluid: real)
+   proc fluid_force_old()
+   proc fluid_vel(dt_fluid: real)
+   proc fluid_step(istep: int, dt_fluid: real)
+   proc update_cells(istep: int)
+   proc init_bins()
+   proc init_binspace()
+   proc write_xyz(istep: int)
+   proc write_xyzv(istep: int)
+   proc write_macro(nsteps: int)
+   proc write_params()
+   proc gaussRand(mean: real, stddev: real): real
+   proc sudden_halt(istep: int)
+   proc worm_wall()
+   proc worm_wall_new()
+   proc cell_sort_old(itime: int)
+   proc fluid_force()
+   proc fluid_multistep()
