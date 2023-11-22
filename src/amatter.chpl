@@ -16,7 +16,7 @@ config const np = 16,
             fdogic = 0.06,
             walldrive = false,
             fdogicwall = 0.0,
-            fdep = 0.0, // TODO: change to 4.0?
+            fdep = 1.0, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.08,
             dt = 0.001, //0.02
@@ -25,13 +25,13 @@ config const np = 16,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
             save_interval = 1000,
-            boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel
+            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
-            kbt = 0.25,
-            numSol = 7000, // cardiod number of solution particles
-            //numSol = 6000,//8000, // disk number of solution particls
+            kbt = 0.1, //0.25
+            //numSol = 7000, // cardiod number of solution particles
+            numSol = 6000,//8000, // disk number of solution particls
             sigma = 2.0;
 
 var ptc_init_counter = 1;
@@ -225,6 +225,12 @@ proc main() {
     init_bins();
     // initialize worms
     init_worms();
+    //setting mass of worms to be differents
+    for iw in 1..nworms {
+        for i in 1..np {
+            worms[iw,i].m = 2.0;
+        }
+    }
 
     if (fluid_cpl) {
         init_fluid();
@@ -441,6 +447,8 @@ proc update_pos(itime:int) {
     //forall iw in 1..nworms {
     forall iw in 1..nworms {
        foreach i in 1..np {
+            worms[iw,i].fx = worms[iw,i].fx/worms[iw,i].m;
+            worms[iw,i].fy = worms[iw,i].fy/worms[iw,i].m;
             worms[iw,i].x = worms[iw,i].x + worms[iw,i].vx*dt + worms[iw, i].fx*dt2o2;
             worms[iw,i].y = worms[iw,i].y + worms[iw,i].vy*dt + worms[iw, i].fy*dt2o2;
             worms[iw,i].fxold = worms[iw,i].fx;
@@ -1224,6 +1232,8 @@ proc fluid_pos(dt_fluid:real) {
         // soly[i] += solvy[i] * dt;
 
         // doing a velocity half-step here
+        solvent[i].fx = solvent[i].fx/solvent[i].m;
+        solvent[i].fy = solvent[i].fy/solvent[i].m;
         solvent[i].vx += 0.5*dt_fluid*solvent[i].fx;
         solvent[i].vy += 0.5*dt_fluid*solvent[i].fy;
         solvent[i].vz = 0.0; // just in case
@@ -1284,6 +1294,8 @@ proc fluid_vel(dt_fluid:real) {
         //solvent[i].vy += 0.5*dt_fluid*(solvent[i].fyold + solvent[i].fy);
         //solvent[i].fxold = solvent[i].fx;
         //solvent[i].fyold = solvent[i].fy;
+        solvent[i].fx = solvent[i].fx/solvent[i].m;
+        solvent[i].fy = solvent[i].fy/solvent[i].m;
         solvent[i].vx += 0.5*dt_fluid*solvent[i].fx;
         solvent[i].vy += 0.5*dt_fluid*solvent[i].fy;
         // calculating kinetic energy here too
