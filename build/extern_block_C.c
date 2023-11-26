@@ -1,8 +1,5 @@
-module C {
-    /* module that contains C extensions to strings to files for logging
-       Note: this module is not parallel safe
-    */
-    extern {
+#line 5 "src/C.chpl" 
+
         #include <stdio.h>
 
         static int appendFileExists(const char *filename) {
@@ -29,5 +26,5 @@ module C {
             fclose(file);
             return 0;
         }
-    }
-}
+    
+;

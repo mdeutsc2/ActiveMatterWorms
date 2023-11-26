@@ -12,7 +12,8 @@ proc main() {
     writeln("testing append C-extension");
     var ret_int:int, test_str:string;
     if C.appendFileExists(filename.c_str()) != 0 {
-        halt("append file already exists");
+        var error_str:string = filename+" already exists";
+        halt(error_str);
     }
     for i in 1..5 {
         test_str = i:string;

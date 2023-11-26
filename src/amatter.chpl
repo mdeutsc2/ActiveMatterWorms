@@ -4,7 +4,9 @@ use IO;
 use IO.FormattedIO;
 use Time; // for stopwatch
 use List;
+use CTypes; // for chpl string -> c string pointer conversion   
 // user-defined modules
+import C; // import C-extension module for logging/appending
 //use Structs; //imports Particle and Bin structures
 //use Worms;
 
@@ -211,12 +213,14 @@ var binSpacejeven : [1..(numBins*numBins)/2] int;
 
 var randStream = new RandomStream(real); // creating random number generator
 
+var logfile:string = "amatter.log";
 var t = 0.0;
 var total_time = 0.0;
 var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
 //main
 proc main() {
-    writeln("starting...",numTasks);
+    init_log(logfile);
+    write_log(logfile,"starting..."+numTasks:string);
     // save params to file
     write_params();
     // initialize the alternating loops over bins
@@ -243,17 +247,20 @@ proc main() {
       for istep in 1..5000 {
           var ioper = 5000/10;
           if (istep%ioper == 0) {
-              writeln("fluid equilibration...",istep);
+              write_log(logfile,"fluid equilibration..."+istep:string);
           }
           fluid_step(0,dt);
       }
     }
     update_cells(0); //again after fluid
-    writeln("fluid equilibrated...5000dt");
+    write_log(logfile,"fluid equilibrated...5000dt");
 
+    var macro_filename:string = "energies.dat";
+    init_macro(macro_filename);
     write_xyzv(0);
     //halt();
     //setting up stopwatch
+    var log_str:string;
     xt.start();
     for itime in 1..nsteps {
         //writeln(itime);
@@ -262,7 +269,12 @@ proc main() {
         if (itime % 100 == 0) {
             xt.stop();
             total_time = xt.elapsed();
-            writeln("Step: ",itime,"\t",itime/total_time,"iter/s\tCalc:",(ct.elapsed()/total_time)*100,"%\tIO:",(wt.elapsed()/total_time)*100," %\tElapsed:",total_time," s\tEst:",(nsteps/itime)*total_time," s");
+            var out_str:string = "Step: "+itime:string+"\t"+
+                      (itime/total_time):string+"iter/s\tCalc:"+
+                      ((ct.elapsed()/total_time)*100):string+"%\tIO:"+
+                      ((wt.elapsed()/total_time)*100):string+" %\tElapsed:"+
+                      total_time:string+" s";
+            write_log(logfile,out_str);
             xt.start();
             }
 	    ct.start();
@@ -285,6 +297,7 @@ proc main() {
         KEworm_total[itime] = (+ reduce KEworm);
 
 	    ct.stop();
+        write_macro(macro_filename,itime);
         if (itime % save_interval == 0){
             wt.start();
             write_xyzv(itime);
@@ -293,8 +306,8 @@ proc main() {
     }
     //finalize();
     xt.stop();
-    write_macro(nsteps);
-    writeln("Total Time:",xt.elapsed()," s");
+    //write_macro(nsteps);
+    write_log(logfile,"Total Time:"+xt.elapsed():string+" s");
 }
 
 // //functions
@@ -322,12 +335,12 @@ proc init_worms() {
     ddy[9] = 0;
     var thetanow = 5.0*pi :real;
     var rmin = a*thetanow;
-    writeln("nworms\t", nworms);
-    writeln("np\t", np);
-    writeln("rwall\t", rwall);
-    writeln("nxcells\t", nxcell, "\t nycells\t", nycell);
-    writeln("density\t", density);
-    writeln("dt\t",dt);
+    write_log(logfile,"nworms\t"+nworms:string);
+    write_log(logfile,"np\t"+np:string);
+    write_log(logfile,"rwall\t"+rwall:string);
+    write_log(logfile,"nxcells\t"+nxcell:string+"\t nycells\t"+nycell:string);
+    write_log(logfile,"density\t"+density:string);
+    write_log(logfile,"dt\t"+dt:string);
     //setting up the worms
     if (boundary == 1){
         // circular bound
@@ -377,7 +390,7 @@ proc init_worms() {
         var thetaValues: [1..numPoints] real;
         var ca = 1.5*(rwall/2);
         var totalArcLength = 8 * ca;
-        writeln("cardioid cirum: ",totalArcLength, "\t",totalArcLength/r2cutsmall);
+        write_log(logfile,"cardioid cirum: "+totalArcLength:string+"\t"+(totalArcLength/r2cutsmall):string);
         for i in 1..numPoints {
             equidistantArcLengths[i] = totalArcLength * (i - 1) / (numPoints - 1);
             thetaValues[i] = 4 * asin(sqrt(equidistantArcLengths[i] / totalArcLength));
@@ -440,7 +453,7 @@ proc init_worms() {
     for i in 1..nworms*np{
         KEworm[i] = 0.0;
     }
-    writeln("init done");
+    write_log(logfile,"init done");
 }
 
 proc update_pos(itime:int) {
@@ -1334,10 +1347,10 @@ proc update_cells(istep:int) {
         jbin=ceil(solvent[i].y/rcut):int;
         binid=(jbin-1)*numBins+ibin;
         if (binid > numBins*numBins) {
-            writeln(solvent[i].info());
+            write_log(logfile,solvent[i].info());
             sudden_halt(istep);
         } else if (binid < 1) {
-            writeln(solvent[i].info());
+            write_log(logfile,solvent[i].info());
             sudden_halt(istep);
         }
         //append i to particle_list for binid
@@ -1355,10 +1368,10 @@ proc update_cells(istep:int) {
             binid=(jbin-1)*numBins+ibin;
             wormid = (iw-1)*np+ip;
             if (binid > numBins*numBins) {
-                writeln(worms[iw,ip].info());
+                write_log(logfile,worms[iw,ip].info());
                 sudden_halt(istep);
             } else if (binid < 1) {
-                writeln(worms[iw,ip].info());
+                write_log(logfile,worms[iw,ip].info());
                 sudden_halt(istep);
             }
             //append i to particle_list for binid
@@ -1592,26 +1605,54 @@ proc write_xyzv(istep:int) {
     // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
     // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
     // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
-    writeln(filename,"\t",ic," lines written");
+    write_log(logfile,filename+"\t"+ic:string+" lines written");
     //xyzfile.close();
     } catch e: Error {
         writeln(e);
     }
 }
 
-proc write_macro(nsteps: int) {
-    var filename:string = "energies.dat";
-    try{
-        var datfile = open(filename, ioMode.cw);
-        var myFileWriter = datfile.writer();
-        myFileWriter.writeln("step \t KEworm \t KEsol \n");
-        for istep in 1..nsteps {
-            myFileWriter.writeln(istep,"\t",KEworm_total[istep],"\t",KEsol_total[istep]);
+proc init_macro(filename:string) {
+    if C.appendFileExists(filename.c_str()) != 0 {
+        var error_str:string = filename+" already exists";
+        halt(error_str);
+    } else {
+        try {
+            var datfile = open(filename, ioMode.cw);
+            var myFileWriter = datfile.writer();
+            myFileWriter.writeln("step \t KEworm \t KEsol");
+            datfile.fsync();
+            write_log(logfile,filename+" header written");
+        } catch e: Error {
+            writeln(e);
         }
-        datfile.fsync();
-        writeln("energies.dat written");
-    } catch e: Error {
-        writeln(e);
+    }
+}
+
+proc write_macro(filename: string,istep: int) {
+    var ret_int:int;
+    var out_str:string = istep:string+"\t"+KEworm_total[istep]:string+"\t"+KEsol_total[istep]:string;
+    ret_int = C.appendToFile(filename.c_str(),out_str.c_str());
+    if ret_int != 0 {
+        var err_str:string = "error in appending to "+filename;
+        halt(err_str);
+    }
+}
+
+proc init_log(filename:string) {
+    if C.appendFileExists(filename.c_str()) != 0 {
+        var error_str:string = filename+" already exists";
+        halt(error_str);
+    } 
+}
+
+proc write_log(filename: string, out_str: string) {
+    writeln(out_str);
+    var ret_int: int;
+    ret_int = C.appendToFile(filename.c_str(),out_str.c_str());
+    if ret_int != 0 {
+        var err_str:string = "error in appending to "+filename;
+        halt(err_str);
     }
 }
 
@@ -1646,7 +1687,7 @@ proc write_params() {
         myFileWriter.writeln("numSol\t",numSol.type:string,"\t",numSol);
         myFileWriter.writeln("fluid_offset\t",fluid_offset.type:string,"\t",fluid_offset);
         paramsfile.fsync();
-        writeln("params.dat written");
+        write_log(logfile,"params.dat written");
     } catch e: Error {
         writeln(e);
     }
@@ -1668,7 +1709,7 @@ proc gaussRand(mean: real, stddev: real): real {
 
 proc sudden_halt(istep:int) {
     write_xyzv(istep);
-    write_macro(nsteps);
+    //write_macro(nsteps);
 }
 
 // OLD FUNCTIONS
@@ -2185,5 +2226,21 @@ proc fluid_multistep() {
     var timestep = dt/iterations;
     for i in 1..iterations {
         fluid_step(timestep);
+    }
+}
+
+proc write_macro_old(nsteps: int) {
+    var filename:string = "energies.dat";
+    try{
+        var datfile = open(filename, ioMode.cw);
+        var myFileWriter = datfile.writer();
+        myFileWriter.writeln("step \t KEworm \t KEsol \n");
+        for istep in 1..nsteps {
+            myFileWriter.writeln(istep,"\t",KEworm_total[istep],"\t",KEsol_total[istep]);
+        }
+        datfile.fsync();
+        writeln("energies.dat written");
+    } catch e: Error {
+        writeln(e);
     }
 }
