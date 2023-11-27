@@ -36,11 +36,4 @@ run:
 		dirname="$$dirname-$$count"; \
 	fi; \
 	mkdir -p $$dirname; \
-	cd $$dirname && time ../$(OUTPUT); \
-	output_file=amatter_$$(date +%d_%m_%Y); \
-	if [ -n "$$count" ]; then \
-		output_file=$$output_file-$$count; \
-	fi; \
-	output_file=$$output_file.xyz; \
-	python3 ../merge_xyz.py $$output_file; \
-	cp $$output_file ..
+	cd $$dirname && time ../$(OUTPUT);
