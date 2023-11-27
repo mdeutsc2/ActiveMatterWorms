@@ -4,7 +4,7 @@ use IO;
 use IO.FormattedIO;
 use Time; // for stopwatch
 use List;
-use CTypes; // for chpl string -> c string pointer conversion   
+use CTypes; // for chpl string -> c string pointer conversion
 // user-defined modules
 import C; // import C-extension module for logging/appending
 //use Structs; //imports Particle and Bin structures
@@ -37,8 +37,7 @@ config const np = 16,
             sigma = 2.0;
 
 // these are parameters that are not commonly used
-const worm_particle_mass = 2.0;
-const
+const worm_particle_mass = 1.0;
 
 var ptc_init_counter = 1;
 record Particle {
@@ -303,7 +302,7 @@ proc main() {
 
         update_vel();
         KEworm_total[itime] = (+ reduce KEworm);
-        KEworm_local_total[itime] = (+ reduce KEworm_local)
+        KEworm_local_total[itime] = (+ reduce KEworm_local);
 
 	    ct.stop();
         if (itime % nstepso1e5 == 0){
@@ -781,8 +780,8 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
                 worms[iworm,ip].vyave += worms[jworm,jp].vy;
                 worms[jworm,jp].vxave += worms[iworm,ip].vx;
                 worms[jworm,jp].vyave += worms[iworm,ip].vy;
-                nnab[iworm,ip] += 1
-                nnab[jworm,jp] += 1
+                nnab[iworm,ip] += 1;
+                nnab[jworm,jp] += 1;
 
                 //add 'dogic drive' to interacting pairs
                 //first calculate unit vectors along each worm
@@ -1663,7 +1662,7 @@ proc init_log(filename:string) {
     if C.appendFileExists(filename.c_str()) != 0 {
         var error_str:string = filename+" already exists";
         halt(error_str);
-    } 
+    }
 }
 
 proc write_log(filename: string, out_str: string) {
