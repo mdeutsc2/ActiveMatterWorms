@@ -35,7 +35,10 @@ config const np = 16,
             //numSol = 7000, // cardiod number of solution particles
             numSol = 6000,//8000, // disk number of solution particls
             sigma = 2.0;
+
+// these are parameters that are not commonly used
 const worm_particle_mass = 2.0;
+const
 
 var ptc_init_counter = 1;
 record Particle {
@@ -172,6 +175,7 @@ const r2cut = rcut*rcut,
       dcell = hx/(nxcell:real),
       ncells = nxcell*nycell,
       nstepso500 = nsteps/500,
+      nstepso1e5 = nsteps/10000,
       gnoise = 0.80/sqrt(10.0)*0.8,
       dt2o2 = dt*dt*0.50,
       dto2 = dt*0.50,
@@ -198,9 +202,11 @@ var hhead: [1..ncells] int; //
 var ipointto: [1..nworms*np+numPoints] int; // linked list, every particle points to another particle
 var nnab: [wormsDomain] int;
 var KEworm: [1..nworms*np] real;
+var KEworm_local: [1..nworms*np] real; // this is the for velocity minus the average velocity (tries to measure thermal fluctuations)
 var KEsol: [1..numSol] real;
 var KEworm_total: [1..nsteps] real;
-var KEsol_total: [1..nsteps] real; //workaround https://stackoverflow.com/questions/59753273/how-to-append-data-to-an-existing-file
+var KEworm_local_total: [1..nsteps] real;
+var KEsol_total: [1..nsteps] real;
 
 var numBins = ceil(hx/rcut):int;
 writeln("numBins:\t",numBins);
@@ -230,6 +236,7 @@ proc main() {
     init_bins();
     // initialize worms
     init_worms();
+
     //setting mass of worms to be differents
     for iw in 1..nworms {
         for i in 1..np {
@@ -296,9 +303,12 @@ proc main() {
 
         update_vel();
         KEworm_total[itime] = (+ reduce KEworm);
+        KEworm_local_total[itime] = (+ reduce KEworm_local)
 
 	    ct.stop();
-        write_macro(macro_filename,itime);
+        if (itime % nstepso1e5 == 0){
+            write_macro(macro_filename,itime);
+        }
         if (itime % save_interval == 0){
             wt.start();
             write_xyzv(itime);
@@ -376,8 +386,8 @@ proc init_worms() {
                 worms[iw,i].m = 1.0; // setting mass
                 // vx[iw,i] = 0.0; // NOTE: this is all set by initializer
                 // vy[iw,i] = 0.0;
-                // vxave[iw,i] = 0.0;
-                // vyave[iw,i] = 0.0;
+                worms[iw,i].vxave = 0.0;
+                worms[iw,i].vyave = 0.0;
                 // fx[iw,i] = 0.0;
                 // fy[iw,i] = 0.0;
                 // fxold[iw,i] = 0.0;
@@ -421,8 +431,8 @@ proc init_worms() {
                 worms[iw,i].m = 1.0; // setting mass
                 // vx[iw,i] = 0.0;
                 // vy[iw,i] = 0.0;
-                // vxave[iw,i] = 0.0;
-                // vyave[iw,i] = 0.0;
+                worms[iw,i].vxave = 0.0;
+                worms[iw,i].vyave = 0.0;
                 // fx[iw,i] = 0.0;
                 // fy[iw,i] = 0.0;
                 // fxold[iw,i] = 0.0;
@@ -766,6 +776,14 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
                 worms[iworm,ip].fy += ffy;
                 worms[jworm,jp].fy -= ffy;
 
+                //vxave,vyave
+                worms[iworm,ip].vxave += worms[jworm,jp].vx;
+                worms[iworm,ip].vyave += worms[jworm,jp].vy;
+                worms[jworm,jp].vxave += worms[iworm,ip].vx;
+                worms[jworm,jp].vyave += worms[iworm,ip].vy;
+                nnab[iworm,ip] += 1
+                nnab[jworm,jp] += 1
+
                 //add 'dogic drive' to interacting pairs
                 //first calculate unit vectors along each worm
                 ip1 = ip + 1;
@@ -961,9 +979,10 @@ proc update_vel() {
         foreach i in 1..np {
             worms[iw, i].vx += dto2*(worms[iw,i].fx + worms[iw,i].fxold);
             worms[iw, i].vy += dto2*(worms[iw,i].fy + worms[iw,i].fyold);
-            //vxave[iw, i] = vxave[iw, i]/nnab[iw, i];
-            //vyave[iw, i] = vyave[iw, i]/nnab[iw, i];
+            worms[iw, i].vxave = worms[iw, i].vxave/nnab[iw, i];
+            worms[iw, i].vyave = worms[iw, i].vyave/nnab[iw, i];
             KEworm[iw*i] = 0.5*(worms[iw,i].vx * worms[iw,i].vx + worms[iw,i].vy * worms[iw,i].vy);
+            KEworm_local[iw*i] = 0.5*((worms[iw,i].vx-worms[iw,i].vxave) * (worms[iw,i].vx-worms[iw,i].vxave) + (worms[iw,i].vy-worms[iw,i].vyave) * (worms[iw,i].vy-worms[iw,i].vyave));
         }
     }
     fluid_vel(dt);
@@ -1621,7 +1640,7 @@ proc init_macro(filename:string) {
         try {
             var datfile = open(filename, ioMode.cw);
             var myFileWriter = datfile.writer();
-            myFileWriter.writeln("step \t KEworm \t KEsol");
+            myFileWriter.writeln("step \t KEworm \t KEworm-vave \t KEsol");
             datfile.fsync();
             write_log(logfile,filename+" header written");
         } catch e: Error {
@@ -1632,7 +1651,7 @@ proc init_macro(filename:string) {
 
 proc write_macro(filename: string,istep: int) {
     var ret_int:int;
-    var out_str:string = istep:string+"\t"+KEworm_total[istep]:string+"\t"+KEsol_total[istep]:string;
+    var out_str:string = istep:string+"\t"+KEworm_total[istep]:string+"\t"+KEworm_local_total[istep]:string+"\t"+KEsol_total[istep]:string;
     ret_int = C.appendToFile(filename.c_str(),out_str.c_str());
     if ret_int != 0 {
         var err_str:string = "error in appending to "+filename;
