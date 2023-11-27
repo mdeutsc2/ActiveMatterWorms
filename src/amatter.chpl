@@ -35,6 +35,7 @@ config const np = 16,
             //numSol = 7000, // cardiod number of solution particles
             numSol = 6000,//8000, // disk number of solution particls
             sigma = 2.0;
+const worm_particle_mass = 2.0;
 
 var ptc_init_counter = 1;
 record Particle {
@@ -232,7 +233,7 @@ proc main() {
     //setting mass of worms to be differents
     for iw in 1..nworms {
         for i in 1..np {
-            worms[iw,i].m = 2.0;
+            worms[iw,i].m = worm_particle_mass;
         }
     }
 
