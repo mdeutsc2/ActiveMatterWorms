@@ -175,7 +175,6 @@ const r2cut = rcut*rcut,
       dcell = hx/(nxcell:real),
       ncells = nxcell*nycell,
       nstepso500 = nsteps/500,
-      nstepso1e5 = nsteps/10000,
       gnoise = 0.80/sqrt(10.0)*0.8,
       dt2o2 = dt*dt*0.50,
       dto2 = dt*0.50,
@@ -202,11 +201,9 @@ var hhead: [1..ncells] int; //
 var ipointto: [1..nworms*np+numPoints] int; // linked list, every particle points to another particle
 var nnab: [wormsDomain] int;
 var KEworm: [1..nworms*np] real;
-var KEworm_local: [1..nworms*np] real; // this is the for velocity minus the average velocity (tries to measure thermal fluctuations)
 var KEsol: [1..numSol] real;
 var KEworm_total: [1..nsteps] real;
-var KEworm_local_total: [1..nsteps] real;
-var KEsol_total: [1..nsteps] real;
+var KEsol_total: [1..nsteps] real; //workaround https://stackoverflow.com/questions/59753273/how-to-append-data-to-an-existing-file
 
 var numBins = ceil(hx/rcut):int;
 writeln("numBins:\t",numBins);
@@ -303,12 +300,9 @@ proc main() {
 
         update_vel();
         KEworm_total[itime] = (+ reduce KEworm);
-        KEworm_local_total[itime] = (+ reduce KEworm_local)
 
 	    ct.stop();
-        if (itime % nstepso1e5 == 0){
-            write_macro(macro_filename,itime);
-        }
+        write_macro(macro_filename,itime);
         if (itime % save_interval == 0){
             wt.start();
             write_xyzv(itime);
@@ -776,14 +770,6 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
                 worms[iworm,ip].fy += ffy;
                 worms[jworm,jp].fy -= ffy;
 
-                //vxave,vyave
-                worms[iworm,ip].vxave += worms[jworm,jp].vx;
-                worms[iworm,ip].vyave += worms[jworm,jp].vy;
-                worms[jworm,jp].vxave += worms[iworm,ip].vx;
-                worms[jworm,jp].vyave += worms[iworm,ip].vy;
-                nnab[iworm,ip] += 1
-                nnab[jworm,jp] += 1
-
                 //add 'dogic drive' to interacting pairs
                 //first calculate unit vectors along each worm
                 ip1 = ip + 1;
@@ -979,10 +965,9 @@ proc update_vel() {
         foreach i in 1..np {
             worms[iw, i].vx += dto2*(worms[iw,i].fx + worms[iw,i].fxold);
             worms[iw, i].vy += dto2*(worms[iw,i].fy + worms[iw,i].fyold);
-            worms[iw, i].vxave = worms[iw, i].vxave/nnab[iw, i];
-            worms[iw, i].vyave = worms[iw, i].vyave/nnab[iw, i];
+            //vxave[iw, i] = vxave[iw, i]/nnab[iw, i];
+            //vyave[iw, i] = vyave[iw, i]/nnab[iw, i];
             KEworm[iw*i] = 0.5*(worms[iw,i].vx * worms[iw,i].vx + worms[iw,i].vy * worms[iw,i].vy);
-            KEworm_local[iw*i] = 0.5*((worms[iw,i].vx-worms[iw,i].vxave) * (worms[iw,i].vx-worms[iw,i].vxave) + (worms[iw,i].vy-worms[iw,i].vyave) * (worms[iw,i].vy-worms[iw,i].vyave));
         }
     }
     fluid_vel(dt);
@@ -1640,7 +1625,7 @@ proc init_macro(filename:string) {
         try {
             var datfile = open(filename, ioMode.cw);
             var myFileWriter = datfile.writer();
-            myFileWriter.writeln("step \t KEworm \t KEworm-vave \t KEsol");
+            myFileWriter.writeln("step \t KEworm \t KEsol");
             datfile.fsync();
             write_log(logfile,filename+" header written");
         } catch e: Error {
@@ -1651,7 +1636,7 @@ proc init_macro(filename:string) {
 
 proc write_macro(filename: string,istep: int) {
     var ret_int:int;
-    var out_str:string = istep:string+"\t"+KEworm_total[istep]:string+"\t"+KEworm_local_total[istep]:string+"\t"+KEsol_total[istep]:string;
+    var out_str:string = istep:string+"\t"+KEworm_total[istep]:string+"\t"+KEsol_total[istep]:string;
     ret_int = C.appendToFile(filename.c_str(),out_str.c_str());
     if ret_int != 0 {
         var err_str:string = "error in appending to "+filename;
@@ -1730,4 +1715,537 @@ proc gaussRand(mean: real, stddev: real): real {
 proc sudden_halt(istep:int) {
     write_xyzv(istep);
     //write_macro(nsteps);
+}
+
+// OLD FUNCTIONS
+
+proc worm_wall() {
+    var dx:real, dy:real, r:real, r2:real, th:real,
+           xwall:real, ywall:real, rr2:real, ffor:real,
+           dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
+    var ip1:int;
+    //put worm-wall interactions here, and dissipation force proportional to velocity
+    for iw in 1..nworms{
+        for i in 1..np{
+            //dissipation proportional to v relative to local average
+            // TODO swap vxave with intvx
+            worms[iw,i].fx = worms[iw,i].fx - diss*(worms[iw,i].vx - worms[iw,i].vxave);
+            worms[iw,i].fy = worms[iw,i].fy - diss*(worms[iw,i].vy - worms[iw,i].vyave);
+            //now that we have used them, zero out vxave and vyave, recalculate below
+            worms[iw,i].vxave = worms[iw,i].vx;
+            worms[iw,i].vyave = worms[iw,i].vy;
+            nnab[iw, i] = 1;
+            //calculate distance to the center
+            dx = worms[iw, i].x - hxo2;
+            dy = worms[iw, i].y - hyo2;
+            r2 = (dx*dx + dy*dy);
+            //if close enough to the wall, calculate wall forces
+            //use the short cut-off
+            if (r2 >= r2inside) {
+                //find the nearest spot on the wall
+                th = atan2(dy, dx);
+                xwall = hxo2 + rwall*cos(th);
+                ywall = hyo2 + rwall*sin(th);
+                dx = xwall - worms[iw,i].x;
+                dy = ywall - worms[iw,i].y;
+                rr2 = dx*dx + dy*dy;
+                r = sqrt(rr2);
+                //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
+                ffor = -48.0*rr2**(-7.0) + 24.0*rr2**(-4.0);
+                worms[iw, i].fx += ffor*dx;
+                worms[iw, i].fy += ffor*dy;
+
+                var iwalldrive = 1; // made this a const parameter
+                //Turning on dogic drive with the wall!!!
+                if (iwalldrive == 1) {
+                    //first calculate unit vector along the worm
+                    ip1 = i + 1;
+                    if (ip1 <= np) {
+                        dxi = worms[iw, ip1].x - worms[iw, i].x;
+                        dyi = worms[iw, ip1].y - worms[iw, i].y;
+                    } else {
+                        dxi = worms[iw, i].x - worms[iw, i - 1].x;
+                        dyi = worms[iw, i].y - worms[iw, i - 1].y;
+                    }
+                    //make it a unit vector
+                    ri = sqrt(dxi*dxi + dyi*dyi);
+                    dxi = dxi/ri;
+                    dyi = dyi/ri;
+                    //calculate the unit vector along the wall
+                    dxj = -sin(th); //for cardioid, make this a vector pointing to the next wall particle
+                    dyj = cos(th);
+
+                    //if the vectors are not antiparallel, reverse the vector along the wall
+                    if (dxi*dxj + dyi*dyj > 0.0) {
+                        dxj = -dxj;
+                        dyj = -dyj;
+                    }
+
+                    //if the two vectors have any component pointing in opposite directions
+                    if (dxi*dxj + dyi*dyj < 0.0) {
+                        //Find the direction for the force...
+                        dx = (dxi - dxj)/2.0;
+                        dy = (dyi - dyj)/2.0;
+                        //normalize the direction vector
+                        ri = sqrt(dx*dx + dy*dy);
+                        dx = dx/ri;
+                        dy = dy/ri;
+
+                        //turn on extra-strong driving force
+                        ffx = fdogicwall*dx;
+                        ffy = fdogicwall*dy;
+                        worms[iw,i].fx += ffx;
+                        worms[iw,i].fy += ffy;
+                    }
+                }
+            }
+        }
+    }
+}
+
+proc worm_wall_new() {
+    //put worm-wall interactions here, and dissipation force proportional to velocity
+    forall iw in 1..nworms{
+        var dx:real, dy:real, r:real, r2:real, th:real,
+           xwall:real, ywall:real, rr2:real, ffor:real,
+           dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
+        var ip1,ib1:int;
+        for i in 1..np{
+            //dissipation proportional to v relative to local average
+            // TODO swap vxave with intvx
+            //worms[iw,i].fx = worms[iw,i].fx - diss*(worms[iw,i].vx - worms[iw,i].vxave);
+            //worms[iw,i].fy = worms[iw,i].fy - diss*(worms[iw,i].vy - worms[iw,i].vyave);
+            //now that we have used them, zero out vxave and vyave, recalculate below
+            //worms[iw,i].vxave = worms[iw,i].vx;
+            //worms[iw,i].vyave = worms[iw,i].vy;
+            nnab[iw, i] = 1;
+
+            // calculate the force on the boundaries.
+            for ib in 1..numPoints  {
+                //calculate distance to the wall
+                dx = worms[iw,i].x-bound[ib].x;
+                dy = worms[iw,i].y-bound[ib].y;
+                r2 = (dx*dx + dy*dy);
+                //if close enough to the wall, calculate wall forces
+                //use the short cut-off
+                if (r2 <= r2cut) {
+                    ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r;
+                    //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+                    worms[iw,i].fx += ffor*dx;
+                    worms[iw,i].fy += ffor*dy;
+                    if (walldrive) {
+                        //first calculate unit vector along the worm
+                        ip1 = i + 1;
+                        if (ip1 <= np) {
+                            dxi = worms[iw, ip1].x - worms[iw, i].x;
+                            dyi = worms[iw, ip1].y - worms[iw, i].y;
+                        } else {
+                            dxi = worms[iw, i].x - worms[iw, i - 1].x;
+                            dyi = worms[iw, i].y - worms[iw, i - 1].y;
+                        }
+                        //make it a unit vector
+                        ri = sqrt(dxi*dxi + dyi*dyi);
+                        dxi = dxi/ri;
+                        dyi = dyi/ri;
+                        //calculate the unit vector along the wall
+                        ib1 = ib + 1;
+                        if (ib1 <= numPoints) {
+                            dxj = bound[ib1].x - bound[ib].x;
+                            dyj = bound[ib1].y - bound[ib].y;
+                        } else {
+                            dxj = bound[ib].x - bound[ib-1].x;
+                            dyj = bound[ib].y - bound[ib-1].y;
+                        }
+                        ri = sqrt(dxj*dxj + dyj*dyj);
+                        dxj = dxj/ri;
+                        dyj = dyj/ri;
+
+                        //if the vectors are not antiparallel, reverse the vector along the wall
+                        if (dxi*dxj + dyi*dyj > 0.0) {
+                            dxj = -dxj;
+                            dyj = -dyj;
+                        }
+                        //if the two vectors have any component pointing in opposite directions
+                        if (dxi*dxj + dyi*dyj < 0.0) {
+                            //Find the direction for the force...
+                            dx = (dxi - dxj)/2.0;
+                            dy = (dyi - dyj)/2.0;
+                            //normalize the direction vector
+                            ri = sqrt(dx*dx + dy*dy);
+                            dx = dx/ri;
+                            dy = dy/ri;
+
+                            //turn on extra-strong driving force
+                            ffx = fdogicwall*dx;
+                            ffy = fdogicwall*dy;
+                            worms[iw,i].fx += ffx;
+                            worms[iw,i].fy += ffy;
+                        }
+                }
+                }
+            }
+        }
+    }
+}
+
+proc cell_sort_old(itime:int) {
+    var dddx:real,dddy:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,dxi:real,dxj:real,
+        ri:real,rj:real,r:real,dx:real,dy:real,dyi:real,dyj:real;
+    var iworm:int,jworm:int,ip:int,jp:int,ii:int,jj:int,kk:int,i:int,ip1:int,
+        jp1:int,scell:int,scnab:int,inogo:int,icnab:int,jcnab:int,icell:int,jcell:int;
+
+    for iworm in 1..nworms{
+        for ip in 1..np {
+            ii = (iworm-1)*np+ip; //unique particle id 1<=ii<=nworms*np
+            icell = 1+floor(worms[iworm,ip].x/dcell):int; //finds where particle is in grid
+            jcell = 1+floor(worms[iworm,ip].y/dcell):int;
+            if ((icell > nxcell) || (icell < 1)) {
+                writeln("nxcell=",nxcell," icell=",icell);
+                writeln(worms[iworm,ip].x/dcell);
+                writeln(floor(worms[iworm,ip].x/dcell):int);
+                writeln(1+floor(worms[iworm,ip].x/dcell):int);
+                writeln("icell out of bounds\t",iworm," ",ip," ",worms[iworm,ip].x," ",worms[iworm,ip].vx," ",worms[iworm,ip].fx);
+                write_xyz(itime);
+                halt();
+            }
+            if ((jcell > nycell) || (jcell < 1)) {
+                writeln("nxcell=",nycell," icell=",jcell);
+                writeln(worms[iworm,ip].y/dcell);
+                writeln(floor(worms[iworm,ip].y/dcell));
+                writeln("jcell out of bounds\t",iworm," ",ip," ",worms[iworm,ip].y," ",worms[iworm,ip].vx," ",worms[iworm,ip].fx);
+                write_xyz(itime);
+                halt();
+            }
+            scell = icell + (jcell-1)*nxcell; // 1d-ndexing for 2d cells
+            if ((scell > ncells) || (scell < 1)) {
+                writeln("scell out of bounds",scell,"\t",icell,"\t",jcell);
+            }
+            ipointto[ii] = hhead[scell]; //
+            hhead[scell] = ii;
+        }
+    }
+    for icell in 1..nxcell {
+        for jcell in 1..nycell {
+            scell = icell + (jcell-1)*nxcell;
+            if (hhead[scell] != -1){
+                //there are particles in the cell called scell so
+                //lets check all the neighbor cells
+                for idir in 1..9 {
+                    icnab = icell + ddx[idir];
+                    if (icnab > nxcell) {break;}
+                    if (icnab == 0) {break;}
+
+                    jcnab = jcell + ddy[idir];
+                    if (jcnab > nycell) {break;}
+                    if (jcnab == 0) {break;}
+                    scnab = icnab + (jcnab-1)*nxcell; //1d neighbor
+                    if (hhead[scnab] != -1) {
+                        //there are particles in the cell called scnab
+                        ii = hhead[scell]; // ii is the # of the head particle
+                        while (ii > 0) {
+
+                            iworm = 1 + ((ii - 1)/np):int; // find which worm ii is in
+                            ip = ii - np*(iworm - 1); // which particle in the worm is ii?
+                            jj = hhead[scnab];//  head particle of neighboring cell
+
+                            while (jj > 0) {
+                                jworm = 1 + ((jj - 1)/np):int;
+                                jp = jj - np*(jworm - 1);
+                                inogo = 0;
+                                if ((iworm == jworm) && (abs(ip-jp) <= 2)) {
+                                    // on the same worm and close means no interaction calculated here
+                                    inogo = 1;
+                                }
+
+                                if ((ii < jj) && (inogo == 0)) {
+                                    dddx = worms[jworm, jp].x - worms[iworm, ip].x;
+                                    dddy = worms[jworm, jp].y - worms[iworm, ip].y;
+                                    r2 = dddx**2 + dddy**2;
+                                    riijj = sqrt(r2);
+                                    //add attractive force fdep between all pairs
+                                    if (r2 <= r2cutsmall) {
+                                        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
+                                        ffx = ffor*dddx;
+                                        ffy = ffor*dddy;
+                                        worms[iworm,ip].fx += ffx;
+                                        worms[jworm,jp].fx -= ffx;
+                                        worms[iworm,ip].fy += ffy;
+                                        worms[jworm,jp].fy -= ffy;
+
+                                        //take these neighbors into account in calculating vxave and vyave
+                                        //worms[iworm,ip].vxave += worms[jworm,jp].vx;
+                                        //worms[iworm,ip].vyave += worms[jworm,jp].vy;
+                                        nnab[iworm, ip] = nnab[iworm, ip] + 1;
+                                        //worms[jworm,jp].vxave += worms[iworm,ip].vx;
+                                        //worms[jworm,jp].vyave += worms[iworm,ip].vy;
+                                        nnab[jworm, jp] = nnab[jworm, jp] + 1;
+
+                                        //add 'dogic drive' to interacting pairs
+                                        //first calculate unit vectors along each worm
+                                        ip1 = ip + 1;
+                                        if (ip1 <= np) {
+                                            dxi = worms[iworm,ip1].x - worms[iworm, ip].x;
+                                            dyi = worms[iworm,ip1].y - worms[iworm, ip].y;
+                                        } else {
+                                            dxi = worms[iworm, ip].x - worms[iworm, ip - 1].x;
+                                            dyi = worms[iworm, ip].y - worms[iworm, ip - 1].y;
+                                        }
+
+                                        jp1 = jp + 1;
+                                        if (jp1 <= np) {
+                                            dxj = worms[jworm, jp1].x - worms[jworm, jp].x;
+                                            dyj = worms[jworm, jp1].y - worms[jworm, jp].x;
+                                        } else {
+                                            dxj = worms[jworm, jp].x - worms[jworm, jp - 1].x;
+                                            dyj = worms[jworm, jp].y - worms[jworm, jp - 1].y;
+                                        }
+
+
+                                        //if the two vectors have any component pointing in opposite directions
+                                        if (dxi*dxj + dyi*dyj <= 0.0) {
+                                            //normalize those vectors to make them unit vectors
+                                            ri = sqrt(dxi*dxi + dyi*dyi);
+                                            dxi = dxi/ri;
+                                            dyi = dyi/ri;
+
+                                            rj = sqrt(dxj*dxj + dyj*dyj);
+                                            dxj = dxj/rj;
+                                            dyj = dyj/rj;
+                                            //now they are both unit vectors. Find the direction for the force...
+
+                                            dx = (dxi - dxj)/2.0;
+                                            dy = (dyi - dyj)/2.0;
+
+                                            //normalize
+
+                                            r = sqrt(dx*dx + dy*dy);
+                                            dx = dx/r;
+                                            dy = dy/r;
+
+                                            //add an extra attractive component where kinesin drive is present
+
+                                            ffx = fdogic*(dx) + 0.7*dddx/riijj;
+                                            ffy = fdogic*(dy) + 0.7*dddy/riijj;
+
+                                            //ffx=fdogic*(dx)
+                                            //ffy=fdogic*(dy)
+
+                                            worms[iworm,ip].fx += ffx;
+                                            worms[jworm,jp].fx -= ffx;
+                                            worms[iworm,ip].fy += ffy;
+                                            worms[jworm,jp].fy -= ffy;
+                                        }
+                                    }
+                                }
+                                jj = ipointto[jj];
+                                }
+                            ii = ipointto[ii];
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+proc fluid_force() {
+    forall binid in binSpace {
+        if (bins[binid].ncount > 1) {
+            // calculate the forces between atoms inside each bin
+            for icount in 0..bins[binid].ncount-2 {
+                var i = bins[binid].atoms[icount];
+                for jcount in (icount+1)..bins[binid].ncount-1 {
+                    var j = bins[binid].atoms[jcount];
+                    lj_thermo(i,j,r2cut);
+                }
+            }
+        }
+    }
+    // odd neighbors to the east (1)
+    forall binid in binSpaceiodd {
+        var binidnbor = bins[binid].neighbors[1];
+        if (binidnbor != -1) {
+            if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                for icount in 0..bins[binid].ncount-1 {
+                    var i = bins[binid].atoms[icount];
+                    for jcount in 0..bins[binidnbor].ncount-1 {
+                        var j = bins[binidnbor].atoms[jcount];
+                        lj_thermo(i,j,r2cut);
+                    }
+                }
+            }
+        }
+    }
+    // even neighbors to the east (1)
+    forall binid in binSpaceieven {
+        var binidnbor = bins[binid].neighbors[1];
+        if (binidnbor != 1) {
+            if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                for icount in 0..bins[binid].ncount-1 {
+                    var i = bins[binid].atoms[icount];
+                    for jcount in 0..bins[binidnbor].ncount-1 {
+                        var j = bins[binidnbor].atoms[jcount];
+                        lj_thermo(i,j,r2cut);
+                    }
+                }
+            }
+        }
+    }
+
+    // odd neighbors to the NE (2) (i+1,j+1)
+    forall binid in binSpaceiodd {
+        var binidnbor = bins[binid].neighbors[2];
+        if (binidnbor != -1) {
+            if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                for icount in 0..bins[binid].ncount-1 {
+                    var i = bins[binid].atoms[icount];
+                    for jcount in 0..bins[binidnbor].ncount-1 {
+                        var j = bins[binidnbor].atoms[jcount];
+                        lj_thermo(i,j,r2cut);
+                    }
+                }
+            }
+        }
+    }
+
+    // even neighbors to the NE (2)
+    forall binid in binSpaceieven {
+        var binidnbor = bins[binid].neighbors[2];
+        if (binidnbor != -1) { // check if neighbor is valid
+            if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) { // check if neighbor has any atoms at all
+                for icount in 0..bins[binid].ncount-1 {
+                    var i = bins[binid].atoms[icount];
+                    for jcount in 0..bins[binidnbor].ncount-1 {
+                        var j = bins[binidnbor].atoms[jcount];
+                        lj_thermo(i,j,r2cut);
+                    }
+                }
+            }
+        }
+    }
+
+    // odd neighbors to the N (3)
+    forall binid in binSpacejodd {
+        var binidnbor = bins[binid].neighbors[3];
+        if (binidnbor != -1) {
+            if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                for icount in 0..bins[binid].ncount-1 {
+                    var i = bins[binid].atoms[icount];
+                    for jcount in 0..bins[binidnbor].ncount-1 {
+                        var j = bins[binidnbor].atoms[jcount];
+                        lj_thermo(i,j,r2cut);
+                    }
+
+                }
+            }
+        }
+    }
+
+    // even neighbors to the N (3)
+    forall binid in binSpacejeven {
+        var binidnbor = bins[binid].neighbors[3];
+        if (binidnbor != -1) {
+            if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                for icount in 0..bins[binid].ncount-1 {
+                    var i = bins[binid].atoms[icount];
+                    for jcount in 0..bins[binidnbor].ncount-1 {
+                        var j = bins[binidnbor].atoms[jcount];
+                        lj_thermo(i,j,r2cut);
+                    }
+
+                }
+            }
+        }
+    }
+
+    // odd neighbors to the NW (4)
+    forall binid in binSpaceiodd {
+        var binidnbor = bins[binid].neighbors[4];
+        if (binidnbor != -1) {
+            if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                for icount in 0..bins[binid].ncount-1 {
+                    var i = bins[binid].atoms[icount];
+                    for jcount in 0..bins[binidnbor].ncount-1 {
+                        var j = bins[binidnbor].atoms[jcount];
+                        lj_thermo(i,j,r2cut);
+                    }
+
+                }
+            }
+        }
+    }
+
+    // even neighbors to the NW (4)
+    forall binid in binSpaceieven {
+        var binidnbor = bins[binid].neighbors[4];
+        if (binidnbor != -1) {
+            if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
+                for icount in 0..bins[binid].ncount-1 {
+                    var i = bins[binid].atoms[icount];
+                    for jcount in 0..bins[binidnbor].ncount-1 {
+                        var j = bins[binidnbor].atoms[jcount];
+                        lj_thermo(i,j,r2cut);
+                    }
+
+                }
+            }
+        }
+    }
+
+        //fluid-boundary
+    // var r2cutsol = r2cut
+    var r2cutsol = sigma*2.0**(1.0/6.0);
+    forall i in 1..numSol {
+        // calculate the force on the boundaries.
+        for ib in 1..numPoints  {
+            lj(ib,i,r2cutsol);
+
+        }
+    }
+
+    // fluid-worms
+    var dz = fluid_offset;
+    for i in 1..numSol{
+        var dx,dy,r2,ffor,ffx,ffy:real;
+        for iw in 1..nworms {
+            for ip in 1..np {
+                dx = solvent[i].x - worms[iw,ip].x;
+                dy = solvent[i].y - worms[iw,ip].y;
+                r2 = (dx*dx + dy*dy + dz*dz);
+                if (r2 <= r2cutsmall) {
+                    ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+                    ffx = ffor*dx;
+                    ffy = ffor*dy;
+                    solvent[i].fx += ffx;
+                    solvent[i].fy += ffy;
+                    worms[iw,ip].fx -= ffx;
+                    worms[iw,ip].fy -= ffy;
+                }
+            }
+        }
+    }
+}
+
+proc fluid_multistep() {
+    var iterations = 1;
+    var timestep = dt/iterations;
+    for i in 1..iterations {
+        fluid_step(timestep);
+    }
+}
+
+proc write_macro_old(nsteps: int) {
+    var filename:string = "energies.dat";
+    try{
+        var datfile = open(filename, ioMode.cw);
+        var myFileWriter = datfile.writer();
+        myFileWriter.writeln("step \t KEworm \t KEsol \n");
+        for istep in 1..nsteps {
+            myFileWriter.writeln(istep,"\t",KEworm_total[istep],"\t",KEsol_total[istep]);
+        }
+        datfile.fsync();
+        writeln("energies.dat written");
+    } catch e: Error {
+        writeln(e);
+    }
 }
