@@ -67,6 +67,7 @@ class Render:
                        fps=60,
                        background = (1.0,1.0,1.0),
                        stop_on_error=True)
+        return out_name
 
     def solvent_positions(filename,debug=False,alt_name = None):
         ''' renders ONLY solvent position data'''
@@ -127,6 +128,7 @@ class Render:
                        fps=60,
                        background = (1.0,1.0,1.0),
                        stop_on_error=True)
+        return out_name
 
     def worm_positions(filename,debug=False,alt_name = None):
         ''' renders ONLY worm position data'''
@@ -187,23 +189,36 @@ class Render:
                        fps=60,
                        background = (1.0,1.0,1.0),
                        stop_on_error=True)
+        return out_name
+
+
+def reencode_video(f,args):
+    # create temporary directory and move all old mp4s to directory
+    fold = f.split('.')[0] + "-264.mp4"
+    os.rename(f,fold)
+    os.system("ffmpeg -i {0} -vcodec libx265 -crf 18 {1}".format(fold,f))
+    os.remove(fold)
 
 def process_file(f,args):
     start_time = time.time()
     debug = args.verbose
+    outfiles = []
     if args.all == True:
         args.solvent = True
         args.worms = True
         args.velocity = True
     if args.worms:
         # Render.worm_positions(f,debug,"test_anim_worms.mp4")
-        Render.worm_positions(f,debug)
+        fname = Render.worm_positions(f,debug)
+        outfiles.append(fname)
     if args.solvent:
         # Render.solvent_positions(f,debug,"test_anim_solvent.mp4")
-        Render.solvent_positions(f,debug)
+        fname = Render.solvent_positions(f,debug)
+        outfiles.append(fname)
     if args.all:
         # Render.all_positions(f,debug,"test_anim_all.mp4")
-        Render.all_positions(f,debug)
+        fname = Render.all_positions(f,debug)
+        outfiles.append(fname)
     if args.velocity:
         print("velocity not done yet")
         # Render.velocity_field(f)
@@ -214,6 +229,7 @@ def process_file(f,args):
         print(f"Processed {f} in {total_time} s on {process_name}",)
     else:
         print(f"Processed {f} in {total_time} s")
+    return outfiles
 
 def main(args):
     print(args.filename)
@@ -221,6 +237,7 @@ def main(args):
         args.ncpus = multiprocessing.cpu_count()
 
     print("# cpus",args.ncpus)
+    print("Re-encode? ",args.reencode)
 
     # SERIAL
     if args.ncpus > 1:
@@ -233,7 +250,11 @@ def main(args):
         pool.join()
     else:
         for f in args.filename:
-            process_file(f,args)
+            outfiles = process_file(f,args)
+            if args.reencode:
+                for f in outfiles:
+                    reencode_video(f,args)
+
 
 
 
@@ -251,5 +272,9 @@ if __name__ == "__main__":
     parser.add_argument("-v","--velocity",help="only render velocity data",action="store_true")
     parser.add_argument("-n","--ncpus",help="number of cpus for parallel data processing, default=0 (serial), -1=all cpus",default=0)
     parser.add_argument("--verbose",help="verbose logging",action="store_true")
+    parser.add_argument("--reencode",help="re-encodes videos into H.265 format with minimal loss in quality",action="store_true")
     args = parser.parse_args()
     main(args)
+
+
+#ffmpeg -i amatter_28_11_2023-2_worms.mp4 -vcodec libx265 -crf 18 amatter_28_11_2023-2_worms_265.mp4
