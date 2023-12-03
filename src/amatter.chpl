@@ -184,6 +184,7 @@ proc main() {
 
         if (fluid_cpl) {
             KEsol_total[itime] = (+ reduce KEsol);
+            AMsol_total[itime] = (+ reduce AMsol);
         } else {
             KEsol_total[itime] = 0.0;
         }
@@ -191,6 +192,7 @@ proc main() {
         update_vel();
         KEworm_total[itime] = (+ reduce KEworm);
         KEworm_local_total[itime] = (+ reduce KEworm_local);
+        AMworm_total[itime] = (+ reduce AMworm);
 
 	    ct.stop();
         if (itime % nstepso1e5 == 0){
@@ -1551,7 +1553,7 @@ proc init_macro(filename:string) {
 
 proc write_macro(filename: string,istep: int) {
     var ret_int:int;
-    var out_str:string = istep:string+"\t"+KEworm_total[istep]:string+"\t"+KEworm_local_total[istep]:string+"\t"+KEsol_total[istep]:string;
+    var out_str:string = istep:string+"\t"+KEworm_total[istep]:string+"\t"+KEworm_local_total[istep]:string+"\t"+KEsol_total[istep]:string+"\t"+AMworm_total[istep]:string+"\t"+AMsol_total[istep]:string;
     ret_int = C.appendToFile(filename.c_str(),out_str.c_str());
     if ret_int != 0 {
         var err_str:string = "error in appending to "+filename;
