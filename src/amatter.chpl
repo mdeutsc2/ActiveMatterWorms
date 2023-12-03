@@ -1324,7 +1324,7 @@ proc init_bins() {
         for jbin in 1..numBins {
             binid = (jbin-1)*numBins+ibin;
             //  4   3   2
-            //     *   1
+            //     (*)   1
             //
             /*  1 = i+1,j
                 2 = i+1,j+1
