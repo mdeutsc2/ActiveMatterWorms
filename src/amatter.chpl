@@ -877,7 +877,7 @@ proc update_vel() {
 
             KEworm[iw*i] = 0.5*worms[iw,i].m*(worms[iw,i].vx * worms[iw,i].vx + worms[iw,i].vy * worms[iw,i].vy);
             KEworm_local[iw*i] = 0.5*worms[iw,i].m*((worms[iw,i].vx-worms[iw,i].vxave) * (worms[iw,i].vx-worms[iw,i].vxave) + (worms[iw,i].vy-worms[iw,i].vyave) * (worms[iw,i].vy-worms[iw,i].vyave));
-            AMworm[iw*] = (worms[iw,i].x-hxo2)*worms[iw,i].vy - (worms[iw,i].y-hyo2)*worms[iw,i].vx // angular momentum calculation
+            AMworm[iw*i] = (worms[iw,i].x-hxo2)*worms[iw,i].vy - (worms[iw,i].y-hyo2)*worms[iw,i].vx; // angular momentum calculation
 
             nnab[iw,i] = 1;
             worms[iw,i].vxave = 0.0;
@@ -1232,7 +1232,7 @@ proc fluid_vel(dt_fluid:real) {
         solvent[i].vy += 0.5*dt_fluid*solvent[i].fy;
         // calculating kinetic energy here too
         KEsol[i] = 0.5*solvent[i].m*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
-        AMsol[i] = (solvent[iw,i].x-hxo2)*solvent[iw,i].vy - (solvent[iw,i].y-hyo2)*solvent[iw,i].vx // angular momentum calculation
+        AMsol[i] = (solvent[i].x-hxo2)*solvent[i].vy - (solvent[i].y-hyo2)*solvent[i].vx; // angular momentum calculation
     }
 }
 
