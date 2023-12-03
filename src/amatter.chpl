@@ -84,12 +84,16 @@ var ddy: [1..9] int;
 var hhead: [1..ncells] int; //
 var ipointto: [1..nworms*np+numPoints] int; // linked list, every particle points to another particle
 var nnab: [wormsDomain] int = 1;
-var KEworm: [1..nworms*np] real;
+var KEworm: [1..nworms*np] real; // Kinetic energy of individual worm particles
 var KEworm_local: [1..nworms*np] real; // this is the for velocity minus the average velocity (tries to measure thermal fluctuations)
-var KEsol: [1..numSol] real;
+var AMworm: [1..nworms*np] real; // angular momentum of individual worm particles
+var KEsol: [1..numSol] real; // Kinetic energy of individual fluid particles
+var AMsol: [1..numSol] real; // angular momentum of individual fluid particles
 var KEworm_total: [1..nsteps] real;
 var KEworm_local_total: [1..nsteps] real;
+var AMworm_total: [1..nsteps] real;
 var KEsol_total: [1..nsteps] real;
+var AMsol_total: [1..nsteps] real;
 
 var numBins = ceil(hx/rcut):int;
 writeln("numBins:\t",numBins);
@@ -867,10 +871,14 @@ proc update_vel() {
         foreach i in 1..np {
             worms[iw, i].vx += dto2*(worms[iw,i].fx + worms[iw,i].fxold);
             worms[iw, i].vy += dto2*(worms[iw,i].fy + worms[iw,i].fyold);
+
             worms[iw, i].vxave = worms[iw, i].vxave/nnab[iw, i]:real;
             worms[iw, i].vyave = worms[iw, i].vyave/nnab[iw, i]:real;
+
             KEworm[iw*i] = 0.5*worms[iw,i].m*(worms[iw,i].vx * worms[iw,i].vx + worms[iw,i].vy * worms[iw,i].vy);
             KEworm_local[iw*i] = 0.5*worms[iw,i].m*((worms[iw,i].vx-worms[iw,i].vxave) * (worms[iw,i].vx-worms[iw,i].vxave) + (worms[iw,i].vy-worms[iw,i].vyave) * (worms[iw,i].vy-worms[iw,i].vyave));
+            AMworm[iw*] = (worms[iw,i].x-hxo2)*worms[iw,i].vy - (worms[iw,i].y-hyo2)*worms[iw,i].vx // angular momentum calculation
+
             nnab[iw,i] = 1;
             worms[iw,i].vxave = 0.0;
             worms[iw,i].vyave = 0.0;
@@ -1224,6 +1232,7 @@ proc fluid_vel(dt_fluid:real) {
         solvent[i].vy += 0.5*dt_fluid*solvent[i].fy;
         // calculating kinetic energy here too
         KEsol[i] = 0.5*solvent[i].m*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
+        AMsol[i] = (solvent[iw,i].x-hxo2)*solvent[iw,i].vy - (solvent[iw,i].y-hyo2)*solvent[iw,i].vx // angular momentum calculation
     }
 }
 
