@@ -6,6 +6,7 @@ use Time; // for stopwatch
 use List;
 use CTypes; // for chpl string -> c string pointer conversion
 // user-defined modules
+import Structs;
 import C; // import C-extension module for logging/appending
 //use Structs; //imports Particle and Bin structures
 //use Worms;
@@ -39,123 +40,6 @@ config const np = 40,//16,
 // these are parameters that are not commonly used
 const worm_particle_mass = 4.0;
 
-var ptc_init_counter = 1;
-record Particle {
-    var id: int;
-    var x,y,z: real;
-    var vx,vy,vz: real;
-    var vxave,vyave,vzave: real;
-    var fx,fy,fz: real;
-    var fxold,fyold,fzold: real;
-    var m: real; //mass
-    var ptype: int; //  ptype=1 (active), ptype=2(solvent), ptype=3 (boundary), ptype=-1 (unassigned)
-    proc init() {
-        this.id = ptc_init_counter;
-        ptc_init_counter += 1;
-        this.x = 0.0;
-        this.y = 0.0;
-        this.z = 0.0;
-        this.vx = 0.0;
-        this.vy = 0.0;
-        this.vz = 0.0;
-        this.vxave = 0.0;
-        this.vyave = 0.0;
-        this.vzave = 0.0;
-        this.fx = 0.0;
-        this.fy = 0.0;
-        this.fz = 0.0;
-        this.fxold = 0.0;
-        this.fyold = 0.0;
-        this.fzold = 0.0;
-        this.ptype = -1;
-    }
-    proc info() {
-        var typestring: string;
-        if (this.ptype == 1) {
-            typestring = "active";
-        } else if (this.ptype == 2) {
-            typestring = "solvent";
-        } else if (this.ptype == 3) {
-            typestring = "boundary";
-        } else {
-            typestring = "unassigned";
-        }
-        var s:string = "id# %i \t type: %s \t mass: %s \n pos: %r \t %r \t %r \n vel: %r \t %r \t %r \n force: %r \t %r \t %r".format(this.id,typestring,this.m,this.x,this.y,this.z,this.vx,this.vy,this.vz,this.fx,this.fy,this.fz);
-        return s;
-    }
-    proc p(px: real, py: real, pz: real) {
-        this.x = px;
-        this.y = py;
-        this.z = pz;
-    }
-    proc p() {
-        return (this.x,this.y,this.z);
-    }
-    proc v(velx: real, vely:real, velz:real) {
-        this.vx = velx;
-        this.vy = vely;
-        this.vz = velz;
-    }
-    proc v() {
-        return (this.vx,this.vy,this.vz);
-    }
-    proc f(forcex:real,forcey:real,forcez:real) {
-        this.fx = forcex;
-        this.fy = forcey;
-        this.fz = forcez;
-    }
-    proc f() {
-        return (this.fx,this.fy,this.fz);
-    }
-    proc set(p: Particle) {
-        this.x = p.x;
-        this.y = p.y;
-        this.z = p.z;
-        this.vx = p.vx;
-        this.vy = p.vy;
-        this.vz = p.vz;
-        this.vxave = p.vxave;
-        this.vyave = p.vyave;
-        this.vzave = p.vzave;
-        this.fx = p.fx;
-        this.fy = p.fy;
-        this.fz = p.fz;
-        this.fxold = p.fxold;
-        this.fyold = p.fyold;
-        this.fzold = p.fzold;
-    }
-}
-
-var bin_init_counter = 1;
-record Bin {
-    //var id: (int,int); //id of each bin
-    var id: int; //id of each bin
-    var atoms: list(int); // list of particle id's in each bin (wormid = (iw-1)*np+ip;)
-    var types: list(int); // corresponding particle type in each bin
-    var neighbors: [1..4] int; // indices of each bin's neighboring bin
-    var ncount: int; // count of number of particles in each bin
-    var wcount: int; // count of number of worm particles in each bin
-    var scount: int; // count of number of solvent particles in each bin
-    var bcount: int; // count of number of boundary particles in each bin
-    var x: (real,real); // precalculate the max_x and min_x values for the space the box occupies
-    var y: (real,real); // this is for easier neighbor list creation
-
-    proc init() { // record initializer
-        this.id = bin_init_counter;
-        bin_init_counter += 1;
-        this.ncount = 0;
-        this.wcount = 0;
-        this.scount = 0;
-        this.bcount = 0;
-        this.x = (0.0,0.0);
-        this.y = (0.0,0.0);
-        for i in 1..4 {
-            this.neighbors[i] = -1;
-        }
-    }
-}
-
-
 // variables
 const r2cut = rcut*rcut,
       rcutsmall = 2.0**(1.0/6.0),
@@ -187,11 +71,11 @@ const r2cut = rcut*rcut,
       fluid_offset = rcutsmall*sigma;//3.0; // z-offset of fluid
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
-var worms: [wormsDomain] Particle;
-ptc_init_counter = 1;
-var solvent: [1..numSol] Particle;
-ptc_init_counter = 1;
-var bound: [1..numPoints] Particle;
+var worms: [wormsDomain] Structs.Particle;
+Structs.ptc_init_counter = 1;
+var solvent: [1..numSol] Structs.Particle;
+Structs.ptc_init_counter = 1;
+var bound: [1..numPoints] Structs.Particle;
 var savex: [1..np] real(64);
 var savey: [1..np] real(64);
 var ireverse: [1..nworms] int;
@@ -211,7 +95,7 @@ var numBins = ceil(hx/rcut):int;
 writeln("numBins:\t",numBins);
 //const binSpace = {1..numBins, 1..numBins};
 const binSpace = {1..numBins*numBins};
-var bins : [1..numBins*numBins] Bin;
+var bins : [1..numBins*numBins] Structs.Bin;
 var binSpaceiodd : [1..(numBins*numBins)/2] int;
 var binSpacejodd : [1..(numBins*numBins)/2] int;
 var binSpaceieven : [1..(numBins*numBins)/2] int;
