@@ -12,32 +12,32 @@ import C; // import C-extension module for logging/appending
 
 const numTasks = here.numPUs();
 // configuration
-config const np = 16,
-            nworms = 625,
+config const np = 40,//16,
+            nworms = 300,//625,
             nsteps = 4000000    ,//00,
             fdogic = 0.06,
             walldrive = false,
             fdogicwall = 0.0,
-            fdep = 1.0, // TODO: change to 4.0?
+            fdep = 0.1, // TODO: change to 4.0?
             fdepwall = 0.0,
-            diss = 0.08,
-            dt = 0.001, //0.02
+            diss = 0.04,
+            dt = 0.002, //0.02
             kspring = 57.146436,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
-            save_interval = 1000,
+            save_interval = 4000,
             boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
-            kbt = 0.1, //0.25
+            kbt = 0.5, //0.25
             //numSol = 7000, // cardiod number of solution particles
             numSol = 6000,//8000, // disk number of solution particls
             sigma = 2.0;
 
 // these are parameters that are not commonly used
-const worm_particle_mass = 1.0;
+const worm_particle_mass = 4.0;
 
 var ptc_init_counter = 1;
 record Particle {
@@ -184,7 +184,7 @@ const r2cut = rcut*rcut,
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
       numPoints = 1200,//589, //number of boundary points (for circle w/ r-75)
-      fluid_offset = r2cutsmall-0.1;//3.0; // z-offset of fluid
+      fluid_offset = rcutsmall*sigma;//3.0; // z-offset of fluid
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
 var worms: [wormsDomain] Particle;
@@ -199,7 +199,7 @@ var ddx: [1..9] int;
 var ddy: [1..9] int;
 var hhead: [1..ncells] int; //
 var ipointto: [1..nworms*np+numPoints] int; // linked list, every particle points to another particle
-var nnab: [wormsDomain] int;
+var nnab: [wormsDomain] int = 1;
 var KEworm: [1..nworms*np] real;
 var KEworm_local: [1..nworms*np] real; // this is the for velocity minus the average velocity (tries to measure thermal fluctuations)
 var KEsol: [1..numSol] real;
@@ -273,7 +273,7 @@ proc main() {
         //writeln(itime);
         t = (itime:real) *dt;
 
-        if (itime % 100 == 0) {
+        if (itime % 1000 == 0) {
             xt.stop();
             total_time = xt.elapsed();
             var out_str:string = "Step: "+itime:string+"\t"+
@@ -472,6 +472,11 @@ proc update_pos(itime:int) {
        foreach i in 1..np {
             worms[iw,i].fx = worms[iw,i].fx/worms[iw,i].m;
             worms[iw,i].fy = worms[iw,i].fy/worms[iw,i].m;
+
+            //dissipation proportional to v relative to local average
+            worms[iw,i].fx = worms[iw,i].fx - diss*(worms[iw,i].vx - worms[iw,i].vxave);
+            worms[iw,i].fy = worms[iw,i].fy - diss*(worms[iw,i].vy - worms[iw,i].vyave);
+
             worms[iw,i].x = worms[iw,i].x + worms[iw,i].vx*dt + worms[iw, i].fx*dt2o2;
             worms[iw,i].y = worms[iw,i].y + worms[iw,i].vy*dt + worms[iw, i].fy*dt2o2;
             worms[iw,i].fxold = worms[iw,i].fx;
@@ -863,7 +868,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
         dx = solvent[i].x - worms[iw,ip].x;
         dy = solvent[i].y - worms[iw,ip].y;
         r2 = (dx*dx + dy*dy + dz*dz);
-        if (r2 <= r2cutsmall) {
+        if (r2 <= r2cut) {
             ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
             ffx = ffor*dx;
             ffy = ffor*dy;
@@ -881,7 +886,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
         dx = solvent[j].x - worms[iw,ip].x;
         dy = solvent[j].y - worms[iw,ip].y;
         r2 = (dx*dx + dy*dy + dz*dz);
-        if (r2 <= r2cutsmall) {
+        if (r2 <= r2cut) {
             ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
             ffx = ffor*dx;
             ffy = ffor*dy;
@@ -918,7 +923,7 @@ proc dogic_wall(iw:int,ip:int,ib:int){
         r = sqrt(r2);
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-        ffor = (1/r)**4.0;
+        ffor = (1/r)**4.0; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
@@ -978,10 +983,13 @@ proc update_vel() {
         foreach i in 1..np {
             worms[iw, i].vx += dto2*(worms[iw,i].fx + worms[iw,i].fxold);
             worms[iw, i].vy += dto2*(worms[iw,i].fy + worms[iw,i].fyold);
-            worms[iw, i].vxave = worms[iw, i].vxave/nnab[iw, i];
-            worms[iw, i].vyave = worms[iw, i].vyave/nnab[iw, i];
-            KEworm[iw*i] = 0.5*(worms[iw,i].vx * worms[iw,i].vx + worms[iw,i].vy * worms[iw,i].vy);
-            KEworm_local[iw*i] = 0.5*((worms[iw,i].vx-worms[iw,i].vxave) * (worms[iw,i].vx-worms[iw,i].vxave) + (worms[iw,i].vy-worms[iw,i].vyave) * (worms[iw,i].vy-worms[iw,i].vyave));
+            worms[iw, i].vxave = worms[iw, i].vxave/nnab[iw, i]:real;
+            worms[iw, i].vyave = worms[iw, i].vyave/nnab[iw, i]:real;
+            KEworm[iw*i] = 0.5*worms[iw,i].m*(worms[iw,i].vx * worms[iw,i].vx + worms[iw,i].vy * worms[iw,i].vy);
+            KEworm_local[iw*i] = 0.5*worms[iw,i].m*((worms[iw,i].vx-worms[iw,i].vxave) * (worms[iw,i].vx-worms[iw,i].vxave) + (worms[iw,i].vy-worms[iw,i].vyave) * (worms[iw,i].vy-worms[iw,i].vyave));
+            nnab[iw,i] = 1;
+            worms[iw,i].vxave = 0.0;
+            worms[iw,i].vyave = 0.0;
         }
     }
     fluid_vel(dt);
@@ -1331,7 +1339,7 @@ proc fluid_vel(dt_fluid:real) {
         solvent[i].vx += 0.5*dt_fluid*solvent[i].fx;
         solvent[i].vy += 0.5*dt_fluid*solvent[i].fy;
         // calculating kinetic energy here too
-        KEsol[i] = 0.5*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
+        KEsol[i] = 0.5*solvent[i].m*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
     }
 }
 
@@ -1561,7 +1569,7 @@ proc write_xyz(istep:int) {
     // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
     // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
     // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
-    writeln(filename,"\t",ic," lines written");
+    //writeln(filename,"\t",ic," lines written");
     //xyzfile.close();
     } catch e: Error {
         writeln(e);
@@ -1624,7 +1632,7 @@ proc write_xyzv(istep:int) {
     // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
     // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
     // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
-    write_log(logfile,filename+"\t"+ic:string+" lines written");
+    write_log(logfile,filename+"\t"+ic:string+" lines written",true);
     //xyzfile.close();
     } catch e: Error {
         writeln(e);
@@ -1665,8 +1673,10 @@ proc init_log(filename:string) {
     }
 }
 
-proc write_log(filename: string, out_str: string) {
-    writeln(out_str);
+proc write_log(filename: string, out_str: string, silent: bool = false) {
+    if silent == false {
+      writeln(out_str);
+    }
     var ret_int: int;
     ret_int = C.appendToFile(filename.c_str(),out_str.c_str());
     if ret_int != 0 {
