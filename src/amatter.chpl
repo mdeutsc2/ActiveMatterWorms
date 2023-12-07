@@ -32,7 +32,7 @@ config const np = 40,//16,
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
-            kbt = 0.5, //0.25
+            kbt = 0.0001, //0.25
             //numSol = 7000, // cardiod number of solution particles
             numSol = 6000,//8000, // disk number of solution particls
             sigma = 2.0;
@@ -364,8 +364,8 @@ proc update_pos(itime:int) {
             worms[iw,i].fy = worms[iw,i].fy/worms[iw,i].m;
 
             //dissipation proportional to v relative to local average
-            worms[iw,i].fx = worms[iw,i].fx - diss*(worms[iw,i].vx - worms[iw,i].vxave);
-            worms[iw,i].fy = worms[iw,i].fy - diss*(worms[iw,i].vy - worms[iw,i].vyave);
+            //worms[iw,i].fx = worms[iw,i].fx - diss*(worms[iw,i].vx - worms[iw,i].vxave);
+            //worms[iw,i].fy = worms[iw,i].fy - diss*(worms[iw,i].vy - worms[iw,i].vyave);
 
             worms[iw,i].x = worms[iw,i].x + worms[iw,i].vx*dt + worms[iw, i].fx*dt2o2;
             worms[iw,i].y = worms[iw,i].y + worms[iw,i].vy*dt + worms[iw, i].fy*dt2o2;
@@ -644,6 +644,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
     if (itype == 1) && (jtype == 1) {
         var dddx:real,dddy:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,dxi:real,dxj:real,
             ri:real,rj:real,r:real,dx:real,dy:real,dyi:real,dyj:real;
+        var dvx:real,dvy:real,rhatx:real,rhaty:real,omega:real,fdissx:real,fdissy:real,gauss:real,frand:real;
         var iworm:int,jworm:int,ip:int,jp:int,ip1:int,jp1:int,inogo:int;
         iworm = 1 + ((i - 1)/np):int;
         ip = i - np*(iworm - 1);
@@ -669,6 +670,29 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
                 worms[jworm,jp].fx -= ffx;
                 worms[iworm,ip].fy += ffy;
                 worms[jworm,jp].fy -= ffy;
+
+                 // DPD thermostat
+                //adding dissipative force
+                dvx = worms[jworm,jp].vx - worms[iworm,ip].vx;
+                dvy = worms[jworm,jp].vy - worms[iworm,ip].vy;
+                r = sqrt(r2);
+                rhatx = dx/r;
+                rhaty = dy/r;
+                omega = (1.0-r2/r2cutsmall);
+                fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
+                fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
+                worms[iworm,ip].fx -= fdissx;
+                worms[iworm,ip].fy -= fdissy;
+                worms[jworm,jp].fx += fdissx;
+                worms[jworm,jp].fy += fdissy;
+                // adding random forces
+                gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
+                gauss = randStream.getNext();
+                frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+                worms[iworm,ip].fx += frand*rhatx;
+                worms[iworm,ip].fy += frand*rhaty;
+                worms[jworm,jp].fx -= frand*rhatx;
+                worms[jworm,jp].fy -= frand*rhaty;
 
                 //vxave,vyave
                 worms[iworm,ip].vxave += worms[jworm,jp].vx;
