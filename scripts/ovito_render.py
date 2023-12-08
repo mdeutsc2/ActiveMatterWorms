@@ -196,8 +196,8 @@ def reencode_video(f,args):
     # create temporary directory and move all old mp4s to directory
     fold = f.split('.')[0] + "-264.mp4"
     os.rename(f,fold)
-    os.system("ffmpeg -i {0} -vcodec libx265 -crf 18 -c copy -tag:v hvc1 {1}".format(fold,f)) # needs hvc1 media tag for macos playback
-    # os.system("ffmpeg -i {0} -vcodec libx265 -crf 18 {1}".format(fold,f))
+    #os.system("ffmpeg -i {0} -vcodec libx265 -crf 18 -c copy -tag:v hvc1 {1}".format(fold,f)) # needs hvc1 media tag for macos playback
+    os.system("ffmpeg -i {0} -vcodec libx265 -crf 18 {1}".format(fold,f))
     os.remove(fold)
 
 def process_file(f,args):
