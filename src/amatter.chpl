@@ -15,11 +15,11 @@ const numTasks = here.numPUs();
 // configuration
 config const np = 40,//16,
             nworms = 300,//625,
-            nsteps = 4000000    ,//00,
+            nsteps = 12000000    ,//00,
             fdogic = 0.06,
             walldrive = true,
             fdogicwall = 0.001,
-            fdep = 0.1, // TODO: change to 4.0?
+            fdep = 0.2, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.02,
             dt = 0.005, //0.02
@@ -44,7 +44,7 @@ const worm_particle_mass = 4.0;
 const r2cut = rcut*rcut,
       rcutsmall = 2.0**(1.0/6.0),
       r2cutsmall = rcutsmall*rcutsmall,
-      rwall = 74,//125.0*rcutsmall*sqrt(2.0),
+      rwall = 124,//125.0*rcutsmall*sqrt(2.0),
       pi = 4.0*atan(1.0),
       twopi = 2*pi,
       pio4 = pi*0.25,
@@ -359,7 +359,7 @@ proc init_worms() {
 proc update_pos(itime:int) {
     //forall iw in 1..nworms {
     forall iw in 1..nworms {
-       foreach i in 1..np {
+       forall i in 1..np {
             worms[iw,i].fx = worms[iw,i].fx/worms[iw,i].m;
             worms[iw,i].fy = worms[iw,i].fy/worms[iw,i].m;
 
@@ -894,7 +894,7 @@ proc dogic_wall(iw:int,ip:int,ib:int){
 
 proc update_vel() {
     forall iw in 1..nworms {
-        foreach i in 1..np {
+        forall i in 1..np {
             worms[iw, i].vx += dto2*(worms[iw,i].fx + worms[iw,i].fxold);
             worms[iw, i].vy += dto2*(worms[iw,i].fy + worms[iw,i].fyold);
 
