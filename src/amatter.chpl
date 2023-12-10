@@ -165,7 +165,7 @@ proc main() {
             xt.stop();
             total_time += xt.elapsed();
             var out_str:string = "Step: "+itime:string+"\t"+
-                      (1000/xt.elapsed):string+"iter/s\tCalc:"+
+                      (1000/xt.elapsed()):string+"iter/s\tCalc:"+
                       ((ct.elapsed()/total_time)*100):string+"%\tIO:"+
                       ((wt.elapsed()/total_time)*100):string+" %\tElapsed:"+
                       total_time:string+" s";
