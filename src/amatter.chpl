@@ -163,14 +163,14 @@ proc main() {
 
         if (itime % 1000 == 0) {
             xt.stop();
-            total_time = xt.elapsed();
+            total_time += xt.elapsed();
             var out_str:string = "Step: "+itime:string+"\t"+
-                      (itime/total_time):string+"iter/s\tCalc:"+
+                      (1000/xt.elapsed):string+"iter/s\tCalc:"+
                       ((ct.elapsed()/total_time)*100):string+"%\tIO:"+
                       ((wt.elapsed()/total_time)*100):string+" %\tElapsed:"+
                       total_time:string+" s";
             write_log(logfile,out_str);
-            xt.start();
+            xt.restart();
             }
 	    ct.start();
         // first update positions and store old forces
