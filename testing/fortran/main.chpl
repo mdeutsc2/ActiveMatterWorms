@@ -9,6 +9,7 @@ use CTypes; // for chpl string -> c string pointer conversion
 extern {
         #include <stdlib.h>
         #include <math.h>
+        #include <omp.h>
 
         // static int test(const char *teststring) {
         //     printf("%s\n",teststring);

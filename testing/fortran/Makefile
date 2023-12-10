@@ -4,8 +4,6 @@ CHPL = chpl
 
 CHPLFLAGS = --print-callstack-on-error --ccflags=-fopenmp=libomp
 
-
-
 all: $(OUTPUT)
 
 $(OUTPUT): $(SOURCE)
