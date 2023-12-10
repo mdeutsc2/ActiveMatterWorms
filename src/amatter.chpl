@@ -14,12 +14,12 @@ import C; // import C-extension module for logging/appending
 const numTasks = here.numPUs();
 // configuration
 config const np = 40,//16,
-            nworms = 300,//625,
+            nworms = 400,//625,
             nsteps = 12000000    ,//00,
             fdogic = 0.06,
             walldrive = true,
             fdogicwall = 0.001,
-            fdep = 0.2, // TODO: change to 4.0?
+            fdep = 0.5, // TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.02,
             dt = 0.005, //0.02
@@ -168,7 +168,8 @@ proc main() {
                       (1000/xt.elapsed()):string+"iter/s\tCalc:"+
                       ((ct.elapsed()/total_time)*100):string+"%\tIO:"+
                       ((wt.elapsed()/total_time)*100):string+" %\tElapsed:"+
-                      total_time:string+" s";
+                      total_time:string+" s\t Est:"+
+                      ((nsteps-itime)*(total_time/itime)):string+" s";
             write_log(logfile,out_str);
             xt.restart();
             }
