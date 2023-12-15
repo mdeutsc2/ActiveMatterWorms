@@ -40,7 +40,7 @@ config const np = 80,//16,
 
 // these are parameters that are not commonly used
 const worm_particle_mass = 4.0;
-const L = 0.5; // thickness of cell
+const L = 3.2; // thickness of cell
 
 // variables
 const r2cut = rcut*rcut,
@@ -393,9 +393,11 @@ proc update_pos(itime:int) {
             // periodic boundary conditions top and bottom for worms
             //periodic boundary conditions
             if worms[iw,i].z > L {
-                worms[iw,i].z = worms[iw,i].z - L;
+                //worms[iw,i].z = worms[iw,i].z - L;
+                worms[iw,i].z = L;
             } else if worms[iw,i].z < 0.0 {
-                worms[iw,i].z = worms[iw,i].z + L;
+                //worms[iw,i].z = worms[iw,i].z + L;
+                worms[iw,i].z = 0;
             }
         }
     }
@@ -453,7 +455,7 @@ proc intraworm_forces() {
 
             x23 = x3 - x2;
             x34 = x4 - x3;
-            
+
             r23 = sqrt(x23*x23 + y23*y23 + z23*z23);
             r34 = sqrt(x34*x34 + y34*y34 + z34*z34);
 
@@ -484,6 +486,7 @@ proc intraworm_forces() {
             f4x = ff*(fac*x34 - x23);
             f4y = ff*(fac*y34 - y23);
             f4z = ff*(fac*z34 - z23);
+
             f3x = -f2x - f4x;
             f3y = -f2y - f4y;
             f3z = -f2z - f4z;
@@ -687,7 +690,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
             r2 = dddx**2 + dddy**2 + dddz**2;
             riijj = sqrt(r2);
             //add attractive force fdep between all pairs
-            if (r2 <= r2cut) {
+            if (r2 <= r2cutsmall) {
                 r2shift = rshift*rshift;
                 ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);// + fdep/riijj; //TODO: shoudl fdep = -?
                 //ffor = -48.0*(r2-r2shift)**(-7.0) + 24.0*(r2-r2shift)**(-4.0) + fdep/riijj;
@@ -713,7 +716,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
                 rhaty = dddy/r;
                 rhatz = dddz/r;
 
-                omega = (1.0-r2/r2cut);
+                omega = (1.0-r2/r2cutsmall);
 
                 fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhatx; //gamma = 1/damp (proportional to friction force)
                 fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhaty;
