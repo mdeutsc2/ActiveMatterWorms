@@ -65,73 +65,73 @@ void CreateConfigVarTable(void) {
   installConfigVar("numLocales", "int(64)", "Built-in", /* private = */ 0, /* deprecated = */ 0, "numLocales is deprecated"
                    , /* unstable = */ 0, "numLocales is unstable"
                    );
-  installConfigVar("np", "int(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "np is deprecated"
+  installConfigVar("np", "int(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "np is deprecated"
                    , /* unstable = */ 0, "np is unstable"
                    );
-  installConfigVar("nworms", "int(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "nworms is deprecated"
+  installConfigVar("nworms", "int(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "nworms is deprecated"
                    , /* unstable = */ 0, "nworms is unstable"
                    );
-  installConfigVar("nsteps", "int(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "nsteps is deprecated"
+  installConfigVar("nsteps", "int(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "nsteps is deprecated"
                    , /* unstable = */ 0, "nsteps is unstable"
                    );
-  installConfigVar("fdogic", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "fdogic is deprecated"
+  installConfigVar("fdogic", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fdogic is deprecated"
                    , /* unstable = */ 0, "fdogic is unstable"
                    );
-  installConfigVar("walldrive", "bool", "amatter", /* private = */ 0, /* deprecated = */ 0, "walldrive is deprecated"
+  installConfigVar("walldrive", "bool", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "walldrive is deprecated"
                    , /* unstable = */ 0, "walldrive is unstable"
                    );
-  installConfigVar("fdogicwall", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "fdogicwall is deprecated"
+  installConfigVar("fdogicwall", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fdogicwall is deprecated"
                    , /* unstable = */ 0, "fdogicwall is unstable"
                    );
-  installConfigVar("fdep", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "fdep is deprecated"
+  installConfigVar("fdep", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fdep is deprecated"
                    , /* unstable = */ 0, "fdep is unstable"
                    );
-  installConfigVar("fdepwall", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "fdepwall is deprecated"
+  installConfigVar("fdepwall", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fdepwall is deprecated"
                    , /* unstable = */ 0, "fdepwall is unstable"
                    );
-  installConfigVar("diss", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "diss is deprecated"
+  installConfigVar("diss", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "diss is deprecated"
                    , /* unstable = */ 0, "diss is unstable"
                    );
-  installConfigVar("dt", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "dt is deprecated"
+  installConfigVar("dt", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "dt is deprecated"
                    , /* unstable = */ 0, "dt is unstable"
                    );
-  installConfigVar("kspring", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "kspring is deprecated"
+  installConfigVar("kspring", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "kspring is deprecated"
                    , /* unstable = */ 0, "kspring is unstable"
                    );
-  installConfigVar("kbend", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "kbend is deprecated"
+  installConfigVar("kbend", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "kbend is deprecated"
                    , /* unstable = */ 0, "kbend is unstable"
                    );
-  installConfigVar("length0", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "length0 is deprecated"
+  installConfigVar("length0", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "length0 is deprecated"
                    , /* unstable = */ 0, "length0 is unstable"
                    );
-  installConfigVar("rcut", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "rcut is deprecated"
+  installConfigVar("rcut", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "rcut is deprecated"
                    , /* unstable = */ 0, "rcut is unstable"
                    );
-  installConfigVar("save_interval", "int(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "save_interval is deprecated"
+  installConfigVar("save_interval", "int(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "save_interval is deprecated"
                    , /* unstable = */ 0, "save_interval is unstable"
                    );
-  installConfigVar("boundary", "int(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "boundary is deprecated"
+  installConfigVar("boundary", "int(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "boundary is deprecated"
                    , /* unstable = */ 0, "boundary is unstable"
                    );
-  installConfigVar("fluid_cpl", "bool", "amatter", /* private = */ 0, /* deprecated = */ 0, "fluid_cpl is deprecated"
+  installConfigVar("fluid_cpl", "bool", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fluid_cpl is deprecated"
                    , /* unstable = */ 0, "fluid_cpl is unstable"
                    );
-  installConfigVar("debug", "bool", "amatter", /* private = */ 0, /* deprecated = */ 0, "debug is deprecated"
+  installConfigVar("debug", "bool", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "debug is deprecated"
                    , /* unstable = */ 0, "debug is unstable"
                    );
-  installConfigVar("thermo", "bool", "amatter", /* private = */ 0, /* deprecated = */ 0, "thermo is deprecated"
+  installConfigVar("thermo", "bool", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "thermo is deprecated"
                    , /* unstable = */ 0, "thermo is unstable"
                    );
-  installConfigVar("kbt", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "kbt is deprecated"
+  installConfigVar("kbt", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "kbt is deprecated"
                    , /* unstable = */ 0, "kbt is unstable"
                    );
-  installConfigVar("numSol", "int(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "numSol is deprecated"
+  installConfigVar("numSol", "int(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "numSol is deprecated"
                    , /* unstable = */ 0, "numSol is unstable"
                    );
-  installConfigVar("sigma", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "sigma is deprecated"
+  installConfigVar("sigma", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "sigma is deprecated"
                    , /* unstable = */ 0, "sigma is unstable"
                    );
-  installConfigVar("rshift", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "rshift is deprecated"
+  installConfigVar("rshift", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "rshift is deprecated"
                    , /* unstable = */ 0, "rshift is unstable"
                    );
 }

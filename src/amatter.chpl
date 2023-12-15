@@ -36,7 +36,7 @@ config const np = 80,//16,
             //numSol = 7000, // cardiod number of solution particles
             numSol = 6000,//8000, // disk number of solution particls
             sigma = 2.0,
-            rshift = 0.3; //rshift for worm crossover from bellar paper: https://arxiv.org/abs/2306.01180 note: 0.5 is too high
+            rshift = 0.0; //rshift for worm crossover from bellar paper: https://arxiv.org/abs/2306.01180 note: 0.5 is too high
 
 // these are parameters that are not commonly used
 const worm_particle_mass = 4.0;
@@ -692,7 +692,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
                 // adding random forces
                 gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
                 gauss = randStream.getNext();
-                frand = 0.5*(1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+                frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
                 worms[iworm,ip].fx += frand*rhatx;
                 worms[iworm,ip].fy += frand*rhaty;
                 worms[jworm,jp].fx -= frand*rhatx;
