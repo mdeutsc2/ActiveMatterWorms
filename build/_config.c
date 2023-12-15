@@ -131,6 +131,9 @@ void CreateConfigVarTable(void) {
   installConfigVar("sigma", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "sigma is deprecated"
                    , /* unstable = */ 0, "sigma is unstable"
                    );
+  installConfigVar("rshift", "real(64)", "amatter", /* private = */ 0, /* deprecated = */ 0, "rshift is deprecated"
+                   , /* unstable = */ 0, "rshift is unstable"
+                   );
 }
 
 

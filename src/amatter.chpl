@@ -13,13 +13,13 @@ import C; // import C-extension module for logging/appending
 
 const numTasks = here.numPUs();
 // configuration
-config const np = 40,//16,
-            nworms = 400,//625,
-            nsteps = 12000000    ,//00,
+config const np = 80,//16,
+            nworms = 200,//625,
+            nsteps = 2000000    ,//00,
             fdogic = 0.06,
             walldrive = true,
             fdogicwall = 0.001,
-            fdep = 0.5, // TODO: change to 4.0?
+            fdep = 1.5,// TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.02,
             dt = 0.005, //0.02
@@ -27,15 +27,16 @@ config const np = 40,//16,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
-            save_interval = 4000,
+            save_interval = 1000, //4000;
             boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
-            kbt = 0.0001, //0.25
+            kbt = 0.00001, //0.25
             //numSol = 7000, // cardiod number of solution particles
             numSol = 6000,//8000, // disk number of solution particls
-            sigma = 2.0;
+            sigma = 2.0,
+            rshift = 0.3; //rshift for worm crossover from bellar paper: https://arxiv.org/abs/2306.01180 note: 0.5 is too high
 
 // these are parameters that are not commonly used
 const worm_particle_mass = 4.0;
@@ -208,7 +209,7 @@ proc main() {
     //finalize();
     xt.stop();
     //write_macro(nsteps);
-    write_log(logfile,"Total Time:"+xt.elapsed():string+" s");
+    write_log(logfile,"Total Time:"+total_time:string+" s");
 }
 
 // //functions
@@ -644,7 +645,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
     //worm-worm interaction
     if (itype == 1) && (jtype == 1) {
         var dddx:real,dddy:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,dxi:real,dxj:real,
-            ri:real,rj:real,r:real,dx:real,dy:real,dyi:real,dyj:real;
+            ri:real,rj:real,r:real,dx:real,dy:real,dyi:real,dyj:real,r2shift:real;
         var dvx:real,dvy:real,rhatx:real,rhaty:real,omega:real,fdissx:real,fdissy:real,gauss:real,frand:real;
         var iworm:int,jworm:int,ip:int,jp:int,ip1:int,jp1:int,inogo:int;
         iworm = 1 + ((i - 1)/np):int;
@@ -664,7 +665,9 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
             riijj = sqrt(r2);
             //add attractive force fdep between all pairs
             if (r2 <= r2cutsmall) {
-                ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
+                r2shift = rshift*rshift;
+                //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
+                ffor = -48.0*(r2-r2shift)**(-7.0) + 24.0*(r2-r2shift)**(-4.0) + fdep/riijj;
                 ffx = ffor*dddx;
                 ffy = ffor*dddy;
                 worms[iworm,ip].fx += ffx;
@@ -689,7 +692,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
                 // adding random forces
                 gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
                 gauss = randStream.getNext();
-                frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+                frand = 0.5*(1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
                 worms[iworm,ip].fx += frand*rhatx;
                 worms[iworm,ip].fy += frand*rhaty;
                 worms[jworm,jp].fx -= frand*rhatx;
@@ -1436,7 +1439,7 @@ proc init_binspace() {
 proc write_xyz(istep:int) {
     var dx :real, dy:real, xang:real, rx:real,ry:real,dot:real;
     var ic:int;
-    var filename:string = "amatter%{07u}.xyz".format(istep);
+    var filename:string = "amatter%{010u}.xyz".format(istep);
     //var filename = "amatter" + (istep:string) + ".xyz";
     try {
     var xyzfile = open(filename, ioMode.cw);
@@ -1499,7 +1502,7 @@ proc write_xyz(istep:int) {
 proc write_xyzv(istep:int) {
     var dx :real, dy:real, xang:real, rx:real,ry:real,dot:real;
     var ic:int;
-    var filename:string = "amatter%{07u}.xyz".format(istep);
+    var filename:string = "amatter%{010u}.xyz".format(istep);
     //var filename = "amatter" + (istep:string) + ".xyz";
     try {
     var xyzfile = open(filename, ioMode.cw);
