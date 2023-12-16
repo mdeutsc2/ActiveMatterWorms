@@ -28,7 +28,7 @@ config const np = 80,//16,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
             save_interval = 1000, //4000;
-            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
+            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel, 4 = torus
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
