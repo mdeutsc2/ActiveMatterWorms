@@ -8,16 +8,15 @@ use CTypes; // for chpl string -> c string pointer conversion
 // user-defined modules
 import Structs;
 import C; // import C-extension module for logging/appending
-//use Structs; //imports Particle and Bin structures
-//use Worms;
+
 
 const numTasks = here.numPUs();
 // configuration
-config const np = 80,//16,
-            nworms = 200,//625,
-            nsteps = 2000000    ,//00,
+config const np = 400,//16,
+            nworms = 216,//625,
+            nsteps = 12000000    ,//00,
             fdogic = 0.06,
-            walldrive = true,
+            walldrive = false,
             fdogicwall = 0.001,
             fdep = 0.1,// TODO: change to 4.0?
             fdepwall = 0.0,
@@ -27,26 +26,24 @@ config const np = 80,//16,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
-            save_interval = 1000, //4000;
-            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel
+            save_interval = 4000,
+            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel, 4 = torus
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
             kbt = 0.00001, //0.25
             //numSol = 7000, // cardiod number of solution particles
-            numSol = 6000,//8000, // disk number of solution particls
+            numSol = 4000,//8000, // disk number of solution particls
             sigma = 2.0,
-            rshift = 0.0; //rshift for worm crossover from bellar paper: https://arxiv.org/abs/2306.01180 note: 0.5 is too high
+            worm_particle_mass = 4.0,
+            L = 1.5; // thickness of cell
 
-// these are parameters that are not commonly used
-const worm_particle_mass = 4.0;
-const L = 3.2; // thickness of cell
-
+const io_interval = 500;
 // variables
 const r2cut = rcut*rcut,
       rcutsmall = 2.0**(1.0/6.0),
       r2cutsmall = rcutsmall*rcutsmall,
-      rwall = 124,//125.0*rcutsmall*sqrt(2.0),
+      rwall = 199,//125.0*rcutsmall*sqrt(2.0),
       pi = 4.0*atan(1.0),
       twopi = 2*pi,
       pio4 = pi*0.25,
@@ -166,17 +163,16 @@ proc main() {
         //writeln(itime);
         t = (itime:real) *dt;
 
-        if (itime % 1000 == 0) {
+        if (itime % io_interval == 0) {
             xt.stop();
             total_time += xt.elapsed();
             var out_str:string = "Step: "+itime:string+"\t"+
-                      (1000/xt.elapsed()):string+"iter/s\tCalc:"+
+                      (io_interval/xt.elapsed()):string+"iter/s\tCalc:"+
                       ((ct.elapsed()/total_time)*100):string+"%\tIO:"+
                       ((wt.elapsed()/total_time)*100):string+" %\tElapsed:"+
                       total_time:string+" s\t Est:"+
                       ((nsteps-itime)*(total_time/itime)):string+" s";
             write_log(logfile,out_str);
-            writeln((+ reduce worms.fz)/nworms*np,"\t",(+ reduce worms.z)/nworms*np);
             xt.restart();
             }
 	    ct.start();
@@ -275,7 +271,7 @@ proc init_worms() {
                 thetanow += dth;
                 worms[iw,i].x = hxo2 + r*cos(thetanow);
                 worms[iw,i].y = hyo2 + r*sin(thetanow);
-                worms[iw,i].z = 0.0;
+                worms[iw,i].z = randStream.getNext()*(L);
                 xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
                 //TODO give them an initial velocity going around the circle
                 worms[iw,i].ptype = 1;
@@ -356,7 +352,7 @@ proc init_worms() {
             for ip in 1..np {
                 worms[iw,ip].x = savex[np+1-ip];
                 worms[iw,ip].y = savey[np+1-ip];
-                worms[iw,ip].z = savez[np+1-ip] + 0.1;
+                worms[iw,ip].z = savez[np+1-ip];
             }
         }
     }
@@ -383,9 +379,11 @@ proc update_pos(itime:int) {
             worms[iw,i].x = worms[iw,i].x + worms[iw,i].vx*dt + worms[iw, i].fx*dt2o2;
             worms[iw,i].y = worms[iw,i].y + worms[iw,i].vy*dt + worms[iw, i].fy*dt2o2;
             worms[iw,i].z = worms[iw,i].z + worms[iw,i].vz*dt + worms[iw, i].fz*dt2o2;
+
             worms[iw,i].fxold = worms[iw,i].fx;
             worms[iw,i].fyold = worms[iw,i].fy;
             worms[iw,i].fzold = worms[iw,i].fz;
+
             worms[iw,i].fx = 0.0;
             worms[iw,i].fy = 0.0;
             worms[iw,i].fz = 0.0;
@@ -397,7 +395,7 @@ proc update_pos(itime:int) {
                 worms[iw,i].z = L;
             } else if worms[iw,i].z < 0.0 {
                 //worms[iw,i].z = worms[iw,i].z + L;
-                worms[iw,i].z = 0;
+                worms[iw,i].z = 0.0;
             }
         }
     }
@@ -691,8 +689,7 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
             riijj = sqrt(r2);
             //add attractive force fdep between all pairs
             if (r2 <= r2cutsmall) {
-                r2shift = rshift*rshift;
-                ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);// + fdep/riijj; //TODO: shoudl fdep = -?
+                ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
                 //ffor = -48.0*(r2-r2shift)**(-7.0) + 24.0*(r2-r2shift)**(-4.0) + fdep/riijj;
                 ffx = ffor*dddx;
                 ffy = ffor*dddy;
@@ -720,15 +717,15 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
 
                 fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhatx; //gamma = 1/damp (proportional to friction force)
                 fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhaty;
-                fdissz = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhatz;
+                //fdissz = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhatz;
 
                 worms[iworm,ip].fx -= fdissx;
                 worms[iworm,ip].fy -= fdissy;
-                worms[iworm,ip].fz -= fdissz;
+                //worms[iworm,ip].fz -= fdissz;
 
                 worms[jworm,jp].fx += fdissx;
                 worms[jworm,jp].fy += fdissy;
-                worms[jworm,jp].fz += fdissz;
+                //worms[jworm,jp].fz += fdissz;
 
                 // adding random forces
                 gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
@@ -737,11 +734,11 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
 
                 worms[iworm,ip].fx += frand*rhatx;
                 worms[iworm,ip].fy += frand*rhaty;
-                worms[iworm,ip].fz += frand*rhatz;
+                //worms[iworm,ip].fz += frand*rhatz;
 
                 worms[jworm,jp].fx -= frand*rhatx;
                 worms[jworm,jp].fy -= frand*rhaty;
-                worms[jworm,jp].fz -= frand*rhatz;
+                //worms[jworm,jp].fz -= frand*rhatz;
 
                 //vxave,vyave
                 worms[iworm,ip].vxave += worms[jworm,jp].vx;
@@ -958,7 +955,7 @@ proc update_vel() {
         forall i in 1..np {
             worms[iw, i].vx += dto2*(worms[iw,i].fx + worms[iw,i].fxold);
             worms[iw, i].vy += dto2*(worms[iw,i].fy + worms[iw,i].fyold);
-            worms[iw, i].vz += dto2*(worms[iw,i].fz + worms[iw,i].fzold);
+            //worms[iw, i].vz += dto2*(worms[iw,i].fz + worms[iw,i].fzold);
 
             worms[iw, i].vxave = worms[iw, i].vxave/nnab[iw, i]:real;
             worms[iw, i].vyave = worms[iw, i].vyave/nnab[iw, i]:real;
@@ -1698,6 +1695,8 @@ proc write_params() {
         myFileWriter.writeln("numPoints\t",numPoints.type:string,"\t",numPoints);
         myFileWriter.writeln("numSol\t",numSol.type:string,"\t",numSol);
         myFileWriter.writeln("fluid_offset\t",fluid_offset.type:string,"\t",fluid_offset);
+        myFileWriter.writeln("worm_particl_mass\t",worm_particle_mass.type:string,"\t",worm_particle_mass);
+        myFileWriter.writeln("L\t",L.type:string,"\t",L);
         paramsfile.fsync();
         write_log(logfile,"params.dat written");
     } catch e: Error {

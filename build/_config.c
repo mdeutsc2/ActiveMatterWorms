@@ -131,8 +131,11 @@ void CreateConfigVarTable(void) {
   installConfigVar("sigma", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "sigma is deprecated"
                    , /* unstable = */ 0, "sigma is unstable"
                    );
-  installConfigVar("rshift", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "rshift is deprecated"
-                   , /* unstable = */ 0, "rshift is unstable"
+  installConfigVar("worm_particle_mass", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "worm_particle_mass is deprecated"
+                   , /* unstable = */ 0, "worm_particle_mass is unstable"
+                   );
+  installConfigVar("L", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "L is deprecated"
+                   , /* unstable = */ 0, "L is unstable"
                    );
 }
 

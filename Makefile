@@ -2,8 +2,9 @@
 
 CHPL = chpl
 SRCDIR = src/
-SOURCE = $(SRCDIR)amatter.chpl
-#SOURCE = $(SRCDIR)amatter_new_gpu.chpl
+#SOURCE = $(SRCDIR)amatter.chpl
+SOURCE = $(SRCDIR)amatter3d.chpl
+#SOURCE = $(SRCDIR)gpu/amatter_new_gpu.chpl
 BUILDDIR = build/
 OUTPUT = amatter.x
 
