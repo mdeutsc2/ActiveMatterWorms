@@ -37,6 +37,7 @@ def get_md5(input_string,md5_file_string):
 def main():
     parser = argparse.ArgumentParser(description='Example script with command-line option')
     parser.add_argument('input_string', type=str, help='Input string from command line')
+    parser.add_argument("-i","--intermediate",help="generates an intermediate file for visualization",default=False)
     parser.add_argument("-d","--delete",help="delete raw files after compression",default=True)
     parser.add_argument("-c","--compresslevel",help="compression level for zlib",default=9)
 
@@ -64,20 +65,21 @@ def main():
     merged_file.close()
     get_md5(input_string,input_string.split(".")[0])
     
-    print('compressing data...')
-    # zipping up the raw data files
-    loczip = input_string.split(".")[0]+".zip"
-    with zipfile.ZipFile(loczip,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=args.compresslevel) as zf:
-        for i,t in tqdm.tqdm(enumerate(xyzfilelist),total=len(xyzfilelist)):
-            zf.write(t,arcname=xyzfile_basenames[i])
-    print(len(xyzfilelist)," files (",human_size(total_size),") >>> ",loczip,"(",human_size(getsize(loczip)),")")
+    if not args.intermediate:
+        print('compressing data...')
+        # zipping up the raw data files
+        loczip = input_string.split(".")[0]+".zip"
+        with zipfile.ZipFile(loczip,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=args.compresslevel) as zf:
+            for i,t in tqdm.tqdm(enumerate(xyzfilelist),total=len(xyzfilelist)):
+                zf.write(t,arcname=xyzfile_basenames[i])
+        print(len(xyzfilelist)," files (",human_size(total_size),") >>> ",loczip,"(",human_size(getsize(loczip)),")")
 
 
-    get_md5(loczip,loczip)
-    print("Removing duplicate files...?",args.delete)
-    if args.delete:
-        for f in xyzfilelist:
-            remove(f)
+        get_md5(loczip,loczip)
+        print("Removing duplicate files...?",args.delete)
+        if args.delete:
+            for f in xyzfilelist:
+                remove(f)
     
     
     
