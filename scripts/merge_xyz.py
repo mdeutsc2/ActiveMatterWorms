@@ -63,9 +63,9 @@ def main():
         total_size += getsize(filename)
 
     merged_file.close()
-    get_md5(input_string,input_string.split(".")[0])
+    if args.intermediate == False:
+        get_md5(input_string,input_string.split(".")[0])
     
-    if not args.intermediate:
         print('compressing data...')
         # zipping up the raw data files
         loczip = input_string.split(".")[0]+".zip"
