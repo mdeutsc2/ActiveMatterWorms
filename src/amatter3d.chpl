@@ -12,13 +12,13 @@ import C; // import C-extension module for logging/appending
 
 const numTasks = here.numPUs();
 // configuration
-config const np = 400,//16,
-            nworms = 216,//625,
+config const np = 100,//16,
+            nworms = 500,//625,
             nsteps = 12000000    ,//00,
             fdogic = 0.06,
-            walldrive = false,
+            walldrive = true,
             fdogicwall = 0.001,
-            fdep = 0.1,// TODO: change to 4.0?
+            fdep = 1.0,// TODO: change to 4.0?
             fdepwall = 0.0,
             diss = 0.02,
             dt = 0.005, //0.02
@@ -36,7 +36,7 @@ config const np = 400,//16,
             numSol = 4000,//8000, // disk number of solution particls
             sigma = 2.0,
             worm_particle_mass = 4.0,
-            L = 1.5; // thickness of cell
+            L = 0.75; // thickness of cell
 
 const io_interval = 500;
 // variables
@@ -66,7 +66,7 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
-      numPoints = 1200,//589, //number of boundary points (for circle w/ r-75)
+      numPoints = 3000,//1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = rcutsmall*sigma;//3.0; // z-offset of fluid
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
@@ -141,13 +141,13 @@ proc main() {
     update_cells(0);
     //equilibrate the fluid
     if (fluid_cpl) {
-    //   for istep in 1..5000 {
-    //       var ioper = 5000/10;
-    //       if (istep%ioper == 0) {
-    //           write_log(logfile,"fluid equilibration..."+istep:string);
-    //       }
-    //       fluid_step(0,dt);
-    //   }
+      // for istep in 1..5000 {
+      //     var ioper = 5000/10;
+      //     if (istep%ioper == 0) {
+      //         write_log(logfile,"fluid equilibration..."+istep:string);
+      //     }
+      //     fluid_step(0,dt);
+      // }
     }
     update_cells(0); //again after fluid
     write_log(logfile,"fluid equilibrated...5000dt");
@@ -235,7 +235,7 @@ proc init_worms() {
     ddy[8] = -1;
     ddx[9] = 0;
     ddy[9] = 0;
-    var thetanow = 5.0*pi :real;
+    var thetanow = 5.0*pi :real; // changes the initial radius of annulus
     var rmin = a*thetanow;
     write_log(logfile,"nworms\t"+nworms:string);
     write_log(logfile,"np\t"+np:string);
@@ -664,159 +664,10 @@ proc calc_forces(istep:int,dt:real) {
     }
 }
 
-proc cell_forces(i:int,j:int,itype:int,jtype:int) {
+inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
     //worm-worm interaction 3D
     if (itype == 1) && (jtype == 1) {
-        var dddx:real,dddy:real,dddz:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,ffz:real,dxi:real,dxj:real,
-            ri:real,rj:real,r:real,dx:real,dy:real,dz:real,dyi:real,dyj:real,dzi:real,dzj:real,r2shift:real;
-        var dvx:real,dvy:real,dvz:real,rhatx:real,rhaty:real,rhatz:real,omega:real,fdissx:real,fdissy:real,fdissz:real,gauss:real,frand:real;
-        var iworm:int,jworm:int,ip:int,jp:int,ip1:int,jp1:int,inogo:int;
-        iworm = 1 + ((i - 1)/np):int;
-        ip = i - np*(iworm - 1);
-        jworm = 1 + ((j - 1)/np):int;
-        jp = j - np*(jworm - 1);
-
-        inogo = 0;
-        if ((iworm == jworm) && (abs(ip-jp) <= 2)) {
-            // on the same worm and close means no interaction calculated here
-            inogo = 1;
-        }
-        if (inogo == 0) {
-            dddx = worms[jworm, jp].x - worms[iworm, ip].x;
-            dddy = worms[jworm, jp].y - worms[iworm, ip].y;
-            dddz = worms[jworm, jp].z - worms[iworm, ip].z;
-            r2 = dddx**2 + dddy**2 + dddz**2;
-            riijj = sqrt(r2);
-            //add attractive force fdep between all pairs
-            if (r2 <= r2cutsmall) {
-                ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
-                //ffor = -48.0*(r2-r2shift)**(-7.0) + 24.0*(r2-r2shift)**(-4.0) + fdep/riijj;
-                ffx = ffor*dddx;
-                ffy = ffor*dddy;
-                ffz = ffor*dddz;
-                worms[iworm,ip].fx += ffx;
-                worms[jworm,jp].fx -= ffx;
-                worms[iworm,ip].fy += ffy;
-                worms[jworm,jp].fy -= ffy;
-                worms[iworm,ip].fz += ffz;
-                worms[jworm,jp].fz -= ffz;
-                
-
-                 // DPD thermostat
-                //adding dissipative force
-                dvx = worms[jworm,jp].vx - worms[iworm,ip].vx;
-                dvy = worms[jworm,jp].vy - worms[iworm,ip].vy;
-                dvz = worms[jworm,jp].vz - worms[iworm,ip].vz;
-
-                r = sqrt(r2);
-                rhatx = dddx/r;
-                rhaty = dddy/r;
-                rhatz = dddz/r;
-
-                omega = (1.0-r2/r2cutsmall);
-
-                fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhatx; //gamma = 1/damp (proportional to friction force)
-                fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhaty;
-                //fdissz = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhatz;
-
-                worms[iworm,ip].fx -= fdissx;
-                worms[iworm,ip].fy -= fdissy;
-                //worms[iworm,ip].fz -= fdissz;
-
-                worms[jworm,jp].fx += fdissx;
-                worms[jworm,jp].fy += fdissy;
-                //worms[jworm,jp].fz += fdissz;
-
-                // adding random forces
-                gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
-                gauss = randStream.getNext();
-                frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
-
-                worms[iworm,ip].fx += frand*rhatx;
-                worms[iworm,ip].fy += frand*rhaty;
-                //worms[iworm,ip].fz += frand*rhatz;
-
-                worms[jworm,jp].fx -= frand*rhatx;
-                worms[jworm,jp].fy -= frand*rhaty;
-                //worms[jworm,jp].fz -= frand*rhatz;
-
-                //vxave,vyave
-                worms[iworm,ip].vxave += worms[jworm,jp].vx;
-                worms[iworm,ip].vyave += worms[jworm,jp].vy;
-                worms[iworm,ip].vzave += worms[jworm,jp].vz;
-
-                worms[jworm,jp].vxave += worms[iworm,ip].vx;
-                worms[jworm,jp].vyave += worms[iworm,ip].vy;
-                worms[jworm,jp].vzave += worms[iworm,ip].vz;
-
-                nnab[iworm,ip] += 1;
-                nnab[jworm,jp] += 1;
-
-                //add 'dogic drive' to interacting pairs
-                //first calculate unit vectors along each worm
-                ip1 = ip + 1;
-                if (ip1 <= np) {
-                    dxi = worms[iworm,ip1].x - worms[iworm, ip].x;
-                    dyi = worms[iworm,ip1].y - worms[iworm, ip].y;
-                    dzi = worms[iworm,ip1].z - worms[iworm, ip].z;
-                } else {
-                    dxi = worms[iworm, ip].x - worms[iworm, ip - 1].x;
-                    dyi = worms[iworm, ip].y - worms[iworm, ip - 1].y;
-                    dzi = worms[iworm, ip].z - worms[iworm, ip - 1].z;
-                }
-
-                jp1 = jp + 1;
-                if (jp1 <= np) {
-                    dxj = worms[jworm, jp1].x - worms[jworm, jp].x;
-                    dyj = worms[jworm, jp1].y - worms[jworm, jp].y;
-                    dzj = worms[jworm, jp1].z - worms[jworm, jp].z;
-                } else {
-                    dxj = worms[jworm, jp].x - worms[jworm, jp - 1].x;
-                    dyj = worms[jworm, jp].y - worms[jworm, jp - 1].y;
-                    dzj = worms[jworm, jp].z - worms[jworm, jp - 1].z;
-                }
-
-
-                //if the two vectors have any component pointing in opposite directions
-                if (dxi*dxj + dyi*dyj + dzi*dzj<= 0.0) {
-                    //normalize those vectors to make them unit vectors
-                    ri = sqrt(dxi*dxi + dyi*dyi *dzi*dzi);
-                    dxi = dxi/ri;
-                    dyi = dyi/ri;
-                    dzi = dzi/ri;
-
-                    rj = sqrt(dxj*dxj + dyj*dyj + dzj*dzj);
-                    dxj = dxj/rj;
-                    dyj = dyj/rj;
-                    dzj = dzj/rj;
-                    //now they are both unit vectors. Find the direction for the force...
-
-                    dx = (dxi - dxj)/2.0;
-                    dy = (dyi - dyj)/2.0;
-                    dz = (dzi - dzj)/2.0;
-
-                    //normalize
-
-                    r = sqrt(dx*dx + dy*dy + dz*dz);
-                    dx = dx/r;
-                    dy = dy/r;
-                    dz = dz/r;
-
-                    //add an extra attractive component where kinesin drive is present
-
-                    ffx = fdogic*(dx) + 0.7*dddx/riijj;
-                    ffy = fdogic*(dy) + 0.7*dddy/riijj;
-                    ffz = fdogic*(dz) + 0.7*dddz/riijj;
-
-                    worms[iworm,ip].fx += ffx;
-                    worms[jworm,jp].fx -= ffx;
-                    worms[iworm,ip].fy += ffy;
-                    worms[jworm,jp].fy -= ffy;
-                    worms[iworm,ip].fz += ffz;
-                    worms[jworm,jp].fz -= ffz;
-                }
-            }
-        }
+        worm_cell_forces(i,j);
     }
     //worm-boundary interaction 2D
     if ((itype == 1) && (jtype == 3)) {
@@ -880,7 +731,160 @@ proc cell_forces(i:int,j:int,itype:int,jtype:int) {
     }
 }
 
-proc dogic_wall(iw:int,ip:int,ib:int){
+inline proc worm_cell_forces(i:int,j:int) {
+   var dddx:real,dddy:real,dddz:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,ffz:real,dxi:real,dxj:real,
+       ri:real,rj:real,r:real,dx:real,dy:real,dz:real,dyi:real,dyj:real,dzi:real,dzj:real,r2shift:real;
+   var dvx:real,dvy:real,dvz:real,rhatx:real,rhaty:real,rhatz:real,omega:real,fdissx:real,fdissy:real,fdissz:real,gauss:real,frand:real;
+   var iworm:int,jworm:int,ip:int,jp:int,ip1:int,jp1:int,inogo:int;
+   iworm = 1 + ((i - 1)/np):int;
+   ip = i - np*(iworm - 1);
+   jworm = 1 + ((j - 1)/np):int;
+   jp = j - np*(jworm - 1);
+
+   inogo = 0;
+   if ((iworm == jworm) && (abs(ip-jp) <= 2)) {
+      // on the same worm and close means no interaction calculated here
+      inogo = 1;
+   }
+   if (inogo == 0) {
+      dddx = worms[jworm, jp].x - worms[iworm, ip].x;
+      dddy = worms[jworm, jp].y - worms[iworm, ip].y;
+      dddz = worms[jworm, jp].z - worms[iworm, ip].z;
+      r2 = dddx**2 + dddy**2 + dddz**2;
+      riijj = sqrt(r2);
+      //add attractive force fdep between all pairs
+      if (r2 <= r2cutsmall) {
+            ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
+            //ffor = -48.0*(r2-r2shift)**(-7.0) + 24.0*(r2-r2shift)**(-4.0) + fdep/riijj;
+            ffx = ffor*dddx;
+            ffy = ffor*dddy;
+            ffz = ffor*dddz;
+            worms[iworm,ip].fx += ffx;
+            worms[jworm,jp].fx -= ffx;
+            worms[iworm,ip].fy += ffy;
+            worms[jworm,jp].fy -= ffy;
+            worms[iworm,ip].fz += ffz;
+            worms[jworm,jp].fz -= ffz;
+            
+
+            // DPD thermostat
+            //adding dissipative force
+            dvx = worms[jworm,jp].vx - worms[iworm,ip].vx;
+            dvy = worms[jworm,jp].vy - worms[iworm,ip].vy;
+            dvz = worms[jworm,jp].vz - worms[iworm,ip].vz;
+
+            r = sqrt(r2);
+            rhatx = dddx/r;
+            rhaty = dddy/r;
+            rhatz = dddz/r;
+
+            omega = (1.0-r2/r2cutsmall);
+
+            fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhatx; //gamma = 1/damp (proportional to friction force)
+            fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhaty;
+            //fdissz = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhatz;
+
+            worms[iworm,ip].fx -= fdissx;
+            worms[iworm,ip].fy -= fdissy;
+            //worms[iworm,ip].fz -= fdissz;
+
+            worms[jworm,jp].fx += fdissx;
+            worms[jworm,jp].fy += fdissy;
+            //worms[jworm,jp].fz += fdissz;
+
+            // adding random forces
+            gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
+            gauss = randStream.getNext();
+            frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+
+            worms[iworm,ip].fx += frand*rhatx;
+            worms[iworm,ip].fy += frand*rhaty;
+            //worms[iworm,ip].fz += frand*rhatz;
+
+            worms[jworm,jp].fx -= frand*rhatx;
+            worms[jworm,jp].fy -= frand*rhaty;
+            //worms[jworm,jp].fz -= frand*rhatz;
+
+            //vxave,vyave
+            worms[iworm,ip].vxave += worms[jworm,jp].vx;
+            worms[iworm,ip].vyave += worms[jworm,jp].vy;
+            worms[iworm,ip].vzave += worms[jworm,jp].vz;
+
+            worms[jworm,jp].vxave += worms[iworm,ip].vx;
+            worms[jworm,jp].vyave += worms[iworm,ip].vy;
+            worms[jworm,jp].vzave += worms[iworm,ip].vz;
+
+            nnab[iworm,ip] += 1;
+            nnab[jworm,jp] += 1;
+
+            //add 'dogic drive' to interacting pairs
+            //first calculate unit vectors along each worm
+            ip1 = ip + 1;
+            if (ip1 <= np) {
+               dxi = worms[iworm,ip1].x - worms[iworm, ip].x;
+               dyi = worms[iworm,ip1].y - worms[iworm, ip].y;
+               dzi = worms[iworm,ip1].z - worms[iworm, ip].z;
+            } else {
+               dxi = worms[iworm, ip].x - worms[iworm, ip - 1].x;
+               dyi = worms[iworm, ip].y - worms[iworm, ip - 1].y;
+               dzi = worms[iworm, ip].z - worms[iworm, ip - 1].z;
+            }
+
+            jp1 = jp + 1;
+            if (jp1 <= np) {
+               dxj = worms[jworm, jp1].x - worms[jworm, jp].x;
+               dyj = worms[jworm, jp1].y - worms[jworm, jp].y;
+               dzj = worms[jworm, jp1].z - worms[jworm, jp].z;
+            } else {
+               dxj = worms[jworm, jp].x - worms[jworm, jp - 1].x;
+               dyj = worms[jworm, jp].y - worms[jworm, jp - 1].y;
+               dzj = worms[jworm, jp].z - worms[jworm, jp - 1].z;
+            }
+
+
+            //if the two vectors have any component pointing in opposite directions
+            if (dxi*dxj + dyi*dyj + dzi*dzj<= 0.0) {
+               //normalize those vectors to make them unit vectors
+               ri = sqrt(dxi*dxi + dyi*dyi *dzi*dzi);
+               dxi = dxi/ri;
+               dyi = dyi/ri;
+               dzi = dzi/ri;
+
+               rj = sqrt(dxj*dxj + dyj*dyj + dzj*dzj);
+               dxj = dxj/rj;
+               dyj = dyj/rj;
+               dzj = dzj/rj;
+               //now they are both unit vectors. Find the direction for the force...
+
+               dx = (dxi - dxj)/2.0;
+               dy = (dyi - dyj)/2.0;
+               dz = (dzi - dzj)/2.0;
+
+               //normalize
+
+               r = sqrt(dx*dx + dy*dy + dz*dz);
+               dx = dx/r;
+               dy = dy/r;
+               dz = dz/r;
+
+               //add an extra attractive component where kinesin drive is present
+
+               ffx = fdogic*(dx) + 0.7*dddx/riijj;
+               ffy = fdogic*(dy) + 0.7*dddy/riijj;
+               ffz = fdogic*(dz) + 0.7*dddz/riijj;
+
+               worms[iworm,ip].fx += ffx;
+               worms[jworm,jp].fx -= ffx;
+               worms[iworm,ip].fy += ffy;
+               worms[jworm,jp].fy -= ffy;
+               worms[iworm,ip].fz += ffz;
+               worms[jworm,jp].fz -= ffz;
+            }
+      }
+   }
+}
+
+inline proc dogic_wall(iw:int,ip:int,ib:int){
     var dx:real, dy:real, r:real, r2:real, th:real,
         xwall:real, ywall:real, rr2:real, ffor:real,
         dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
@@ -1173,7 +1177,7 @@ proc init_fluid() {
     writeln("fluid init done");
 }
 
-proc lj_thermo(i:int,j:int,r2cut_local:real) {
+inline proc lj_thermo(i:int,j:int,r2cut_local:real) {
     var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,r,rhatx,rhaty,omega,fdissx,fdissy,gauss,frand :real;
     dx = solvent[j].x - solvent[i].x;
     dy = solvent[j].y - solvent[i].y;
@@ -1220,7 +1224,7 @@ proc lj_thermo(i:int,j:int,r2cut_local:real) {
     }
 }
 
-proc lj(i:int,j:int,r2cut_local:real) {
+inline proc lj(i:int,j:int,r2cut_local:real) {
     var dx,dy,r2,ffor,ffx,ffy,sigma12,sigma6:real;
     //calculate distance to the wall
     dx = solvent[j].x - bound[i].x;
@@ -1705,7 +1709,7 @@ proc write_params() {
 }
 
 // HELPER FUNCTIONS
-proc gaussRand(mean: real, stddev: real): real {
+inline proc gaussRand(mean: real, stddev: real): real {
     var u1 = randStream.getNext();
     var u2 = randStream.getNext();
     var z0 = sqrt(-2.0 * log(u1)) * cos(2.0 * pi * u2);  // Box-Muller transform
