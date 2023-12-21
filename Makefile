@@ -8,7 +8,7 @@ SOURCE = $(SRCDIR)amatter3d.chpl
 BUILDDIR = build/
 OUTPUT = amatter.x
 
-CHPLFLAGS = --local --fast --inline --savec=$(BUILDDIR) --optimize --vectorize --specialize --optimize-loop-iterators --optimize-forall-unordered-ops --no-checks --target-compiler=llvm --print-passes --print-commands --print-callstack-on-error
+CHPLFLAGS = --warnings --fast --inline --savec=$(BUILDDIR) --optimize --vectorize --specialize --optimize-loop-iterators --optimize-forall-unordered-ops --no-checks --target-compiler=llvm --print-passes --print-commands --print-callstack-on-error
 DEBUGFLAGS = -g --savec=$(BUILDDIR) --ldflags -v --print-passes --print-commands --checks --print-callstack-on-error
 GPUFLAGS = --fast --optimize --ldflags -v --print-passes --print-commands --gpu-specialization --ccflags=--cuda-path=/usr/lib/cuda --report-gpu
 

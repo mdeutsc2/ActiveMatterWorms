@@ -5,6 +5,7 @@ use IO.FormattedIO;
 use Time; // for stopwatch
 use List;
 use CTypes; // for chpl string -> c string pointer conversion
+use DynamicIters;
 // user-defined modules
 import Structs;
 import C; // import C-extension module for logging/appending
@@ -13,7 +14,7 @@ import C; // import C-extension module for logging/appending
 const numTasks = here.numPUs();
 // configuration
 config const np = 100,//16,
-            nworms = 400,//625,
+            nworms = 300,//625,
             nsteps = 12000000    ,//00,
             fdogic = 0.0,
             walldrive = true,
@@ -66,6 +67,7 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
+      dpd_ratio = 1.0,
       numPoints = 2000,//1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = rcutsmall*sigma;//3.0; // z-offset of fluid
 
@@ -514,7 +516,8 @@ proc intraworm_forces() {
 }
 
 proc calc_forces(istep:int,dt:real) {
-    forall binid in binSpace {
+    var binDomain: domain(1) = {1..(numBins*numBins)/2};
+    forall binid in adaptive(binSpace) {
         if (bins[binid].ncount > 1) {
             // calculate the forces between atoms inside each bin
             for icount in 0..bins[binid].ncount-2 {
@@ -529,7 +532,8 @@ proc calc_forces(istep:int,dt:real) {
         }
     }
     // odd neighbors to the east (1)
-    forall binid in binSpaceiodd {
+    forall i in adaptive(binDomain) {
+        var binid = binSpaceiodd[i];
         var binidnbor = bins[binid].neighbors[1];
         if (binidnbor != -1) {
             if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -546,7 +550,8 @@ proc calc_forces(istep:int,dt:real) {
         }
     }
     // even neighbors to the east (1)
-    forall binid in binSpaceieven {
+    forall i in adaptive(binDomain) {
+        var binid = binSpaceieven[i];
         var binidnbor = bins[binid].neighbors[1];
         if (binidnbor != -1) {
             if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -564,7 +569,8 @@ proc calc_forces(istep:int,dt:real) {
     }
 
     // odd neighbors to the NE (2) (i+1,j+1)
-    forall binid in binSpaceiodd {
+    forall i in adaptive(binDomain) {
+        var binid = binSpaceiodd[i];
         var binidnbor = bins[binid].neighbors[2];
         if (binidnbor != -1) {
             if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -582,7 +588,8 @@ proc calc_forces(istep:int,dt:real) {
     }
 
     // even neighbors to the NE (2)
-    forall binid in binSpaceieven {
+    forall i in adaptive(binDomain) {
+        var binid = binSpaceieven[i];
         var binidnbor = bins[binid].neighbors[2];
         if (binidnbor != -1) { // check if neighbor is valid
             if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) { // check if neighbor has any atoms at all
@@ -600,7 +607,8 @@ proc calc_forces(istep:int,dt:real) {
     }
 
     // odd neighbors to the N (3)
-    forall binid in binSpacejodd {
+    forall i in adaptive(binDomain) {
+        var binid = binSpacejodd[i];
         var binidnbor = bins[binid].neighbors[3];
         if (binidnbor != -1) {
             if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -618,7 +626,8 @@ proc calc_forces(istep:int,dt:real) {
     }
 
     // even neighbors to the N (3)
-    forall binid in binSpacejeven {
+    forall i in adaptive(binDomain) {
+        var binid = binSpacejeven[i];
         var binidnbor = bins[binid].neighbors[3];
         if (binidnbor != -1) {
             if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -637,7 +646,8 @@ proc calc_forces(istep:int,dt:real) {
     }
 
     // odd neighbors to the NW (4)
-    forall binid in binSpaceiodd {
+    forall i in adaptive(binDomain) {
+        var binid = binSpaceiodd[i];
         var binidnbor = bins[binid].neighbors[4];
         if (binidnbor != -1) {
             if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -655,7 +665,8 @@ proc calc_forces(istep:int,dt:real) {
     }
 
     // even neighbors to the NW (4)
-    forall binid in binSpaceieven {
+    forall i in adaptive(binDomain) {
+        var binid = binSpaceieven[i];
         var binidnbor = bins[binid].neighbors[4];
         if (binidnbor != -1) {
             if (bins[binid].ncount > 0) && (bins[binidnbor].ncount > 0) {
@@ -809,7 +820,7 @@ inline proc worm_cell_forces(i:int,j:int) {
             // adding random forces
             gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
             gauss = randStream.getNext();
-            frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+            frand = dpd_ratio*(1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
 
             worms[iworm,ip].fx += frand*rhatx;
             worms[iworm,ip].fy += frand*rhaty;
@@ -1440,8 +1451,8 @@ proc init_bins() {
 proc init_binspace() {
     // making lists of binids for different
     var icount = 0;
-    for ibin in 1..numBins by 2 {
-        for jbin in 1..numBins {
+     for ibin in 1..numBins by 2 {
+         for jbin in 1..numBins {
             icount += 1;
             binSpaceiodd[icount] = (jbin-1)*numBins+ibin;
         }
