@@ -125,8 +125,8 @@ void CreateConfigVarTable(void) {
   installConfigVar("kbt", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "kbt is deprecated"
                    , /* unstable = */ 0, "kbt is unstable"
                    );
-  installConfigVar("numSol", "int(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "numSol is deprecated"
-                   , /* unstable = */ 0, "numSol is unstable"
+  installConfigVar("fluid_rho", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fluid_rho is deprecated"
+                   , /* unstable = */ 0, "fluid_rho is unstable"
                    );
   installConfigVar("sigma", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "sigma is deprecated"
                    , /* unstable = */ 0, "sigma is unstable"

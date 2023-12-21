@@ -13,9 +13,9 @@ import C; // import C-extension module for logging/appending
 const numTasks = here.numPUs();
 // configuration
 config const np = 100,//16,
-            nworms = 500,//625,
+            nworms = 400,//625,
             nsteps = 12000000    ,//00,
-            fdogic = 0.06,
+            fdogic = 0.0,
             walldrive = true,
             fdogicwall = 0.001,
             fdep = 1.0,// TODO: change to 4.0?
@@ -33,10 +33,10 @@ config const np = 100,//16,
             thermo = true, // turn thermostat on?
             kbt = 0.00001, //0.25
             //numSol = 7000, // cardiod number of solution particles
-            numSol = 4000,//8000, // disk number of solution particls
+            fluid_rho = 0.05,//8000, // disk number of solution particles
             sigma = 2.0,
             worm_particle_mass = 4.0,
-            L = 0.75; // thickness of cell
+            L = 2.0; // thickness of cell
 
 const io_interval = 500;
 // variables
@@ -66,14 +66,19 @@ const r2cut = rcut*rcut,
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
-      numPoints = 3000,//1200//589, //number of boundary points (for circle w/ r-75)
+      numPoints = 2000,//1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = rcutsmall*sigma;//3.0; // z-offset of fluid
+
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
 var worms: [wormsDomain] Structs.Particle;
 Structs.ptc_init_counter = 1;
+
+var numSol:int;
+numSol = init_fluid_count();
 var solvent: [1..numSol] Structs.Particle;
 Structs.ptc_init_counter = 1;
+
 var bound: [1..numPoints] Structs.Particle;
 var savex: [1..np] real(64);
 var savey: [1..np] real(64);
@@ -117,6 +122,7 @@ proc main() {
     write_log(logfile, "=============== AMATTER3D ===============");
     write_log(logfile,date.today():string+":Matt Deutsch, Kent State University");
     write_log(logfile,"starting... "+numTasks:string+" procs");
+    
     // save params to file
     write_params();
     // initialize the alternating loops over bins
@@ -134,28 +140,28 @@ proc main() {
     }
 
     if (fluid_cpl) {
-        init_fluid();
+        solvent = init_fluid(solvent, numSol);
     }
-
     // populate the bins with lists of atoms
     update_cells(0);
     //equilibrate the fluid
-    if (fluid_cpl) {
-      // for istep in 1..5000 {
-      //     var ioper = 5000/10;
-      //     if (istep%ioper == 0) {
-      //         write_log(logfile,"fluid equilibration..."+istep:string);
-      //     }
-      //     fluid_step(0,dt);
-      // }
-    }
+   //  if (fluid_cpl) {
+   //    for istep in 1..5000 {
+   //        var ioper = 5000/10;
+   //        if (istep%ioper == 0) {
+   //            write_log(logfile,"fluid equilibration..."+istep:string);
+   //        }
+   //        fluid_step(0,dt);
+   //    }
+   //  }
     update_cells(0); //again after fluid
+    write_log(logfile,"numSol\t"+numSol:string);
     write_log(logfile,"fluid equilibrated...5000dt");
 
     var macro_filename:string = "energies.dat";
     init_macro(macro_filename);
     write_xyzv(0);
-    //halt();
+    
     //setting up stopwatch
     var log_str:string;
     xt.start();
@@ -173,6 +179,8 @@ proc main() {
                       total_time:string+" s\t Est:"+
                       ((nsteps-itime)*(total_time/itime)):string+" s";
             write_log(logfile,out_str);
+            //writeln((+ reduce solvent.vx),"\t",(+ reduce solvent.vy));
+            //writeln((+ reduce solvent.x),"\t",(+ reduce solvent.y));
             xt.restart();
             }
 	    ct.start();
@@ -235,7 +243,7 @@ proc init_worms() {
     ddy[8] = -1;
     ddx[9] = 0;
     ddy[9] = 0;
-    var thetanow = 5.0*pi :real; // changes the initial radius of annulus
+    var thetanow = 85.0*pi :real; // changes the initial radius of annulus
     var rmin = a*thetanow;
     write_log(logfile,"nworms\t"+nworms:string);
     write_log(logfile,"np\t"+np:string);
@@ -243,6 +251,7 @@ proc init_worms() {
     write_log(logfile,"nxcells\t"+nxcell:string+"\t nycells\t"+nycell:string);
     write_log(logfile,"density\t"+density:string);
     write_log(logfile,"dt\t"+dt:string);
+    write_log(logfile,"opt numPoints\t"+(ceil(2*pi*rwall)/rcutsmall):string);
     //setting up the worms
     if (boundary == 1){
         // circular bound
@@ -692,6 +701,8 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
         dy = solvent[i].y - worms[iw,ip].y;
         r2 = (dx*dx + dy*dy + dz*dz);
         if (r2 <= r2cut) {
+            //writeln("solvent worm ",sqrt(r2),"\t",sqrt(r2cut));
+            //writeln("solvent worm ",r2,"\t",r2cut);
             ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
             ffx = ffor*dx;
             ffy = ffor*dy;
@@ -701,6 +712,7 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
             worms[iw,ip].fy -= ffy;
         }
     } else if ((itype == 1) && (jtype == 2)) {
+         
         var dx,dy,dz,r2,ffor,ffx,ffy:real;
         var iw,ip:int;
         iw = 1 + ((i - 1)/np):int; // find which worm j is in
@@ -710,6 +722,8 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
         dy = solvent[j].y - worms[iw,ip].y;
         r2 = (dx*dx + dy*dy + dz*dz);
         if (r2 <= r2cut) {
+            //writeln("worm solvent ",sqrt(r2),"\t",sqrt(r2cut));
+            //writeln("worm solvent",r2,"\t",r2cut);
             ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
             ffx = ffor*dx;
             ffy = ffor*dy;
@@ -979,202 +993,161 @@ proc update_vel() {
 }
 
 //FLUID FUNCTIONS
-proc init_fluid() {
-    var random_placement = false;
-    if (boundary == 1){
-        writeln("fluid density=",numSol/(pi*rwall**2));
-    } else if (boundary == 2){
-        writeln("fluid density=",numSol/(6*pi*(1.5*(rwall/2))**2));
-    }
-    if (random_placement) {
-        // put the solvent particles in a random x and random y
-        if (boundary == 1) {
-            // circular boundary
-            var numTries = 1000;
-            var rand1,rand2,alpha,x,y,r,r2,dx,dy : real;
-            solvent[1].x = hxo2;
-            solvent[1].y = hyo2; // TODO add solvent[1].z
-            for i in 2..numSol {
-                var valid = false;
-                var try_count = 0;
-                while (valid == false) {
-                    rand1 = randStream.getNext();
-                    rand2 = randStream.getNext();
-                    // random angle
-                    alpha = 2*pi*rand1;
-                    // random radius
-                    r = rwall*0.95 * sqrt(rand2);
-                    // calculating coordinates
-                    x = r * cos(alpha) + hxo2;
-                    y = r * sin(alpha) + hyo2;
-                    var invalid_count = 0;
-                    for j in (i-1)..1 by -1 {
-                        dx = abs(x - solvent[i].x);
-                        dy = abs(y - solvent[i].y);
-                        r2 = (dx*dx + dy*dy);
-                        if (r2 <= r2cut) {
-                            invalid_count += 1;
-                        }
-                    }
-                    if (invalid_count == 0) {
-                        // no conflicts found with any of the existing particles
-                        valid = true;
-                        //writeln(i,"\t",x,"\t",y);
-                        solvent[i].x = x;
-                        solvent[i].y = y;
-                        //add small gaussian velocity here
-                        break;
-                    }
-                    try_count += 1;
-                    if (try_count > numTries+1) {
-                        writeln(i,"\t",try_count,"\t",x,"\t",y);
-                        writeln("particle placement failed, increase numTries");
-                        halt();
-                    }
-                }
+
+proc init_fluid_count():int {
+   var numSol:int;
+   if (boundary == 1) {
+      var fluid_a = 2*rwall;
+      var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
+      var pos : [1..numSol,1..3] real;
+      var fluid_px = fluid_a;
+      var fluid_mx = 0;
+      var fluid_py = fluid_a;
+      var fluid_my = 0;
+      var spacing = fluid_a/nSol_row;
+      var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      var row,col:real;
+      for i in 1..numSol {
+            row = i % row_length;
+            col = ((i - row)/row_length)+1;
+
+            pos[i,1] = fluid_mx + spacing*row + spacing; // x
+            pos[i,2] = fluid_my + spacing*col; // y
+            pos[i,3] = 0.0;
+      }
+      // mark all solvent particles that are out of bounds
+      var rm_count = 0;
+      for i in 1..numSol {
+         var dx = pos[i,1] - hxo2;
+         var dy = pos[i,2] - hyo2;
+         var r = sqrt(dx*dx + dy*dy);
+         if r > (0.95*rwall) {
+            pos[i,3] = -1.0;
+            rm_count +=1;
+         }
+      }
+      // recounting
+      writeln(rm_count);
+      numSol -= rm_count;
+   } else {
+      halt("no other boundaries supported yet");
+   }
+   return numSol;
+}
+
+proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
+   var random_placement = false;
+   // place particles in a square lattice centered in the boundary
+   if (boundary == 1) {
+      // circular boundary
+      var fluid_a = 2*rwall;
+      var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      var numSol_tmp = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
+      var pos : [1..numSol_tmp,1..3] real;
+      var fluid_px = fluid_a;
+      var fluid_mx = 0;
+      var fluid_py = fluid_a;
+      var fluid_my = 0;
+      var spacing = fluid_a/nSol_row;
+      var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      var row,col:real;
+      for i in 1..numSol_tmp {
+            row = i % row_length;
+            col = ((i - row)/row_length)+1;
+
+            pos[i,1] = fluid_mx + spacing*row + spacing; // x
+            pos[i,2] = fluid_my + spacing*col; // y
+            pos[i,3] = 0.0;
+      }
+      // mark all solvent particles that are out of bounds
+      var count = 1;
+      for i in 1..numSol_tmp {
+         var dx = pos[i,1] - hxo2;
+         var dy = pos[i,2] - hyo2;
+         var r = sqrt(dx*dx + dy*dy);
+         if r < (0.95*rwall) {
+            solvent[count].x = pos[i,1];
+            solvent[count].y = pos[i,2];
+            solvent[count].z = 0.0;
+            solvent[count].vx = 0.0;
+            solvent[count].vy = 0.0;
+            solvent[count].vz = 0.0;
+            solvent[count].fx = 0.0;
+            solvent[count].fy = 0.0;
+            solvent[count].fz = 0.0;
+            solvent[count].ptype = 2;
+            solvent[count].m = 1.0;
+            count +=1;
+         }
+      }
+   } else if (boundary == 2) {
+      // cardioid boundary
+      // get the fluid init bounds from the max x and y coords of the worms
+      var max_x = 0.0;
+      var max_y = 0.0;
+      for iw in 1..nworms {
+            for i in 1..np {
+               if (worms[iw,i].x > max_x) {
+                  max_x = worms[iw,i].x;
+               }
+               if (worms[iw,i].y > max_y) {
+                  max_y = worms[iw,i].y;
+               }
             }
-        } else if (boundary == 2) {
-            var x_try,y_try,r_try,theta_try,r_cardioid,dist:real;
-            var placed = false;
-            // cardioid boundary
-            var ca = 1.5*(rwall/2);
-            var ccx = hxo2 + ca; // center of the cardiod
-            var ccy = hyo2;
-            var min_x = min reduce bound.x;
-            var max_x = max reduce bound.x;
-            var min_y = min reduce bound.y;
-            var max_y = max reduce bound.y;
-            var numPlaced = 1;
-            for i in 1..numSol {
-                while placed == false {
-                    var r_value = (ca-5) * (1 - cos(pi * randStream.getNext()));
-                    var theta = 2.0 * pi * randStream.getNext();
-                    var r_card = ca*(1-cos(theta));
-                    var x_try = r_value * cos(theta)+ccx-1;
-                    var y_try = r_value * sin(theta)+ccy;
-                    if r_value < r_card-2 {
-                        for j in 1..numPlaced {
-                            if sqrt((x_try - solvent[j].x)**2 + (y_try - solvent[j].y)**2) < rcut {
-                                placed = false;
-                                break;
-                            } else {
-                                solvent[i].x = x_try;
-                                solvent[i].y = y_try;
-                                solvent[i].vx = 0.0;
-                                solvent[i].vy = 0.0;
-                                solvent[i].ptype = 2;
-                                numPlaced += 1;
-                                placed = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                placed = false;
-            }
-        } else if (boundary == 3) {
-            // channel boundary
-            writeln("haven't put in channel fluid");
-            halt();
-        } else {
-            writeln("something went wrong in solvent init. invalid boundary value");
-            halt();
-        }
-    } else {
-        // place particles in a square lattice centered in the boundary
-        if (boundary == 1) {
-            // circular boundary
-            var fluid_a = sqrt(2)*(0.95*rwall); // box size of fluid
-            var fluid_px = fluid_a + hxo2;
-            var fluid_mx = fluid_a - hxo2;
-            var fluid_py = fluid_a + hxo2;
-            var fluid_my = fluid_a - hyo2;
-            var spacing = 1.0;
-            var row_length = numSol/(floor(fluid_a/(rcutsmall*spacing)):int);
-            writeln("Row:",row_length,"\t",row_length**2,"\t",fluid_a,"\t",fluid_a/(rcutsmall*spacing));
-            if (row_length**2 > numSol) {
-                writeln("fluid density too high, fixme!");
-                //halt();
-            }
-            var row,col:real;
-            for i in 1..numSol {
-                row = i % row_length;
-                col = ((i - row)/row_length)-1;
-                solvent[i].x = fluid_mx + spacing*rcutsmall*row;
-                solvent[i].y = fluid_my + spacing*rcutsmall*col;
-                solvent[i].z = 0.0;
-                solvent[i].vx = 0.0; //taken care of by type init
-                solvent[i].vy = 0.0;
-                solvent[i].vz = 0.0;
-                //solfx[i] = 0.0;
-                //solfy[i] = 0.0;
-                //solfxold[i] = 0.0;
-                //solfyold[i] = 0.0;
-            }
-        } else if (boundary == 2) {
-            // cardioid boundary
-            // get the fluid init bounds from the max x and y coords of the worms
-            var max_x = 0.0;
-            var max_y = 0.0;
-            for iw in 1..nworms {
-                for i in 1..np {
-                    if (worms[iw,i].x > max_x) {
-                        max_x = worms[iw,i].x;
-                    }
-                    if (worms[iw,i].y > max_y) {
-                        max_y = worms[iw,i].y;
-                    }
-                }
-            }
-            // circular boundary
-	    if (np*nworms != 10000) {
-		max_x = 127.427;
-		max_y = 126.69;
-	    }
-            writeln("Worm extent for fluid:\t",max_x,"\t",max_y);
-            var fluid_a = sqrt(2)*(max_x-hxo2); // box size of fluid
-            var fluid_px = fluid_a + hxo2;
-            var fluid_mx = fluid_a - hxo2;
-            var fluid_py = fluid_a + hyo2;
-            var fluid_my = fluid_a - hyo2;
-            var spacing = 1.0;
-            var row_length = numSol/(floor(fluid_a/(rcutsmall*spacing)):int);
-            writeln("numSol ",numSol);
-            writeln("Row:",row_length,"\t",row_length**2,"\t",fluid_a,"\t",fluid_a/(rcutsmall*spacing));
-            if (row_length**2 > numSol) {
-                writeln("fluid density too high, fixme!");
-                //halt();
-            }
-            var row,col:real;
-            for i in 1..numSol {
-                row = i % row_length;
-                col = ((i - row)/row_length)-1;
-                solvent[i].x = hxo2-0.45*(max_x-hxo2) + spacing*rcutsmall*col + 1;
-                solvent[i].y = hyo2-1.1*(max_y-hyo2) + spacing*rcutsmall*row - 2;
-                solvent[i].z = 0.0;
-                solvent[i].vx = 0.0; //taken care of by type init
-                solvent[i].vy = 0.0;
-                solvent[i].vz = 0.0;
-                //solfx[i] = 0.0;
-                //solfy[i] = 0.0;
-                //solfxold[i] = 0.0;
-                //solfyold[i] = 0.0;
-            }
-        } else if (boundary == 3) {
-            writeln("haven't put in channel fluid");
-            halt();
-        } else {
-            writeln("invalid boundary");
-            halt();
-        }
-    }
-    // init macro variable arrays
-    for i in 1..numSol {
-        KEsol[i] = 0.0;
-        solvent[i].ptype = 2;
-        solvent[i].m = 1.0;
-    }
-    writeln("fluid init done");
+      }
+      // circular boundary
+      if (np*nworms != 10000) {
+      max_x = 127.427;
+      max_y = 126.69;
+      }
+      writeln("Worm extent for fluid:\t",max_x,"\t",max_y);
+      var fluid_a = sqrt(2)*(max_x-hxo2); // box size of fluid
+      var fluid_px = fluid_a + hxo2;
+      var fluid_mx = fluid_a - hxo2;
+      var fluid_py = fluid_a + hyo2;
+      var fluid_my = fluid_a - hyo2;
+      var spacing = 1.0;
+      var row_length = numSol/(floor(fluid_a/(rcutsmall*spacing)):int);
+      writeln("numSol ",numSol);
+      writeln("Row:",row_length,"\t",row_length**2,"\t",fluid_a,"\t",fluid_a/(rcutsmall*spacing));
+      if (row_length**2 > numSol) {
+            writeln("fluid density too high, fixme!");
+            //halt();
+      }
+      var row,col:real;
+      for i in 1..numSol {
+            row = i % row_length;
+            col = ((i - row)/row_length)-1;
+            solvent[i].x = hxo2-0.45*(max_x-hxo2) + spacing*rcutsmall*col + 1;
+            solvent[i].y = hyo2-1.1*(max_y-hyo2) + spacing*rcutsmall*row - 2;
+            solvent[i].z = 0.0;
+            solvent[i].vx = 0.0; //taken care of by type init
+            solvent[i].vy = 0.0;
+            solvent[i].vz = 0.0;
+            //solfx[i] = 0.0;
+            //solfy[i] = 0.0;
+            //solfxold[i] = 0.0;
+            //solfyold[i] = 0.0;
+      }
+   } else if (boundary == 3) {
+      writeln("haven't put in channel fluid");
+      halt();
+   } else {
+      writeln("invalid boundary");
+      halt();
+   }
+   // init macro variable arrays
+   for i in 1..numSol {
+      KEsol[i] = 0.0;
+   }
+   if (boundary == 1){
+      writeln("fluid density=",numSol/(pi*rwall**2));
+   } else if (boundary == 2){
+      writeln("fluid density=",numSol/(6*pi*(1.5*(rwall/2))**2));
+   }
+   writeln("fluid init done");
+   return solvent;
 }
 
 inline proc lj_thermo(i:int,j:int,r2cut_local:real) {
