@@ -16,11 +16,11 @@ const numTasks = here.numPUs();
 config const np = 100,//16,
             nworms = 300,//625,
             nsteps = 12000000    ,//00,
-            fdogic = 0.0,
-            walldrive = true,
+            fdogic = 0.06,
+            walldrive = false,
             fdogicwall = 0.001,
             fdep = 1.0,// TODO: change to 4.0?
-            fdepwall = 0.0,
+            fdepwall = 1.0,
             diss = 0.02,
             dt = 0.005, //0.02
             kspring = 57.146436,
@@ -924,7 +924,7 @@ inline proc dogic_wall(iw:int,ip:int,ib:int){
         r = sqrt(r2);
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-        ffor = (1/r)**4.0; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
+        ffor = (1/r)**4.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
