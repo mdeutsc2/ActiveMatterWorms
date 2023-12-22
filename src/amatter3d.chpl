@@ -62,12 +62,14 @@ const r2cut = rcut*rcut,
       gnoise = 0.80/sqrt(10.0)*0.8,
       dt2o2 = dt*dt*0.50,
       dto2 = dt*0.50,
+      inv_sqrt_dt = 1.0/sqrt(dt),
       length2 = 2.0*length0,
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.24, // layer spacing of worms in init_worms?
       gamma = 3.0, // frictional constant for dissipative force (~1/damp)
       dpd_ratio = 1.0,
+      sqrt_gamma_term = sqrt(2.0*kbt*gamma),
       numPoints = 2000,//1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = rcutsmall*sigma;//3.0; // z-offset of fluid
 
@@ -759,7 +761,7 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
 inline proc worm_cell_forces(i:int,j:int) {
    var dddx:real,dddy:real,dddz:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,ffz:real,dxi:real,dxj:real,
        ri:real,rj:real,r:real,dx:real,dy:real,dz:real,dyi:real,dyj:real,dzi:real,dzj:real,r2shift:real;
-   var dvx:real,dvy:real,dvz:real,rhatx:real,rhaty:real,rhatz:real,omega:real,fdissx:real,fdissy:real,fdissz:real,gauss:real,frand:real;
+   var dvx:real,dvy:real,dvz:real,dv_dot_rhat:real,rhatx:real,rhaty:real,rhatz:real,omega:real,fdissx:real,fdissy:real,fdissz:real,gauss:real,frand:real;
    var iworm:int,jworm:int,ip:int,jp:int,ip1:int,jp1:int,inogo:int;
    iworm = 1 + ((i - 1)/np):int;
    ip = i - np*(iworm - 1);
@@ -792,22 +794,21 @@ inline proc worm_cell_forces(i:int,j:int) {
             worms[jworm,jp].fz -= ffz;
             
 
-            // DPD thermostat
+            // DPD thermostat https://docs.lammps.org/pair_dpd.html
             //adding dissipative force
             dvx = worms[jworm,jp].vx - worms[iworm,ip].vx;
             dvy = worms[jworm,jp].vy - worms[iworm,ip].vy;
             dvz = worms[jworm,jp].vz - worms[iworm,ip].vz;
 
-            r = sqrt(r2);
-            rhatx = dddx/r;
-            rhaty = dddy/r;
-            rhatz = dddz/r;
+            rhatx = dddx/riijj;
+            rhaty = dddy/riijj;
+            rhatz = dddz/riijj;
 
-            omega = (1.0-r2/r2cutsmall);
-
-            fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhatx; //gamma = 1/damp (proportional to friction force)
-            fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhaty;
-            //fdissz = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty + dvz*rhatz)*rhatz;
+            omega = (1.0-riijj/rcutsmall);
+            dv_dot_rhat = dvx*rhatx + dvy*rhaty + dvz*rhatz;
+            fdissx = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhatx; //gamma = 1/damp (proportional to friction force)
+            fdissy = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhaty;
+            //fdissz = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhatz;
 
             worms[iworm,ip].fx -= fdissx;
             worms[iworm,ip].fy -= fdissy;
@@ -820,7 +821,7 @@ inline proc worm_cell_forces(i:int,j:int) {
             // adding random forces
             gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
             gauss = randStream.getNext();
-            frand = dpd_ratio*(1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+            frand = dpd_ratio*(inv_sqrt_dt)*sqrt(omega)*gauss*sqrt_gamma_term;
 
             worms[iworm,ip].fx += frand*rhatx;
             worms[iworm,ip].fy += frand*rhaty;
