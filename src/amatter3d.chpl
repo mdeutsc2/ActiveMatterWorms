@@ -13,14 +13,14 @@ import C; // import C-extension module for logging/appending
 
 const numTasks = here.numPUs();
 // configuration
-config const np = 100,//16,
+config const np = 80,//16,
             nworms = 300,//625,
             nsteps = 12000000    ,//00,
             fdogic = 0.06,
             walldrive = false,
             fdogicwall = 0.001,
             fdep = 1.0,// TODO: change to 4.0?
-            fdepwall = 1.0,
+            fdepwall = 2.0,
             diss = 0.02,
             dt = 0.005, //0.02
             kspring = 57.146436,
@@ -37,7 +37,7 @@ config const np = 100,//16,
             fluid_rho = 0.05,//8000, // disk number of solution particles
             sigma = 2.0,
             worm_particle_mass = 4.0,
-            L = 2.0; // thickness of cell
+            L = 3.0; // thickness of cell
 
 const io_interval = 500;
 // variables
@@ -65,9 +65,9 @@ const r2cut = rcut*rcut,
       length2 = 2.0*length0,
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
-      a = 0.24, // layer spacing of worms in init_worms?
-      gamma = 3.0, // frictional constant for dissipative force (~1/damp)
-      dpd_ratio = 1.0,
+      a = 0.48, // layer spacing of worms in init_worms?
+      gamma = 6.0, // frictional constant for dissipative force (~1/damp)
+      dpd_ratio = 0.5,
       numPoints = 2000,//1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = rcutsmall*sigma;//3.0; // z-offset of fluid
 
