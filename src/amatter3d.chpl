@@ -15,14 +15,14 @@ const numTasks = here.numPUs();
 // configuration
 config const np = 80,//16,
             nworms = 300,//625,
-            nsteps = 12000000    ,//00,
-            fdogic = 0.06,
+            nsteps = 6000000    ,//00,
+            fdogic = 0.02,
             walldrive = false,
             fdogicwall = 0.001,
-            fdep = 1.0,// TODO: change to 4.0?
-            fdepwall = 2.0,
+            fdep = 0.5,// TODO: change to 4.0?
+            fdepwall = 4.0,
             diss = 0.02,
-            dt = 0.005, //0.02
+            dt = 0.015, //0.0075
             kspring = 57.146436,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
@@ -32,12 +32,12 @@ config const np = 80,//16,
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
-            kbt = 0.00001, //0.25
+            kbt = 0.1, //0.25
             //numSol = 7000, // cardiod number of solution particles
             fluid_rho = 0.05,//8000, // disk number of solution particles
             sigma = 2.0,
             worm_particle_mass = 4.0,
-            L = 3.0; // thickness of cell
+            L = 1.0; // thickness of cell
 
 const io_interval = 500;
 // variables
@@ -67,7 +67,7 @@ const r2cut = rcut*rcut,
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
       a = 0.48, // layer spacing of worms in init_worms?
-      gamma = 1.0, // frictional constant for dissipative force (~1/damp)
+      gamma = 6.0, // frictional constant for dissipative force (~1/damp)
       dpd_ratio = 0.5,
       sqrt_gamma_term = sqrt(2.0*kbt*gamma),
       numPoints = 2000,//1200//589, //number of boundary points (for circle w/ r-75)
@@ -147,17 +147,6 @@ proc main() {
         solvent = init_fluid(solvent, numSol);
     }
     // populate the bins with lists of atoms
-    update_cells(0);
-    //equilibrate the fluid
-   //  if (fluid_cpl) {
-   //    for istep in 1..5000 {
-   //        var ioper = 5000/10;
-   //        if (istep%ioper == 0) {
-   //            write_log(logfile,"fluid equilibration..."+istep:string);
-   //        }
-   //        fluid_step(0,dt);
-   //    }
-   //  }
     update_cells(0); //again after fluid
     write_log(logfile,"numSol\t"+numSol:string);
     write_log(logfile,"fluid equilibrated...5000dt");
@@ -808,28 +797,27 @@ inline proc worm_cell_forces(i:int,j:int) {
             dv_dot_rhat = dvx*rhatx + dvy*rhaty + dvz*rhatz;
             fdissx = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhatx; //gamma = 1/damp (proportional to friction force)
             fdissy = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhaty;
-            //fdissz = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhatz;
+            fdissz = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhatz;
 
             worms[iworm,ip].fx -= fdissx;
             worms[iworm,ip].fy -= fdissy;
-            //worms[iworm,ip].fz -= fdissz;
+            worms[iworm,ip].fz -= fdissz;
 
             worms[jworm,jp].fx += fdissx;
             worms[jworm,jp].fy += fdissy;
-            //worms[jworm,jp].fz += fdissz;
+            worms[jworm,jp].fz += fdissz;
 
             // adding random forces
             gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
-            gauss = randStream.getNext();
-            frand = dpd_ratio*(inv_sqrt_dt)*sqrt(omega)*gauss*sqrt_gamma_term;
+            frand = dpd_ratio*(inv_sqrt_dt)*omega*gauss*sqrt_gamma_term;
 
             worms[iworm,ip].fx += frand*rhatx;
             worms[iworm,ip].fy += frand*rhaty;
-            //worms[iworm,ip].fz += frand*rhatz;
+            worms[iworm,ip].fz += frand*rhatz;
 
             worms[jworm,jp].fx -= frand*rhatx;
             worms[jworm,jp].fy -= frand*rhaty;
-            //worms[jworm,jp].fz -= frand*rhatz;
+            worms[jworm,jp].fz -= frand*rhatz;
 
             //vxave,vyave
             worms[iworm,ip].vxave += worms[jworm,jp].vx;
@@ -925,7 +913,7 @@ inline proc dogic_wall(iw:int,ip:int,ib:int){
         r = sqrt(r2);
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-        ffor = (1/r)**4.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
+        ffor = (1/r)**6.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
@@ -1163,7 +1151,7 @@ proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
 }
 
 inline proc lj_thermo(i:int,j:int,r2cut_local:real) {
-    var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,r,rhatx,rhaty,omega,fdissx,fdissy,gauss,frand :real;
+    var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,r,rhatx,rhaty,omega,fdissx,fdissy,gauss,frand,dv_dot_rhat :real;
     dx = solvent[j].x - solvent[i].x;
     dy = solvent[j].y - solvent[i].y;
     r2 = (dx*dx + dy*dy);
@@ -1173,11 +1161,6 @@ inline proc lj_thermo(i:int,j:int,r2cut_local:real) {
         ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
         ffx = ffor*dx;
         ffy = ffor*dy;
-        if (debug) {
-            if (i == 1) || (j == 1) {
-                writeln("LJ ",i," ",j," ",sqrt(r2)," ",sqrt(r2cut_local)," ",ffx," ",ffy," ",dx," ",dy);
-            }
-        }
         solvent[i].fx += ffx;
         solvent[i].fy += ffy;
         solvent[j].fx -= ffx;
@@ -1190,9 +1173,10 @@ inline proc lj_thermo(i:int,j:int,r2cut_local:real) {
             r = sqrt(r2);
             rhatx = dx/r;
             rhaty = dy/r;
-            omega = (1.0-r2/r2cut_local);
-            fdissx = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhatx; //gamma = 1/damp (proportional to friction force)
-            fdissy = -1.0*gamma*omega*(dvx*rhatx + dvy*rhaty)*rhaty;
+            omega = (1.0-r/sqrt(r2cut_local));
+            dv_dot_rhat = dvx*rhatx + dvy*rhaty;
+            fdissx = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhatx; //gamma = 1/damp (proportional to friction force)
+            fdissy = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhaty;
             solvent[i].fx -= fdissx;
             solvent[i].fy -= fdissy;
             solvent[j].fx += fdissx;
@@ -1200,7 +1184,7 @@ inline proc lj_thermo(i:int,j:int,r2cut_local:real) {
             // adding random forces
             gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
             //gauss = randStream.getNext();
-            frand = (1.0/sqrt(dt))*sqrt(omega)*gauss*sqrt(2.0*kbt*gamma);
+            frand = dpd_ratio*(inv_sqrt_dt)*omega*gauss*sqrt_gamma_term;
             solvent[i].fx += frand*rhatx;
             solvent[i].fy += frand*rhaty;
             solvent[j].fx -= frand*rhatx;
