@@ -16,14 +16,15 @@ const numTasks = here.numPUs();
 config const np = 80,//16,
             nworms = 400,//625,
             nsteps = 6000000    ,//00,
-            fdogic = 0.02,
+            fdogic = 0.0,
             walldrive = false,
             fdogicwall = 0.001,
             fdep = 0.5,// TODO: change to 4.0?
             fdepwall = 4.0,
             diss = 0.02,
-            dt = 0.015, //0.0075
+            dt = 0.015,
             kspring = 57.146436,
+            k2spring = 100.0*kspring,
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
@@ -429,6 +430,31 @@ proc intraworm_forces() {
         }
     }
     //bond bending terms
+    forall iw in 1..nworms{
+        var ip2:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
+        for i in 1..np-2 { 
+            ip2 = i + 2;
+            dx = worms[iw,ip2].x - worms[iw,i].x;
+            dy = worms[iw,ip2].y - worms[iw,i].y;
+            dz = worms[iw,ip2].z - worms[iw,i].z;
+            r = sqrt(dx*dx + dy*dy + dz*dz);
+
+            ff = -k2spring*(r - length2)/r;
+            ffx = ff*dx;
+            ffy = ff*dy;
+            ffz = ff*dz;
+
+            worms[iw,ip2].fx += ffx;
+            worms[iw,i].fx -= ffx;
+
+            worms[iw,ip2].fy += ffy;
+            worms[iw,i].fy -= ffy;
+
+            worms[iw,ip2].fz += ffz;
+            worms[iw,i].fz -= ffz;
+        }
+    }
+    /*
     forall iw in 1..nworms {
         var i3:int,i4:int,x2:real,x3:real,x4:real,y2:real,y3:real,y4:real,z2:real,z3:real,z4:real,z23:real,z34:real,y23:real,y34:real,x23:real,x34:real,r23:real,r34:real,cosvalue:real;
 	    var sinvalue:real,ff:real,dot:real,fac:real,f2x:real,f2y:real,f2z:real,f3x:real,f3y:real,f3z:real,f4x:real,f4y:real,f4z:real;
@@ -505,6 +531,7 @@ proc intraworm_forces() {
             worms[iw, i4].fz += f3z;
         }
     }
+    */
 }
 
 proc calc_forces(istep:int,dt:real) {
