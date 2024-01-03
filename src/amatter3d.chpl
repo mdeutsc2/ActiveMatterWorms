@@ -41,6 +41,7 @@ config const np = 80,//16,
 
 const io_interval = 500;
 const sw_epsilon = 2.0;
+const ww_epsilon = 1.0;
 // variables
 const r2cut = rcut*rcut,
       rcutsmall = 2.0**(1.0/6.0),
@@ -771,7 +772,7 @@ inline proc worm_cell_forces(i:int,j:int) {
       riijj = sqrt(r2);
       //add attractive force fdep between all pairs
       if (r2 <= r2cutsmall) {
-            ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
+            ffor = -48.0*ww_epsilon*r2**(-7.0) + 24.0*ww_epsilon*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
             //ffor = -48.0*(r2-r2shift)**(-7.0) + 24.0*(r2-r2shift)**(-4.0) + fdep/riijj;
             ffx = ffor*dddx;
             ffy = ffor*dddy;
@@ -786,6 +787,7 @@ inline proc worm_cell_forces(i:int,j:int) {
 
             // DPD thermostat https://docs.lammps.org/pair_dpd.html
             //adding dissipative force
+            if (thermo) {
             dvx = worms[jworm,jp].vx - worms[iworm,ip].vx;
             dvy = worms[jworm,jp].vy - worms[iworm,ip].vy;
             dvz = worms[jworm,jp].vz - worms[iworm,ip].vz;
@@ -819,7 +821,7 @@ inline proc worm_cell_forces(i:int,j:int) {
             worms[jworm,jp].fx -= frand*rhatx;
             worms[jworm,jp].fy -= frand*rhaty;
             worms[jworm,jp].fz -= frand*rhatz;
-
+            }
             //vxave,vyave
             worms[iworm,ip].vxave += worms[jworm,jp].vx;
             worms[iworm,ip].vyave += worms[jworm,jp].vy;
