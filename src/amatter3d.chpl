@@ -14,7 +14,7 @@ import C; // import C-extension module for logging/appending
 const numTasks = here.numPUs();
 // configuration
 config const np = 80,//16,
-            nworms = 300,//625,
+            nworms = 400,//625,
             nsteps = 6000000    ,//00,
             fdogic = 0.02,
             walldrive = false,
@@ -32,7 +32,7 @@ config const np = 80,//16,
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
-            kbt = 0.1, //0.25
+            kbt = 0.001, //0.25
             //numSol = 7000, // cardiod number of solution particles
             fluid_rho = 0.05,//8000, // disk number of solution particles
             sigma = 2.0,
@@ -40,6 +40,7 @@ config const np = 80,//16,
             L = 1.0; // thickness of cell
 
 const io_interval = 500;
+const sw_epsilon = 2.0;
 // variables
 const r2cut = rcut*rcut,
       rcutsmall = 2.0**(1.0/6.0),
@@ -236,7 +237,7 @@ proc init_worms() {
     ddy[8] = -1;
     ddx[9] = 0;
     ddy[9] = 0;
-    var thetanow = 85.0*pi :real; // changes the initial radius of annulus
+    var thetanow = 50.0*pi :real; // changes the initial radius of annulus
     var rmin = a*thetanow;
     write_log(logfile,"nworms\t"+nworms:string);
     write_log(logfile,"np\t"+np:string);
@@ -705,7 +706,7 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
         if (r2 <= r2cut) {
             //writeln("solvent worm ",sqrt(r2),"\t",sqrt(r2cut));
             //writeln("solvent worm ",r2,"\t",r2cut);
-            ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+            ffor = -48.0*sw_epsilon*r2**(-7.0) + 24.0*sw_epsilon*r2**(-4.0);
             ffx = ffor*dx;
             ffy = ffor*dy;
             solvent[i].fx += ffx;
@@ -726,7 +727,7 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
         if (r2 <= r2cut) {
             //writeln("worm solvent ",sqrt(r2),"\t",sqrt(r2cut));
             //writeln("worm solvent",r2,"\t",r2cut);
-            ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+            ffor = -48.0*sw_epsilon*r2**(-7.0) + 24.0*sw_epsilon*r2**(-4.0);
             ffx = ffor*dx;
             ffy = ffor*dy;
             solvent[j].fx += ffx;
