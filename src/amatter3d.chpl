@@ -16,7 +16,7 @@ const numTasks = here.numPUs();
 config const np = 80,//16,
             nworms = 400,//625,
             nsteps = 6000000    ,//00,
-            fdogic = 0.0,
+            fdogic = 0.02,
             walldrive = false,
             fdogicwall = 0.001,
             fdep = 0.5,// TODO: change to 4.0?
@@ -40,9 +40,6 @@ config const np = 80,//16,
             worm_particle_mass = 4.0,
             L = 1.0; // thickness of cell
 
-const io_interval = 500;
-const sw_epsilon = 2.0;
-const ww_epsilon = 1.0;
 // variables
 const r2cut = rcut*rcut,
       rcutsmall = 2.0**(1.0/6.0),
@@ -74,7 +71,10 @@ const r2cut = rcut*rcut,
       dpd_ratio = 0.5,
       sqrt_gamma_term = sqrt(2.0*kbt*gamma),
       numPoints = 2000,//1200//589, //number of boundary points (for circle w/ r-75)
-      fluid_offset = rcutsmall*sigma;//3.0; // z-offset of fluid
+      fluid_offset = rcutsmall*sigma,//3.0; // z-offset of fluid
+      io_interval = 500,
+      sw_epsilon = 2.0,
+      ww_epsilon = 0.5;
 
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
@@ -433,7 +433,7 @@ proc intraworm_forces() {
     //bond bending terms
     forall iw in 1..nworms{
         var ip2:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
-        for i in 1..np-2 { 
+        for i in 1..(np-2) { 
             ip2 = i + 2;
             dx = worms[iw,ip2].x - worms[iw,i].x;
             dy = worms[iw,ip2].y - worms[iw,i].y;
@@ -452,6 +452,33 @@ proc intraworm_forces() {
             worms[iw,i].fy -= ffy;
 
             worms[iw,ip2].fz += ffz;
+            worms[iw,i].fz -= ffz;
+        }
+    }
+    // 3-spring bond-bending
+    var k3spring = 25.0*kspring;
+    var length3 = 3.0*length0;
+    forall iw in 1..nworms {
+        var ip3:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
+        for i in 1..(np-3) { 
+            ip3 = i + 3;
+            dx = worms[iw,ip3].x - worms[iw,i].x;
+            dy = worms[iw,ip3].y - worms[iw,i].y;
+            dz = worms[iw,ip3].z - worms[iw,i].z;
+            r = sqrt(dx*dx + dy*dy + dz*dz);
+
+            ff = -k3spring*(r - length3)/r;
+            ffx = ff*dx;
+            ffy = ff*dy;
+            ffz = ff*dz;
+
+            worms[iw,ip3].fx += ffx;
+            worms[iw,i].fx -= ffx;
+
+            worms[iw,ip3].fy += ffy;
+            worms[iw,i].fy -= ffy;
+
+            worms[iw,ip3].fz += ffz;
             worms[iw,i].fz -= ffz;
         }
     }
