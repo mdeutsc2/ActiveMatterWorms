@@ -20,6 +20,7 @@ config const np = 80,//16,
             walldrive = false,
             fdogicwall = 0.001,
             fdep = 0.5,// TODO: change to 4.0?
+            dogic_fdep = 0.35, // extra attractive force when dogic shearing is present (originall 0.7)
             fdepwall = 4.0,
             diss = 0.02,
             dt = 0.015,
@@ -32,7 +33,8 @@ config const np = 80,//16,
             boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel, 4 = torus
             fluid_cpl = true,
             debug = false,
-            thermo = true, // turn thermostat on?
+            thermo = true, // turn thermostat on? for solvent only
+            thermow = false, // thermostat flag for worms
             kbt = 0.25,
             //numSol = 7000, // cardiod number of solution particles
             fluid_rho = 0.05,//8000, // disk number of solution particles
@@ -73,8 +75,8 @@ const r2cut = rcut*rcut,
       numPoints = 2000,//1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = rcutsmall*sigma,//3.0; // z-offset of fluid
       io_interval = 500,
-      sw_epsilon = 2.0,
-      ww_epsilon = 0.5;
+      sw_epsilon = 2.0, // solvent-worm interaction epsilon
+      ww_epsilon = 0.5; // worm-worm interaction epsilon
 
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
@@ -773,8 +775,8 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
          
         var dx,dy,dz,r2,ffor,ffx,ffy:real;
         var iw,ip:int;
-        iw = 1 + ((i - 1)/np):int; // find which worm j is in
-        ip = i - np*(iw - 1); // which particle in the worm is j?
+        iw = 1 + ((i - 1)/np):int; // find which worm i is in
+        ip = i - np*(iw - 1); // which particle in the worm is i?
         dz = fluid_offset;
         dx = solvent[j].x - worms[iw,ip].x;
         dy = solvent[j].y - worms[iw,ip].y;
@@ -841,7 +843,7 @@ inline proc worm_cell_forces(i:int,j:int) {
 
             // DPD thermostat https://docs.lammps.org/pair_dpd.html
             //adding dissipative force
-            if (thermo) {
+            if (thermow) {
             dvx = worms[jworm,jp].vx - worms[iworm,ip].vx;
             dvy = worms[jworm,jp].vy - worms[iworm,ip].vy;
             dvz = worms[jworm,jp].vz - worms[iworm,ip].vz;
@@ -940,9 +942,9 @@ inline proc worm_cell_forces(i:int,j:int) {
 
                //add an extra attractive component where kinesin drive is present
 
-               ffx = fdogic*(dx) + 0.7*dddx/riijj;
-               ffy = fdogic*(dy) + 0.7*dddy/riijj;
-               ffz = fdogic*(dz) + 0.7*dddz/riijj;
+               ffx = fdogic*(dx) + dogic_fdep*dddx/riijj;
+               ffy = fdogic*(dy) + dogic_fdep*dddy/riijj;
+               ffz = fdogic*(dz) + dogic_fdep*dddz/riijj;
 
                worms[iworm,ip].fx += ffx;
                worms[jworm,jp].fx -= ffx;
@@ -1050,7 +1052,6 @@ proc update_vel() {
 }
 
 //FLUID FUNCTIONS
-
 proc init_fluid_count():int {
    var numSol:int;
    if (boundary == 1) {
@@ -1261,10 +1262,10 @@ inline proc lj(i:int,j:int,r2cut_local:real) {
     if (r2 <= r2cut_local) {
         //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-        sigma12 = sigma**12;
-        sigma6 = sigma**6;
+        //sigma12 = sigma**12;
+        //sigma6 = sigma**6;
         //ffor = 48.0*sigma12*r2**(-7.0) -24*sigma6*r2**(-4.0);
-        ffor = (1/sqrt(r2))**4.0;
+        ffor = (1/r2)**2.0;
         solvent[j].fx += ffor*dx;
         solvent[j].fy += ffor*dy;
     }
