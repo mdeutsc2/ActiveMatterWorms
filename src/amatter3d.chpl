@@ -14,9 +14,9 @@ import C; // import C-extension module for logging/appending
 const numTasks = here.numPUs();
 // configuration
 config const np = 80,//16,
-            nworms = 400,//625,
+            nworms = 500,//625,
             nsteps = 6000000    ,//00,
-            fdogic = 0.02,
+            fdogic = 0.01,
             walldrive = false,
             fdogicwall = 0.001,
             fdep = 0.5,// TODO: change to 4.0?
@@ -33,7 +33,7 @@ config const np = 80,//16,
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on?
-            kbt = 0.001, //0.25
+            kbt = 0.25,
             //numSol = 7000, // cardiod number of solution particles
             fluid_rho = 0.05,//8000, // disk number of solution particles
             sigma = 2.0,
@@ -239,7 +239,7 @@ proc init_worms() {
     ddy[8] = -1;
     ddx[9] = 0;
     ddy[9] = 0;
-    var thetanow = 50.0*pi :real; // changes the initial radius of annulus
+    var thetanow = 45.0*pi :real; // changes the initial radius of annulus
     var rmin = a*thetanow;
     write_log(logfile,"nworms\t"+nworms:string);
     write_log(logfile,"np\t"+np:string);
