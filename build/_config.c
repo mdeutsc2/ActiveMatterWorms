@@ -86,6 +86,9 @@ void CreateConfigVarTable(void) {
   installConfigVar("fdep", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fdep is deprecated"
                    , /* unstable = */ 0, "fdep is unstable"
                    );
+  installConfigVar("dogic_fdep", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "dogic_fdep is deprecated"
+                   , /* unstable = */ 0, "dogic_fdep is unstable"
+                   );
   installConfigVar("fdepwall", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fdepwall is deprecated"
                    , /* unstable = */ 0, "fdepwall is unstable"
                    );
@@ -97,6 +100,9 @@ void CreateConfigVarTable(void) {
                    );
   installConfigVar("kspring", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "kspring is deprecated"
                    , /* unstable = */ 0, "kspring is unstable"
+                   );
+  installConfigVar("k2spring", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "k2spring is deprecated"
+                   , /* unstable = */ 0, "k2spring is unstable"
                    );
   installConfigVar("kbend", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "kbend is deprecated"
                    , /* unstable = */ 0, "kbend is unstable"
@@ -121,6 +127,9 @@ void CreateConfigVarTable(void) {
                    );
   installConfigVar("thermo", "bool", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "thermo is deprecated"
                    , /* unstable = */ 0, "thermo is unstable"
+                   );
+  installConfigVar("thermow", "bool", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "thermow is deprecated"
+                   , /* unstable = */ 0, "thermow is unstable"
                    );
   installConfigVar("kbt", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "kbt is deprecated"
                    , /* unstable = */ 0, "kbt is unstable"

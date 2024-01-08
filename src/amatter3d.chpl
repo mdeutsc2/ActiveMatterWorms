@@ -14,18 +14,18 @@ import C; // import C-extension module for logging/appending
 const numTasks = here.numPUs();
 // configuration
 config const np = 80,//16,
-            nworms = 500,//625,
-            nsteps = 6000000    ,//00,
-            fdogic = 0.01,
+            nworms = 450,//625,
+            nsteps = 3000000    ,//00,
+            fdogic = 0.06,
             walldrive = false,
             fdogicwall = 0.001,
             fdep = 0.5,// TODO: change to 4.0?
-            dogic_fdep = 0.35, // extra attractive force when dogic shearing is present (originall 0.7)
+            dogic_fdep = 0.5, // extra attractive force when dogic shearing is present (originall 0.7)
             fdepwall = 4.0,
             diss = 0.02,
             dt = 0.015,
             kspring = 57.146436,
-            k2spring = 100.0*kspring,
+            k2spring = 50.0*kspring, //100
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
@@ -34,13 +34,13 @@ config const np = 80,//16,
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on? for solvent only
-            thermow = false, // thermostat flag for worms
+            thermow = true, // thermostat flag for worms
             kbt = 0.25,
             //numSol = 7000, // cardiod number of solution particles
             fluid_rho = 0.05,//8000, // disk number of solution particles
             sigma = 2.0,
             worm_particle_mass = 4.0,
-            L = 1.0; // thickness of cell
+            L = 2.0; // thickness of cell
 
 // variables
 const r2cut = rcut*rcut,
@@ -278,7 +278,7 @@ proc init_worms() {
                 thetanow += dth;
                 worms[iw,i].x = hxo2 + r*cos(thetanow);
                 worms[iw,i].y = hyo2 + r*sin(thetanow);
-                worms[iw,i].z = randStream.getNext()*(L);
+                worms[iw,i].z = 0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
                 xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
                 //TODO give them an initial velocity going around the circle
                 worms[iw,i].ptype = 1;
@@ -458,7 +458,7 @@ proc intraworm_forces() {
         }
     }
     // 3-spring bond-bending
-    var k3spring = 25.0*kspring;
+    var k3spring = 10.0*kspring; //25.0
     var length3 = 3.0*length0;
     forall iw in 1..nworms {
         var ip3:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
@@ -968,11 +968,11 @@ inline proc dogic_wall(iw:int,ip:int,ib:int){
     r2 = (dx*dx + dy*dy);
     //if close enough to the wall, calculate wall forces
     //use the short cut-off
-    if (r2 <= r2cut) {
+    if (r2 <= r2cutsmall) {
         r = sqrt(r2);
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-        ffor = (1/r)**6.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
+        ffor = (1/r)*6.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
@@ -1708,6 +1708,7 @@ proc write_params() {
         myFileWriter.writeln("walldrive\t",walldrive.type:string,"\t",walldrive);
         myFileWriter.writeln("fdogicwall\t",fdogicwall.type:string,"\t",fdogicwall);
         myFileWriter.writeln("fdep\t",fdep.type:string,"\t",fdep);
+        myFileWriter.writeln("dogic_fdep\t",dogic_fdep.type:string,"\t",dogic_fdep);
         myFileWriter.writeln("fdepwall\t",fdepwall.type:string,"\t",fdepwall);
         myFileWriter.writeln("diss\t",diss.type:string,"\t",diss);
         myFileWriter.writeln("dt\t",dt.type:string,"\t",dt);
@@ -1750,6 +1751,7 @@ inline proc gaussRand(mean: real, stddev: real): real {
 }
 
 proc sudden_halt(istep:int) {
+   writeln("halted step # ",istep);
     write_xyzv(istep);
     //write_macro(nsteps);
 }

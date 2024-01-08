@@ -186,7 +186,7 @@ class Render:
             print("writing to: ",out_name)
         vp.render_anim(filename = out_name,
                        size=(1000,1000),
-                       fps=60,
+                       fps=30, #60
                        background = (1.0,1.0,1.0),
                        stop_on_error=True)
         return out_name
