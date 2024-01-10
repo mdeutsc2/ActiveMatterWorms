@@ -15,13 +15,13 @@ const numTasks = here.numPUs();
 // configuration
 config const np = 80,//16,
             nworms = 450,//625,
-            nsteps = 3000000    ,//00,
+            nsteps = 12000000    ,//00,
             fdogic = 0.06,
             walldrive = false,
             fdogicwall = 0.001,
-            fdep = 0.5,// TODO: change to 4.0?
-            dogic_fdep = 0.5, // extra attractive force when dogic shearing is present (originall 0.7)
-            fdepwall = 4.0,
+            fdep = 0.75,// TODO: change to 4.0?
+            dogic_fdep = 0.75, // extra attractive force when dogic shearing is present (originall 0.7)
+            fdepwall = 6.0,
             diss = 0.02,
             dt = 0.015,
             kspring = 57.146436,
@@ -34,13 +34,13 @@ config const np = 80,//16,
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on? for solvent only
-            thermow = true, // thermostat flag for worms
+            thermow = false, // thermostat flag for worms
             kbt = 0.25,
             //numSol = 7000, // cardiod number of solution particles
             fluid_rho = 0.05,//8000, // disk number of solution particles
             sigma = 2.0,
             worm_particle_mass = 4.0,
-            L = 2.0; // thickness of cell
+            L = 10.0; // thickness of cell
 
 // variables
 const r2cut = rcut*rcut,
@@ -458,7 +458,7 @@ proc intraworm_forces() {
         }
     }
     // 3-spring bond-bending
-    var k3spring = 10.0*kspring; //25.0
+    var k3spring = 10*kspring; //10.0 25.0
     var length3 = 3.0*length0;
     forall iw in 1..nworms {
         var ip3:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
