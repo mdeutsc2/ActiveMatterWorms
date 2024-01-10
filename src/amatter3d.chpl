@@ -272,13 +272,14 @@ proc init_worms() {
             if (rand1 <= 0.5) {
                 ireverse[iw] = 1;
             }
+            var worm_z_height = randStream.getNext()*(L);
             for i in 1..np {
                 r = a*thetanow;
                 dth = length0/r;
                 thetanow += dth;
                 worms[iw,i].x = hxo2 + r*cos(thetanow);
                 worms[iw,i].y = hyo2 + r*sin(thetanow);
-                worms[iw,i].z = 0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
                 xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
                 //TODO give them an initial velocity going around the circle
                 worms[iw,i].ptype = 1;
