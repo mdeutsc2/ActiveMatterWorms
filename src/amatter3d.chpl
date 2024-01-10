@@ -917,8 +917,7 @@ inline proc worm_cell_forces(i:int,j:int) {
 
 
             //if the two vectors have any component pointing in opposite directions
-            if (dxi*dxj + dyi*dyj + dzi*dzj <= -0.5            if (dxi*dxj + dyi*dyj + dzi*dzj<= 0.0) {
-) {
+            if (dxi*dxj + dyi*dyj + dzi*dzj <= -0.5) {
             //if (dxi*dxj + dyi*dyj + dzi*dzj<= 0.0) {
                //normalize those vectors to make them unit vectors
                ri = sqrt(dxi*dxi + dyi*dyi *dzi*dzi);
