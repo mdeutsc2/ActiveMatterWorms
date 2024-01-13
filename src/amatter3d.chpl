@@ -13,15 +13,15 @@ import C; // import C-extension module for logging/appending
 
 const numTasks = here.numPUs();
 // configuration
-config const np = 80,//16,
-            nworms = 450,//625,
+config const np = 60,//16,
+            nworms = 1800,//625,
             nsteps = 12000000    ,//00,
             fdogic = 0.06,
             walldrive = false,
             fdogicwall = 0.001,
-            fdep = 0.75,// TODO: change to 4.0?
-            dogic_fdep = 0.75, // extra attractive force when dogic shearing is present (originall 0.7)
-            fdepwall = 6.0,
+            fdep = 0.25,// TODO: change to 4.0?
+            dogic_fdep = 0.25, // extra attractive force when dogic shearing is present (originall 0.7)
+            fdepwall = 8.0,
             diss = 0.02,
             dt = 0.015,
             kspring = 57.146436,
@@ -35,18 +35,18 @@ config const np = 80,//16,
             debug = false,
             thermo = true, // turn thermostat on? for solvent only
             thermow = false, // thermostat flag for worms
-            kbt = 0.25,
+            kbt = 1.5,
             //numSol = 7000, // cardiod number of solution particles
             fluid_rho = 0.05,//8000, // disk number of solution particles
             sigma = 2.0,
             worm_particle_mass = 4.0,
-            L = 10.0; // thickness of cell
+            L = 3.2; // thickness of cell
 
 // variables
 const r2cut = rcut*rcut,
       rcutsmall = 2.0**(1.0/6.0),
       r2cutsmall = rcutsmall*rcutsmall,
-      rwall = 199,//125.0*rcutsmall*sqrt(2.0),
+      rwall = 204,//125.0*rcutsmall*sqrt(2.0),
       pi = 4.0*atan(1.0),
       twopi = 2*pi,
       pio4 = pi*0.25,
@@ -68,9 +68,9 @@ const r2cut = rcut*rcut,
       length2 = 2.0*length0,
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
-      a = 0.48, // layer spacing of worms in init_worms?
+      a = 0.18, // 0.48 layer spacing of worms in init_worms?
       gamma = 6.0, // frictional constant for dissipative force (~1/damp)
-      dpd_ratio = 0.5,
+      dpd_ratio = 1.0,
       sqrt_gamma_term = sqrt(2.0*kbt*gamma),
       numPoints = 2000,//1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = rcutsmall*sigma,//3.0; // z-offset of fluid
@@ -159,6 +159,9 @@ proc main() {
     var macro_filename:string = "energies.dat";
     init_macro(macro_filename);
     write_xyzv(0);
+    //restart_write(0);
+    //restart_read("amatter.restart");
+    //halt();
     
     //setting up stopwatch
     var log_str:string;
@@ -241,7 +244,7 @@ proc init_worms() {
     ddy[8] = -1;
     ddx[9] = 0;
     ddy[9] = 0;
-    var thetanow = 45.0*pi :real; // changes the initial radius of annulus
+    var thetanow = 5.0*pi :real; // changes the initial radius of annulus
     var rmin = a*thetanow;
     write_log(logfile,"nworms\t"+nworms:string);
     write_log(logfile,"np\t"+np:string);
@@ -1738,6 +1741,100 @@ proc write_params() {
     }
 }
 
+proc restart_write(istep:int) {
+   var dx :real, dy:real, xang:real, rx:real,ry:real,dot:real;
+    var ic:int;
+    var filename:string = "amatter.restart";
+    //var filename = "amatter" + (istep:string) + ".xyz";
+    try {
+      var xyzfile = open(filename, ioMode.cw);
+      var myFileWriter = xyzfile.writer();
+      // number of active particles + 4 edge-defining particles + boundary + solvent (optional)
+      if (fluid_cpl) {
+         myFileWriter.writeln(nworms * np + 4 + numPoints + numSol);
+      } else {
+         myFileWriter.writeln(nworms*np + 4 + numPoints);
+      }
+      myFileWriter.writeln("# ",istep," nworms=",nworms," np=",np," boundary=",boundary," numSol=",numSol," numPoints=",numPoints);
+      ic = 2;
+      for iw in 1..nworms {
+         dx = worms[iw,1].x - hxo2;
+         dy = worms[iw,1].y - hyo2;
+         xang = atan2(dy,dx);
+         rx = -sin(xang);
+         ry = cos(xang);
+         dot = (worms[iw,1].x - worms[iw,np].x)*rx + (worms[iw,1].y - worms[iw,np].y)*ry;
+         if (dot >= 0.0) {
+               for i in 1..np {
+                  myFileWriter.writeln("A ",worms[iw,i].x," ",worms[iw,i].y," ", worms[iw,i].z," ",worms[iw,i].vx," ",worms[iw,i].vy," ",worms[iw,i].vz);
+                  //myFileWriter.writeln("A ",x[iw,i]," ",y[iw,i]," ", 0.0," ",vx[iw,i]," ",vy[iw,i]," ",0.0);
+                  ic += 1;
+               }
+         } else {
+               for i in 1..np {
+                  myFileWriter.writeln("B ",worms[iw,i].x," ",worms[iw,i].y," ",worms[iw,i].z," ",worms[iw,i].vx," ",worms[iw,i].vy," ",worms[iw,i].vz);
+                  //myFileWriter.writeln("B ",x[iw,i]," ",y[iw,i]," ", 0.0," ",vx[iw,i]," ",vy[iw,i]," ",0.0);
+                  ic += 1;
+               }
+         }
+      }
+      for i in 1..numPoints {
+         myFileWriter.writeln("I ",bound[i].x," ",bound[i].y," ",0.0," ",0.0," ",0.0," ",0.0);
+         ic += 1;
+      }
+      if (fluid_cpl) {
+         for i in 1..numSol {
+               myFileWriter.writeln("S ",solvent[i].x," ",solvent[i].y," ",0.0," ",solvent[i].vx," ",solvent[i].vy," ",0.0);
+               ic += 1;
+         }
+      }
+      myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+      myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+      myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+      myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+      //ic += 4;
+      // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+      // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+      // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+      // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+      //xyzfile.close();
+    } catch e: Error {
+        writeln(e);
+    }
+}
+
+proc restart_read(filename) {
+   //var file : File;
+   try {
+      var restart_file = open("amatter.restart", ioMode.r).reader();
+      var testN : int;
+      var read_bool :bool;
+      var pos2: [1..3] real;
+      var vel2: [1..3] real;
+      var typestring:string;
+      read_bool = restart_file.read(testN);
+
+      var datastring = restart_file.readString(-1);
+      var linestring = datastring.split("\n");
+      writeln("amatter.restart loaded");
+      writeln(linestring[1]);
+      if (fluid_cpl) {
+         if (testN !=nworms * np + 4 + numPoints + numSol) then {
+            writeln("wrong number of particles in params file, diff from restart");
+            halt();
+         }
+      } else {
+         if (testN != nworms*np + 4 + numPoints) then {
+            writeln("wrong number of particles in params file, diff from restart");
+            halt();
+         }
+      }
+      writeln(linestring[2]);
+      writeln(linestring[2].split());
+   } catch e: Error {
+      writeln(e);
+   }
+}
 // HELPER FUNCTIONS
 inline proc gaussRand(mean: real, stddev: real): real {
     var u1 = randStream.getNext();
@@ -1755,5 +1852,6 @@ inline proc gaussRand(mean: real, stddev: real): real {
 proc sudden_halt(istep:int) {
    writeln("halted step # ",istep);
     write_xyzv(istep);
+    restart_write(istep);
     //write_macro(nsteps);
 }
