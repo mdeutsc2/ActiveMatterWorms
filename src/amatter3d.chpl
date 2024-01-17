@@ -14,14 +14,14 @@ import C; // import C-extension module for logging/appending
 const numTasks = here.numPUs();
 // configuration
 config const np = 60,//16,
-            nworms = 1200,//625,
+            nworms = 1000,//625,
             nsteps = 12000000    ,//00,
             fdogic = 0.06,
             walldrive = false,
             fdogicwall = 0.001,
             fdep = 0.25,// TODO: change to 4.0?
             dogic_fdep = 0.25, // extra attractive force when dogic shearing is present (originall 0.7)
-            fdepwall = 4.0,
+            fdepwall = 6.0,
             diss = 0.02,
             dt = 0.015,
             kspring = 57.146436,
@@ -71,7 +71,7 @@ const r2cut = rcut*rcut,
       gamma = 6.0, // frictional constant for dissipative force (~1/damp)
       dpd_ratio = 1.0,
       sqrt_gamma_term = sqrt(2.0*kbt*gamma),
-      numPoints = 2000,//1200//589, //number of boundary points (for circle w/ r-75)
+      numPoints = 3000,//1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = rcutsmall*sigma,//3.0; // z-offset of fluid
       io_interval = 500,
       sw_epsilon = 2.0, // solvent-worm interaction epsilon
@@ -984,7 +984,7 @@ inline proc dogic_wall(iw:int,ip:int,ib:int){
         r = sqrt(r2);
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-        ffor = (1/r)*4.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
+        ffor = (1/r)*6.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
