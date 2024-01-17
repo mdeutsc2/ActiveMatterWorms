@@ -92,8 +92,8 @@ void CreateConfigVarTable(void) {
   installConfigVar("fdepwall", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fdepwall is deprecated"
                    , /* unstable = */ 0, "fdepwall is unstable"
                    );
-  installConfigVar("diss", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "diss is deprecated"
-                   , /* unstable = */ 0, "diss is unstable"
+  installConfigVar("rwall", "int(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "rwall is deprecated"
+                   , /* unstable = */ 0, "rwall is unstable"
                    );
   installConfigVar("dt", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "dt is deprecated"
                    , /* unstable = */ 0, "dt is unstable"
@@ -145,6 +145,9 @@ void CreateConfigVarTable(void) {
                    );
   installConfigVar("L", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "L is deprecated"
                    , /* unstable = */ 0, "L is unstable"
+                   );
+  installConfigVar("restart_filename", "string", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "restart_filename is deprecated"
+                   , /* unstable = */ 0, "restart_filename is unstable"
                    );
 }
 
