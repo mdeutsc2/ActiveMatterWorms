@@ -25,16 +25,3 @@ debug: $(SOURCE)
 
 cuda:
 	$(CHPL) $(GPUFLAGS) $(SOURCE) -o $(OUTPUT)
-
-run:
-	set -e; \
-	dirname=data_$$(date +%d_%m_%Y); \
-	if [ -d "$$dirname" ]; then \
-		count=2; \
-		while [ -d "$$dirname-$$count" ]; do \
-			count=$$(($$count+1)); \
-		done; \
-		dirname="$$dirname-$$count"; \
-	fi; \
-	mkdir -p $$dirname; \
-	cd $$dirname && time ../$(OUTPUT);
