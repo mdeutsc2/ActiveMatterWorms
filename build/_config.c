@@ -54,7 +54,7 @@ void CreateConfigVarTable(void) {
                    , /* unstable = */ 1, "The variable 'gpuSyncWithHostAfterGpuOp' is unstable and its interface is subject to change in the future"
                    );
   installConfigVar("gpuUseStreamPerTask", "bool", "Built-in", /* private = */ 0, /* deprecated = */ 0, "gpuUseStreamPerTask is deprecated"
-                   , /* unstable = */ 1, "The variable 'gpuUseDefaultStream' is unstable and its interface is subject to change in the future"
+                   , /* unstable = */ 1, "The variable 'gpuUseStreamPerTask' is unstable and its interface is subject to change in the future"
                    );
   installConfigVar("enableGpuP2P", "bool", "Built-in", /* private = */ 0, /* deprecated = */ 0, "enableGpuP2P is deprecated"
                    , /* unstable = */ 1, "The variable 'enableGpuP2P' is unstable and its interface is subject to change in the future"
