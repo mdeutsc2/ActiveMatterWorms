@@ -146,6 +146,9 @@ void CreateConfigVarTable(void) {
   installConfigVar("L", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "L is deprecated"
                    , /* unstable = */ 0, "L is unstable"
                    );
+  installConfigVar("restart_filename", "string", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "restart_filename is deprecated"
+                   , /* unstable = */ 0, "restart_filename is unstable"
+                   );
 }
 
 
