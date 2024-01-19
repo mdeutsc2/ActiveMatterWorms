@@ -54,7 +54,7 @@ void CreateConfigVarTable(void) {
                    , /* unstable = */ 1, "The variable 'gpuSyncWithHostAfterGpuOp' is unstable and its interface is subject to change in the future"
                    );
   installConfigVar("gpuUseStreamPerTask", "bool", "Built-in", /* private = */ 0, /* deprecated = */ 0, "gpuUseStreamPerTask is deprecated"
-                   , /* unstable = */ 1, "The variable 'gpuUseStreamPerTask' is unstable and its interface is subject to change in the future"
+                   , /* unstable = */ 1, "The variable 'gpuUseDefaultStream' is unstable and its interface is subject to change in the future"
                    );
   installConfigVar("enableGpuP2P", "bool", "Built-in", /* private = */ 0, /* deprecated = */ 0, "enableGpuP2P is deprecated"
                    , /* unstable = */ 1, "The variable 'enableGpuP2P' is unstable and its interface is subject to change in the future"
@@ -92,8 +92,8 @@ void CreateConfigVarTable(void) {
   installConfigVar("fdepwall", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fdepwall is deprecated"
                    , /* unstable = */ 0, "fdepwall is unstable"
                    );
-  installConfigVar("diss", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "diss is deprecated"
-                   , /* unstable = */ 0, "diss is unstable"
+  installConfigVar("rwall", "int(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "rwall is deprecated"
+                   , /* unstable = */ 0, "rwall is unstable"
                    );
   installConfigVar("dt", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "dt is deprecated"
                    , /* unstable = */ 0, "dt is unstable"
