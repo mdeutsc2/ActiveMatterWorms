@@ -17,4 +17,4 @@ lscpu
 source /users/PGS0213/mdeutsc2/chapel-1.33.0_cpu/util/setchplenv.bash
 make clean
 make
-make run
+./runsim.sh
