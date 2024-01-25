@@ -11,6 +11,7 @@
 		"makefile.additionalCompilerNames": [
 			"chpl"
 		],
-		"makefile.makefilePath": ""
+		"makefile.makefilePath": "",
+		"julia.environmentPath": "/Users/matt/Dropbox/Research/codes/ActiveMatterWorms"
 	}
 }
