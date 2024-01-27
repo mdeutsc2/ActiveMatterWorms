@@ -14,7 +14,7 @@ import C; // import C-extension module for logging/appending
 const numTasks = here.numPUs();
 // configuration
 config const np = 60,//16,
-            nworms = 1000,//625,
+            nworms = 1200,//625,
             nsteps = 12000000    ,//00,
             fdogic = 0.06,
             walldrive = false,
@@ -72,7 +72,7 @@ const r2cut = rcut*rcut,
       gamma = 6.0, // frictional constant for dissipative force (~1/damp)
       dpd_ratio = 1.0,
       sqrt_gamma_term = sqrt(2.0*kbt*gamma),
-      numPoints = 3000,//1200//589, //number of boundary points (for circle w/ r-75)
+      numPoints = 3500,//1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = rcutsmall*sigma,//3.0; // z-offset of fluid
       io_interval = 500,
       restart_interval = save_interval*2,
@@ -315,7 +315,7 @@ proc init_worms() {
                 // fxold[iw,i] = 0.0;
                 // fyold[iw,i] = 0.0;
             }
-            thetanow += 4.0*dth;
+            thetanow += 2.0*dth;
         }
     } else if (boundary == 2) {
         // cardioid boundary
@@ -999,7 +999,7 @@ inline proc dogic_wall(iw:int,ip:int,ib:int){
         r = sqrt(r2);
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-        ffor = (1/r)*6.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
+        ffor = (1/r)**6.0 - fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
@@ -1951,6 +1951,6 @@ inline proc gaussRand(mean: real, stddev: real): real {
 proc sudden_halt(istep:int) {
    writeln("halted step # ",istep);
     write_xyzv(istep);
-    restart_write(istep);
+    //restart_write(istep);
     //write_macro(nsteps);
 }
