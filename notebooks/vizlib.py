@@ -34,11 +34,10 @@ def load_data(filename):
                 vel_data[frame,i,:] = line_data[3:6]
     return N,len(Ns),pos_data,vel_data
 
-def get_particle_vecs_frame(N,iframe,pos_data,disp=True):
+def get_particle_vecs_frame(N,worm_length,iframe,pos_data,disp=True):
     """ calculating the vectors of each of the individual particles"""
-    worm_length = 16
     vector_field = np.zeros((N,6))
-    num_worms = int(N/16)
+    num_worms = int(N/worm_length)
     if disp:
         print("num_worms:",num_worms)
 
