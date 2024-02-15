@@ -55,7 +55,7 @@ def main():
     total_size = 0
     for filename in tqdm.tqdm(xyzfilelist):
         #for line in file.readline()
-        file = open(filename,"r")
+        file = open(filename,"r",encoding='utf-8')
         data = file.read()
         file.close()
         merged_file.write(data)

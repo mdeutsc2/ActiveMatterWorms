@@ -18,7 +18,7 @@ def load_data(filename):
     print("Loading ",len(Ns)," frames of data...")
     pos_data = np.zeros((len(Ns),N,3))
     vel_data = np.zeros((len(Ns),N,3))
-    with open(filename) as f:
+    with open(filename,'r') as f:
         #frame_data = np.zeros((N,6))
         raw_data = f.readlines()
         for iline in range(len(raw_data)):
