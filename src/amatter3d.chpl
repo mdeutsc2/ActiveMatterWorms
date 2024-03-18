@@ -13,8 +13,8 @@ import C; // import C-extension module for logging/appending
 
 const numTasks = here.numPUs();
 // configuration
-config const np = 60,//16,
-            nworms = 1200,//625,
+config const np = 80,//16,
+            nworms = 800,//625,
             nsteps = 12000000    ,//00,
             fdogic = 0.06,
             walldrive = false,
@@ -22,7 +22,7 @@ config const np = 60,//16,
             fdep = 0.25,
             dogic_fdep = 0.25, // extra attractive force when dogic shearing is present (originall 0.7)
             fdepwall = 6.0,
-            rwall = 204,//125.0*rcutsmall*sqrt(2.0),
+            rwall = 164,//125.0*rcutsmall*sqrt(2.0),
             dt = 0.015,
             kspring = 57.146436,
             k2spring = 50.0*kspring, //100
@@ -30,14 +30,14 @@ config const np = 60,//16,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
             save_interval = 4000,
-            boundary = 1, // 1 = circle, 2 = cardioid, 3 = channel, 4 = torus
+            boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel, 4 = torus
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on? for solvent only
             thermow = false, // thermostat flag for worms
             kbt = 1.5,
             //numSol = 7000, // cardiod number of solution particles
-            fluid_rho = 0.05,//8000, // disk number of solution particles
+            fluid_rho = 0.1,//8000, // disk number of solution particles
             sigma = 2.0,
             worm_particle_mass = 4.0,
             L = 3.2, // thickness of cell
@@ -68,11 +68,11 @@ const r2cut = rcut*rcut,
       length2 = 2.0*length0,
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
-      a = 0.18, // 0.48 layer spacing of worms in init_worms?
+      a = 0.14, // 0.18,0.48 layer spacing of worms in init_worms?
       gamma = 6.0, // frictional constant for dissipative force (~1/damp)
       dpd_ratio = 1.0,
       sqrt_gamma_term = sqrt(2.0*kbt*gamma),
-      numPoints = 3500,//1200//589, //number of boundary points (for circle w/ r-75)
+      numPoints = 5000,//1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = rcutsmall*sigma,//3.0; // z-offset of fluid
       io_interval = 500,
       restart_interval = save_interval*2,
@@ -323,6 +323,7 @@ proc init_worms() {
         var thetaValues: [1..numPoints] real;
         var ca = 1.5*(rwall/2);
         var totalArcLength = 8 * ca;
+        write_log(logfile,"cardioid width: "+(ca*2):string);
         write_log(logfile,"cardioid cirum: "+totalArcLength:string+"\t"+(totalArcLength/r2cutsmall):string);
         for i in 1..numPoints {
             equidistantArcLengths[i] = totalArcLength * (i - 1) / (numPoints - 1);
@@ -336,6 +337,7 @@ proc init_worms() {
             bound[i].ptype = 3;
         }
         //now place worm particles
+        /*
         for iw in 1..nworms {
             ireverse[iw] = 0;
             rand1 = randStream.getNext();
@@ -343,6 +345,74 @@ proc init_worms() {
                 ireverse[iw] = 1;
             }
             var worm_z_height = randStream.getNext()*(L);
+            for i in 1..np {
+                r = a*thetanow;
+                dth = length0/r;
+                thetanow += dth;
+                worms[iw,i].x = hxo2 + r*cos(thetanow);
+                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
+                worms[iw,i].y = hyo2 + r*sin(thetanow);
+                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
+                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                //TODO give them an initial velocity going around the circle
+                worms[iw,i].ptype = 1;
+                worms[iw,i].m = 1.0; // setting mass
+                // vx[iw,i] = 0.0;
+                // vy[iw,i] = 0.0;
+                worms[iw,i].vxave = 0.0;
+                worms[iw,i].vyave = 0.0;
+                worms[iw,i].vzave = 0.0;
+                // fx[iw,i] = 0.0;
+                // fy[iw,i] = 0.0;
+                // fxold[iw,i] = 0.0;
+                // fyold[iw,i] = 0.0;
+            }
+            thetanow += 2.0*dth;
+        }*/
+         // high-density placement
+         
+        var theta_now_init = thetanow;
+        for iw in 1..nworms/2 {
+            ireverse[iw] = 0;
+            rand1 = randStream.getNext();
+            if (rand1 <= 0.5) {
+                ireverse[iw] = 1;
+            }
+            var worm_z_height = randStream.getNext()*(L/2);
+            for i in 1..np {
+                r = a*thetanow;
+                dth = length0/r;
+                thetanow += dth;
+                worms[iw,i].x = hxo2 + r*cos(thetanow);
+                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
+                worms[iw,i].y = hyo2 + r*sin(thetanow);
+                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
+                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                //TODO give them an initial velocity going around the circle
+                worms[iw,i].ptype = 1;
+                worms[iw,i].m = 1.0; // setting mass
+                // vx[iw,i] = 0.0;
+                // vy[iw,i] = 0.0;
+                worms[iw,i].vxave = 0.0;
+                worms[iw,i].vyave = 0.0;
+                worms[iw,i].vzave = 0.0;
+                // fx[iw,i] = 0.0;
+                // fy[iw,i] = 0.0;
+                // fxold[iw,i] = 0.0;
+                // fyold[iw,i] = 0.0;
+            }
+            thetanow += 2.0*dth;
+        }
+        thetanow = theta_now_init;//5.0*pi;
+        for iw in nworms/2..nworms {
+            ireverse[iw] = 0;
+            rand1 = randStream.getNext();
+            if (rand1 <= 0.5) {
+                ireverse[iw] = 1;
+            }
+            var worm_z_height = randStream.getNext()*(L/2)+L/2;
             for i in 1..np {
                 r = a*thetanow;
                 dth = length0/r;
@@ -484,7 +554,7 @@ proc intraworm_forces() {
         }
     }
     // 3-spring bond-bending
-    var k3spring = 10*kspring; //10.0 25.0
+    var k3spring = 50.0*kspring; //10.0 25.0 50.0
     var length3 = 3.0*length0;
     forall iw in 1..nworms {
         var ip3:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
@@ -999,7 +1069,8 @@ inline proc dogic_wall(iw:int,ip:int,ib:int){
         r = sqrt(r2);
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-        ffor = (1/r)**6.0 - fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
+        ffor = (1/r)*6.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
+        //ffor = (1/r)**6.0 - fdepwall/r;
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {

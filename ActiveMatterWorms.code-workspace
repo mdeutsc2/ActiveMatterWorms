@@ -11,6 +11,7 @@
 		"makefile.additionalCompilerNames": [
 			"chpl"
 		],
-      "makefile.makefilePath": ""
+      "makefile.makefilePath": "",
+      "git.ignoreLimitWarning": true
 	}
 }

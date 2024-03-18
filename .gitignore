@@ -190,6 +190,9 @@ ModelManifest.xml
 
 # datafiles
 *.code-workspace
+*.png
+*.avi
+*.npz
 *.xyz
 *.xyzv
 *.zip
@@ -198,3 +201,4 @@ ModelManifest.xml
 *.md5
 *.ipynb_checkpoints/
 *.jupyter/
+*.tar.*
