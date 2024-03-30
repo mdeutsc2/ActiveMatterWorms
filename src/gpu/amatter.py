@@ -3,6 +3,7 @@ from datetime import date
 import numpy
 
 #ti.init(arch=ti.cpu,advanced_optimization=False,debug=True,cpu_max_num_threads=1)
+#ti.init(arch=ti.cpu,kernel_profiler=True)
 ti.init(arch=ti.gpu)
 
 vec = ti.math.vec3
@@ -22,25 +23,26 @@ class Particle:
 
 dt = 0.01
 dt2o2 = (dt*dt)/2
+dto2 = dt/2
 L = 3.2
 
-
-nworms = 20
-np = 20
+save_interval = 500
+nworms = 800
+np = 80
 n_active = nworms*np
-n_bound = 500
+n_bound = 5000
 n_fluid = 0
 
 n = n_active + n_bound + n_fluid
 
-nsteps = 10
+nsteps = 1000
 kspring = 57.146436
 k2spring = 50.0*kspring
 k3spring = 75.0*kspring
 length0 = 0.8
 length2 = 2.0*length0
 length3 = 3.0*length0
-rwall = 50
+rwall = 150
 fdep = 0.25
 fdogic =0.06
 dogic_fdep = 0.25
@@ -76,7 +78,6 @@ save_y = ti.field(ti.f32,shape=np)
 
 @ti.kernel
 def init_worms():
-
    #placing worm particles
    thetanow = 5.0*numpy.pi
    a = 0.14
@@ -135,7 +136,7 @@ def update_pos():
             pf[i].p[2] = L
          elif pf[i].p[2] < 0.0:
             pf[i].p[2] = L
-      if i > n_active and i < n_bound:
+      if i > n_active+n_bound:
          # half-velocity update for fluid particles
          pf[i].p += pf[i].v*dt + pf[i].f*dt2o2 
          pf[i].p[2] = 0.0
@@ -143,6 +144,16 @@ def update_pos():
          pf[i].v += 0.5*dt*pf[i].f
          pf[i].v[2] = 0.0
          pf[i].f = 0.0
+
+@ti.kernel
+def update_vel():
+    for i in pf:
+        if i < n_active:
+            pf[i].v += dto2*(pf[i].f + pf[i].fold)
+        if i > n_active+n_bound:
+            # other half-velocity update for fluid particles
+            pf[i].f /= pf[i].m
+            pf[i].v += 0.5*dt*pf[i].f
 
 @ti.kernel
 def intraworm_forces():
@@ -380,7 +391,9 @@ def main():
 
    #restart_write(0);
    for itime in range(nsteps):
-      write_xyzv(itime)
+      if (itime % save_interval == 0) or itime == 0:
+        #write_xyzv(itime)
+        pass
       #   if (itime % io_interval == 0) {
       #       xt.stop();
       #       total_time += xt.elapsed();
@@ -399,7 +412,7 @@ def main():
 
       intraworm_forces()
 
-      print("calculating forces")
+      #print("calculating forces")
       calc_forces(pf)
       #   if (fluid_cpl) {
       #       KEsol_total[itime] = (+ reduce KEsol);
@@ -408,7 +421,7 @@ def main():
       #       KEsol_total[itime] = 0.0;
       #   }
 
-      #update_vel();
+      update_vel()
       #   KEworm_total[itime] = (+ reduce KEworm);
       #   KEworm_local_total[itime] = (+ reduce KEworm_local);
       #   AMworm_total[itime] = (+ reduce AMworm);
@@ -423,6 +436,8 @@ def main():
       #       }
       #   }
    #print("Total Time:"+total_time:string+" s");
+   #ti.profiler.print_kernel_profiler_info('trace')
+   #ti.profiler.print_kernel_profiler_info()
 
 if __name__ == "__main__":
    main()
