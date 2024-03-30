@@ -1,6 +1,8 @@
 import taichi as ti
 from datetime import date
 import numpy
+from tqdm import tqdm
+import asyncio
 
 #ti.init(arch=ti.cpu,advanced_optimization=False,debug=True,cpu_max_num_threads=1)
 #ti.init(arch=ti.cpu,kernel_profiler=True)
@@ -390,10 +392,10 @@ def main():
    #init_fluid(solvent, numSol);
 
    #restart_write(0);
-   for itime in range(nsteps):
+   for itime in tqdm(range(nsteps)):
       if (itime % save_interval == 0) or itime == 0:
-        #write_xyzv(itime)
-        pass
+        write_xyzv(itime)
+        #pass
       #   if (itime % io_interval == 0) {
       #       xt.stop();
       #       total_time += xt.elapsed();
