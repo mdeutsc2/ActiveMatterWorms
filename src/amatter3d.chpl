@@ -43,6 +43,7 @@ config const np = 80,//16,
             worm_particle_mass = 1.0,
             sw_epsilon = 2.0, // solvent-worm interaction epsilon
             L = 3.2, // thickness of cell
+            fdrag = 0.01, // pairwise drag force for solvent-worm interaction
             restart_filename = "";
 
 // parameters 
@@ -878,10 +879,21 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
             ffor = -48.0*sw_epsilon*r2**(-7.0) + 24.0*sw_epsilon*r2**(-4.0); 
             ffx = ffor*dx;
             ffy = ffor*dy;
-            solvent[i].fx += ffx;
-            solvent[i].fy += ffy;
-            worms[iw,ip].fx -= ffx;
-            worms[iw,ip].fy -= ffy;
+
+            // pairwise drag force - March 22
+            if (fdrag > 0) {
+                dvx = solvent[i].vx - worms[iw,ip].vx;
+                dvy = solvent[i].vy - worms[iw,ip].vy;
+                rhatx = dx/sqrt(r2);
+                rhaty = dy/sqrt(r2);
+                dv_dot_rhat = dvx*rhatx + dvy*rhaty;
+                ffx += fdrag*dv_dot_rhat*dx;
+                ffy += fdrag*dv_dot_rhat*dy;
+            }
+            solvent[i].fx -= ffx;
+            solvent[i].fy -= ffy;
+            worms[iw,ip].fx += ffx;
+            worms[iw,ip].fy += ffy;
         }
     } else if ((itype == 1) && (jtype == 2)) {
         var dx,dy,dz,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,fdrag,dv_dot_rhat:real;
@@ -900,21 +912,20 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
             ffy = ffor*dy;
 
             // pairwise drag force - March 22
-            // fdrag = 0.05;            
-            // dvx = solvent[j].vx - worms[iw,ip].vx;
-            // dvy = solvent[j].vy - worms[iw,ip].vy;
-
-            // rhatx = dx/sqrt(r2);
-            // rhaty = dy/sqrt(r2);
-
-            // dv_dot_rhat = dvx*rhatx + dvy*rhaty;
-            // ffx += fdrag*dv_dot_rhat*rhatx; 
-            // ffy += fdrag*dv_dot_rhat*rhaty;
-
-            solvent[j].fx += ffx;
-            solvent[j].fy += ffy;
-            worms[iw,ip].fx -= ffx;
-            worms[iw,ip].fy -= ffy;
+            if (fdrag > 0) {
+                dvx = solvent[i].vx - worms[iw,ip].vx;
+                dvy = solvent[i].vy - worms[iw,ip].vy;
+                rhatx = dx/sqrt(r2);
+                rhaty = dy/sqrt(r2);
+                dv_dot_rhat = dvx*rhatx + dvy*rhaty;
+                ffx += fdrag*dv_dot_rhat*dx;
+                ffy += fdrag*dv_dot_rhat*dy;
+            }
+            
+            solvent[j].fx -= ffx;
+            solvent[j].fy -= ffy;
+            worms[iw,ip].fx += ffx;
+            worms[iw,ip].fy += ffy;
         }
     }
     //solvent-solvent interaction 2D

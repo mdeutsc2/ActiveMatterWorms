@@ -134,6 +134,9 @@ void CreateConfigVarTable(void) {
   installConfigVar("kbt", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "kbt is deprecated"
                    , /* unstable = */ 0, "kbt is unstable"
                    );
+  installConfigVar("gamma", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "gamma is deprecated"
+                   , /* unstable = */ 0, "gamma is unstable"
+                   );
   installConfigVar("fluid_rho", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fluid_rho is deprecated"
                    , /* unstable = */ 0, "fluid_rho is unstable"
                    );
@@ -142,6 +145,9 @@ void CreateConfigVarTable(void) {
                    );
   installConfigVar("worm_particle_mass", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "worm_particle_mass is deprecated"
                    , /* unstable = */ 0, "worm_particle_mass is unstable"
+                   );
+  installConfigVar("sw_epsilon", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "sw_epsilon is deprecated"
+                   , /* unstable = */ 0, "sw_epsilon is unstable"
                    );
   installConfigVar("L", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "L is deprecated"
                    , /* unstable = */ 0, "L is unstable"
