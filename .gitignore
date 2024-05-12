@@ -197,8 +197,9 @@ ModelManifest.xml
 *.xyzv
 *.zip
 *.mp4
-*.dat
+*.dat                    
 *.md5
 *.ipynb_checkpoints/
 *.jupyter/
 *.tar.*
+*.restart
