@@ -44,21 +44,6 @@ void CreateConfigVarTable(void) {
   installConfigVar("memLeaksByDesc", "string", "Built-in", /* private = */ 0, /* deprecated = */ 0, "memLeaksByDesc is deprecated"
                    , /* unstable = */ 1, "The variable 'memLeaksByDesc' is unstable and its interface is subject to change in the future"
                    );
-  installConfigVar("debugGpu", "bool", "Built-in", /* private = */ 0, /* deprecated = */ 0, "debugGpu is deprecated"
-                   , /* unstable = */ 1, "The variable 'debugGpu' is unstable and its interface is subject to change in the future"
-                   );
-  installConfigVar("gpuNoCpuModeWarning", "bool", "Built-in", /* private = */ 0, /* deprecated = */ 0, "gpuNoCpuModeWarning is deprecated"
-                   , /* unstable = */ 1, "The variable 'gpuNoCpuModeWarning' is unstable and its interface is subject to change in the future"
-                   );
-  installConfigVar("gpuSyncWithHostAfterGpuOp", "bool", "Built-in", /* private = */ 0, /* deprecated = */ 0, "gpuSyncWithHostAfterGpuOp is deprecated"
-                   , /* unstable = */ 1, "The variable 'gpuSyncWithHostAfterGpuOp' is unstable and its interface is subject to change in the future"
-                   );
-  installConfigVar("gpuUseStreamPerTask", "bool", "Built-in", /* private = */ 0, /* deprecated = */ 0, "gpuUseStreamPerTask is deprecated"
-                   , /* unstable = */ 1, "The variable 'gpuUseDefaultStream' is unstable and its interface is subject to change in the future"
-                   );
-  installConfigVar("enableGpuP2P", "bool", "Built-in", /* private = */ 0, /* deprecated = */ 0, "enableGpuP2P is deprecated"
-                   , /* unstable = */ 1, "The variable 'enableGpuP2P' is unstable and its interface is subject to change in the future"
-                   );
   installConfigVar("defaultHashTableResizeThreshold", "real(64)", "Built-in", /* private = */ 0, /* deprecated = */ 0, "defaultHashTableResizeThreshold is deprecated"
                    , /* unstable = */ 0, "defaultHashTableResizeThreshold is unstable"
                    );
@@ -103,6 +88,9 @@ void CreateConfigVarTable(void) {
                    );
   installConfigVar("k2spring", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "k2spring is deprecated"
                    , /* unstable = */ 0, "k2spring is unstable"
+                   );
+  installConfigVar("k3spring", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "k3spring is deprecated"
+                   , /* unstable = */ 0, "k3spring is unstable"
                    );
   installConfigVar("kbend", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "kbend is deprecated"
                    , /* unstable = */ 0, "kbend is unstable"
@@ -151,6 +139,9 @@ void CreateConfigVarTable(void) {
                    );
   installConfigVar("L", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "L is deprecated"
                    , /* unstable = */ 0, "L is unstable"
+                   );
+  installConfigVar("fdrag", "real(64)", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "fdrag is deprecated"
+                   , /* unstable = */ 0, "fdrag is unstable"
                    );
   installConfigVar("restart_filename", "string", "amatter3d", /* private = */ 0, /* deprecated = */ 0, "restart_filename is deprecated"
                    , /* unstable = */ 0, "restart_filename is unstable"

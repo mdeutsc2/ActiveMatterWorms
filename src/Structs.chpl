@@ -123,6 +123,4 @@ module Structs {
             }
         }
     }
-
-
 }

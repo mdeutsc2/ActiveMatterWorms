@@ -9,6 +9,7 @@ use DynamicIters;
 // user-defined modules
 import Structs;
 import C; // import C-extension module for logging/appending
+use BoundaryTypes;
 
 
 const numTasks = here.numPUs();
@@ -26,11 +27,12 @@ config const np = 80,//16,
             dt = 0.015,
             kspring = 57.146436,
             k2spring = 50.0*kspring, //100
+            k3spring = 75.0*kspring, //10.0 25.0 50.0
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
             save_interval = 4000,
-            boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel, 4 = torus
+            boundary = 2, // 1 = circle, 2 = cardioid, 3 = epicycloid, 4 = epigraph
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on? for solvent only
@@ -71,7 +73,7 @@ const r2cut = rcut*rcut,
       length2 = 2.0*length0,
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
-      a = 0.14, // 0.18,0.48 layer spacing of worms in init_worms?
+      a = 0.12, // 0.18,0.48 layer spacing of worms in init_worms?
       dpd_ratio = 1.0,
       sqrt_gamma_term = sqrt(2.0*kbt*gamma),
       numPoints = 5000,//1200//589, //number of boundary points (for circle w/ r-75)
@@ -82,16 +84,25 @@ const r2cut = rcut*rcut,
       random_init = true; // use RSA to place particles
 
 
+
+
 var wormsDomain: domain(2) = {1..nworms,1..np};
 var worms: [wormsDomain] Structs.Particle;
 Structs.ptc_init_counter = 1;
+var bd = boundary_type_init(boundary);
 
 var numSol:int;
 if random_init {
-   var ca = 1.5*(rwall/2);
-   writeln("ca ",ca);
-   writeln("cardioid area ",(6 * pi * ca ** 2));
-   numSol = ceil(fluid_rho * (6 * pi * ca ** 2)):int; // Total number of particles to generate
+    if (bd.t == BD_TYPE.CARDIOID) {
+        var ca = 1.5*(rwall/2);
+        writeln("ca ",ca);
+        writeln("cardioid area ",(6 * pi * ca ** 2));
+        numSol = ceil(fluid_rho * (6 * pi * ca ** 2)):int; // Total number of particles to generate
+    }
+    if (bd.t == BD_TYPE.CIRCLE) {
+        writeln("disk area ",(pi*rwall*rwall));
+        numSol = ceil(fluid_rho * (pi*rwall**2)):int;
+    }
    writeln("RSA numSol ",numSol);
 
 } else {
@@ -149,6 +160,7 @@ proc main() {
     
     // save params to file
     write_params();
+    halt();
     // initialize the alternating loops over bins
     init_binspace();
     // initialize bins and neighboring bin lists
@@ -165,7 +177,12 @@ proc main() {
 
     if (fluid_cpl) {
       if random_init {
-         solvent = init_fluid_rsa(solvent,numSol);
+        if (bd.t == BD_TYPE.CARDIOID) {
+         solvent = init_fluid_rsa2(solvent,numSol);
+        }
+        if (bd.t == BD_TYPE.CIRCLE) {
+            solvent = init_fluid_rsa1(solvent,numSol);
+        }
       } else {
         solvent = init_fluid(solvent, numSol);
       }
@@ -277,9 +294,9 @@ proc init_worms() {
     var thetanow = 5.0*pi :real; // changes the initial radius of annulus
     var rmin = a*thetanow;
     var density = 0.0;
-    if (boundary == 1) {
+    if (bd.t == BD_TYPE.CIRCLE) {
         density = nworms*np/(pi*rwall**2); //density for a circle
-    } else if (boundary == 2) {
+    } else if (bd.t == BD_TYPE.CARDIOID) {
         density = nworms*np/(6*pi*(1.5*(rwall/2))**2); // density for a cardioid
     }
     write_log(logfile,"nworms\t"+nworms:string);
@@ -290,7 +307,7 @@ proc init_worms() {
     write_log(logfile,"dt\t"+dt:string);
     write_log(logfile,"opt numPoints\t"+(ceil(2*pi*rwall)/rcutsmall):string);
     //setting up the worms
-    if (boundary == 1){
+    if (bd.t == BD_TYPE.CIRCLE){
         // circular bound
         var equidistantThetaValues: [1..numPoints] real = 0.0;
         var deltaTheta = 2 * pi / numPoints;
@@ -335,7 +352,7 @@ proc init_worms() {
             }
             thetanow += 2.0*dth;
         }
-    } else if (boundary == 2) {
+    } else if (bd.t == BD_TYPE.CARDIOID) {
         // cardioid boundary
         var equidistantArcLengths: [1..numPoints] real;
         var thetaValues: [1..numPoints] real;
@@ -571,7 +588,6 @@ proc intraworm_forces() {
         }
     }
     // 3-spring bond-bending
-    var k3spring = 75.0*kspring; //10.0 25.0 50.0
     var length3 = 3.0*length0;
     forall iw in 1..nworms {
         var ip3:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
@@ -1191,7 +1207,7 @@ proc update_vel() {
 //FLUID FUNCTIONS
 proc init_fluid_count():int {
    var numSol:int;
-   if (boundary == 1) {
+   if (bd.t == BD_TYPE.CIRCLE) {
       var fluid_a = 2*rwall;
       var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
       numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
@@ -1225,7 +1241,7 @@ proc init_fluid_count():int {
       // recounting
       writeln(rm_count);
       numSol -= rm_count;
-   } else if (boundary == 2) {
+   } else if (bd.t == BD_TYPE.CARDIOID) {
       var fluid_a = 2*rwall;
       var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
       numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
@@ -1271,7 +1287,7 @@ proc init_fluid_count():int {
 proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
    var random_placement = false;
    // place particles in a square lattice centered in the boundary
-   if (boundary == 1) {
+   if (bd.t == BD_TYPE.CIRCLE) {
       // circular boundary
       var fluid_a = 2*rwall;
       var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
@@ -1313,7 +1329,7 @@ proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
             count +=1;
          }
       }
-   } else if (boundary == 2) {
+   } else if (bd.t == BD_TYPE.CARDIOID) {
       // cardioid boundary
       // circular boundary
       var fluid_a = 2*rwall;
@@ -1372,16 +1388,16 @@ proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
    for i in 1..numSol {
       KEsol[i] = 0.0;
    }
-   if (boundary == 1){
+   if (bd.t == BD_TYPE.CIRCLE){
       writeln("fluid density=",numSol/(pi*rwall**2));
-   } else if (boundary == 2){
+   } else if (bd.t == BD_TYPE.CARDIOID){
       writeln("fluid density=",numSol/(6*pi*(1.5*(rwall/2))**2));
    }
    writeln("fluid init done");
    return solvent;
 }
 
-proc init_fluid_rsa(ref solvent: [] Structs.Particle, ref numSol: int){
+proc init_fluid_rsa2(ref solvent: [] Structs.Particle, ref numSol: int){
    var isInCardioid,tooClose:bool;
    var minDist = 1.5;
    var numPlaced = 0; //Counter for the number of particles placed
@@ -1435,6 +1451,60 @@ proc init_fluid_rsa(ref solvent: [] Structs.Particle, ref numSol: int){
    writeln(init_timer.elapsed()," s for solvent init");
    return solvent;
 }
+
+proc init_fluid_rsa1(ref solvent: [] Structs.Particle, ref numSol: int){
+   var isInCardioid,tooClose:bool;
+   var minDist = 1.5;
+   var numPlaced = 0; //Counter for the number of particles placed
+   var init_timer:stopwatch, pl_timer:stopwatch;
+   init_timer.start();
+   while numPlaced <= numSol {
+      // generate random point within bounding square
+      var x = 2*rwall*randStream.getNext();
+      var y = 2*rwall*randStream.getNext();
+      // Check if the point is inside the cardioid
+      var dx = x - hxo2;
+      var dy = y - hyo2;
+      var r = sqrt(dx*dx + dy*dy);
+      if r <= 0.95*rwall {
+         isInCardioid = true;
+      } else {
+         isInCardioid = false;
+      }
+      // check if the point is too close to other particles
+      tooClose = false;
+      for i in 1..numPlaced {
+         var dist = sqrt((solvent[i].x - x)**2 + (solvent[i].y - y)**2);
+         if dist < minDist {
+            tooClose = true;
+            break;
+         }
+      }
+      if isInCardioid && !tooClose {
+         writeln(numPlaced,"/",numSol," ",numPlaced/(pi*rwall**2)," ",init_timer.elapsed());
+         numPlaced += 1;
+         solvent[numPlaced].x = x;
+         solvent[numPlaced].y = y;
+         solvent[numPlaced].z = 0.0;
+         solvent[numPlaced].vx = 0.0;
+         solvent[numPlaced].vy = 0.0;
+         solvent[numPlaced].vz = 0.0;
+         solvent[numPlaced].fx = 0.0;
+         solvent[numPlaced].fy = 0.0;
+         solvent[numPlaced].fz = 0.0;
+         solvent[numPlaced].ptype = 2;
+         solvent[numPlaced].m = 1.0;
+      }
+      if init_timer.elapsed() > (720*60) {
+         writeln("FLUID INIT FAILED, CHECK minDist AND fluid_rho VALUES");
+         halt();
+      }
+   }
+   init_timer.stop();
+   writeln(init_timer.elapsed()," s for solvent init");
+   return solvent;
+}
+
 
 inline proc lj_thermo(i:int,j:int,r2cut_local:real) {
     var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,r,rhatx,rhaty,omega,fdissx,fdissy,gauss,frand,dv_dot_rhat :real;
@@ -1938,24 +2008,31 @@ proc write_params() {
         myFileWriter.writeln("fdep\t",fdep.type:string,"\t",fdep);
         myFileWriter.writeln("dogic_fdep\t",dogic_fdep.type:string,"\t",dogic_fdep);
         myFileWriter.writeln("fdepwall\t",fdepwall.type:string,"\t",fdepwall);
-        myFileWriter.writeln("diss\t",diss.type:string,"\t",diss);
         myFileWriter.writeln("dt\t",dt.type:string,"\t",dt);
         myFileWriter.writeln("kspring\t",kspring.type:string,"\t",kspring);
+        myFileWriter.writeln("k2spring\t",k2spring.type:string,"\t",k2spring);
+        myFileWriter.writeln("k3psring\t",k3spring.type:string,"\t",k3spring);
         myFileWriter.writeln("kbend\t",kbend.type:string,"\t",kbend);
         myFileWriter.writeln("length0\t",length0.type:string,"\t",length0);
         myFileWriter.writeln("rcut\t",rcut.type:string,"\t",rcut);
         myFileWriter.writeln("save_interval\t",save_interval.type:string,"\t",save_interval);
-        myFileWriter.writeln("boundary\t",boundary.type:string,"\t",boundary);
+        myFileWriter.writeln("boundary\t",bd.type:string,"\t",bd.t);
         myFileWriter.writeln("fluid_cpl\t",fluid_cpl.type:string,"\t",fluid_cpl);
         myFileWriter.writeln("debug\t",debug.type:string,"\t",debug);
         myFileWriter.writeln("thermo\t",thermo.type:string,"\t",thermo);
+        myFileWriter.writeln("thermow\t",thermo.type:string,"\t",thermow);
         myFileWriter.writeln("kbt\t",kbt.type:string,"\t",kbt);
         myFileWriter.writeln("sigma\t",sigma.type:string,"\t",sigma);
         myFileWriter.writeln("gamma\t",gamma.type:string,"\t",gamma);
+        myFileWriter.writeln("fdrag\t",fdrag.type:string,"\t",fdrag);
         myFileWriter.writeln("numPoints\t",numPoints.type:string,"\t",numPoints);
+        myFileWriter.writeln("fluid_rho\t",fluid_rho.type:string,"\t",fluid_rho);
+        myFileWriter.writeln("random_init\t",random_init.type:string,"\t",random_init);
         myFileWriter.writeln("numSol\t",numSol.type:string,"\t",numSol);
         myFileWriter.writeln("fluid_offset\t",fluid_offset.type:string,"\t",fluid_offset);
         myFileWriter.writeln("worm_particl_mass\t",worm_particle_mass.type:string,"\t",worm_particle_mass);
+        myFileWriter.writeln("sw_epsilon\t",sw_epsilon.type:string,"\t",sw_epsilon);
+        myFileWriter.writeln("ww_epsilon\t",ww_epsilon.type:string,"\t",ww_epsilon);
         myFileWriter.writeln("L\t",L.type:string,"\t",L);
         paramsfile.fsync();
         //paramsfile.close();
