@@ -103,6 +103,12 @@ if random_init {
         writeln("disk area ",(pi*rwall*rwall));
         numSol = ceil(fluid_rho * (pi*rwall**2)):int;
     }
+    if (bd.t == BD_TYPE.EPICYCLOID) {
+        var k = 2;
+        var cylc_area = 12*pi*((rwall/4)+1)**2;
+        writeln("epicycloid area ",cylc_area);
+        numSol = ceil(fluid_rho * cylc_area):int;
+    }
    writeln("RSA numSol ",numSol);
 
 } else {
@@ -160,7 +166,6 @@ proc main() {
     
     // save params to file
     write_params();
-    halt();
     // initialize the alternating loops over bins
     init_binspace();
     // initialize bins and neighboring bin lists
@@ -178,17 +183,20 @@ proc main() {
     if (fluid_cpl) {
       if random_init {
         if (bd.t == BD_TYPE.CARDIOID) {
-         solvent = init_fluid_rsa2(solvent,numSol);
+            solvent = init_fluid_rsa2(solvent,numSol);
         }
         if (bd.t == BD_TYPE.CIRCLE) {
             solvent = init_fluid_rsa1(solvent,numSol);
+        }
+        if (bd.t == BD_TYPE.EPICYCLOID) {
+            solvent = init_fluid_rsa3(solvent,numSol);
         }
       } else {
         solvent = init_fluid(solvent, numSol);
       }
     }
     // populate the bins with lists of atoms
-    update_cells(0); //again after fluid
+    //update_cells(0); //again after fluid
     write_log(logfile,"numSol\t"+numSol:string);
     write_log(logfile,"fluid equilibrated...5000dt");
 
@@ -372,41 +380,7 @@ proc init_worms() {
             bound[i].ptype = 3;
         }
         //now place worm particles
-        /*
-        for iw in 1..nworms {
-            ireverse[iw] = 0;
-            rand1 = randStream.getNext();
-            if (rand1 <= 0.5) {
-                ireverse[iw] = 1;
-            }
-            var worm_z_height = randStream.getNext()*(L);
-            for i in 1..np {
-                r = a*thetanow;
-                dth = length0/r;
-                thetanow += dth;
-                worms[iw,i].x = hxo2 + r*cos(thetanow);
-                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
-                worms[iw,i].y = hyo2 + r*sin(thetanow);
-                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
-                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
-                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
-                //TODO give them an initial velocity going around the circle
-                worms[iw,i].ptype = 1;
-                worms[iw,i].m = 1.0; // setting mass
-                // vx[iw,i] = 0.0;
-                // vy[iw,i] = 0.0;
-                worms[iw,i].vxave = 0.0;
-                worms[iw,i].vyave = 0.0;
-                worms[iw,i].vzave = 0.0;
-                // fx[iw,i] = 0.0;
-                // fy[iw,i] = 0.0;
-                // fxold[iw,i] = 0.0;
-                // fyold[iw,i] = 0.0;
-            }
-            thetanow += 2.0*dth;
-        }*/
-         // high-density placement
-         
+        // high-density placement 
         var theta_now_init = thetanow;
         for iw in 1..nworms/2 {
             ireverse[iw] = 0;
@@ -473,9 +447,79 @@ proc init_worms() {
             }
             thetanow += 2.0*dth;
         }
-    } else if (boundary == 3) {
-        // channel boundary
-        writeln("channel boundary not implemented");
+    } else if (bd.t == BD_TYPE.EPICYCLOID) {
+        // epicycloid boundary
+        var k = 2; // Change the value of k here
+        writeln("EPICYCLOID BOUNDARY k = ",k);
+        var equidistantArcLengths: [1..numPoints] real;
+        var thetaValues: [1..numPoints] real;
+        var ca = (rwall/4)-1;
+        writeln("ca=",ca," numpoints=",numPoints);
+        var totalArcLength = 4*(k+1)*ca;
+
+        for i in 1..numPoints {
+            // note that 1.5*i is necessary for even-ish spacing
+            equidistantArcLengths[i] = totalArcLength * (1.5*i - 1) / (numPoints - 1);
+            //equidistantArcLengths[i] = totalArcLength * (i) / (numPoints);
+            thetaValues[i] = 4 * asin(sqrt(equidistantArcLengths[i] / totalArcLength));
+        }
+        for i in 1..numPoints {
+            bound[i].x = ca * (k + 1) * cos(thetaValues[i]) - ca * cos((k + 1) * thetaValues[i]) + hxo2 + ca;
+            bound[i].y = ca * (k + 1) * sin(thetaValues[i]) - ca * sin((k + 1) * thetaValues[i]) + hyo2;
+            bound[i].z = 0.0;
+            bound[i].ptype = 3;
+        }
+        var theta_now_init = thetanow;
+        for iw in 1..nworms/2 {
+            ireverse[iw] = 0;
+            rand1 = randStream.getNext();
+            if (rand1 <= 0.5) {
+                ireverse[iw] = 1;
+            }
+            var worm_z_height = randStream.getNext()*(L/2);
+            for i in 1..np {
+                r = a*thetanow;
+                dth = length0/r;
+                thetanow += dth;
+                worms[iw,i].x = 1.25*hxo2 + r*cos(thetanow);
+                worms[iw,i].y = 0.75*hyo2 + r*sin(thetanow);
+                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                worms[iw,i].ptype = 1;
+                worms[iw,i].m = 1.0; // setting mass
+                worms[iw,i].vxave = 0.0;
+                worms[iw,i].vyave = 0.0;
+                worms[iw,i].vzave = 0.0;
+            }
+            thetanow += 2.0*dth;
+        }
+        thetanow = theta_now_init;//5.0*pi;
+        for iw in nworms/2..nworms {
+            ireverse[iw] = 0;
+            rand1 = randStream.getNext();
+            if (rand1 <= 0.5) {
+                ireverse[iw] = 1;
+            }
+            var worm_z_height = randStream.getNext()*(L/2)+L/2;
+            for i in 1..np {
+                r = a*thetanow;
+                dth = length0/r;
+                thetanow += dth;
+                worms[iw,i].x = 1.25*hxo2 + r*cos(thetanow);
+                worms[iw,i].y = 0.75*hyo2 + r*sin(thetanow);
+                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                worms[iw,i].ptype = 1;
+                worms[iw,i].m = 1.0; // setting mass
+                worms[iw,i].vxave = 0.0;
+                worms[iw,i].vyave = 0.0;
+                worms[iw,i].vzave = 0.0;
+            }
+            thetanow += 2.0*dth;
+        }
+    } else if (bd.t == BD_TYPE.EPIGRAPH) {
+        // epigraph boundary
+        writeln("epigraph boundary not implemented");
         halt();
     }
     //reverse some of the worms and give them crazy colors
@@ -1278,6 +1322,38 @@ proc init_fluid_count():int {
       //writeln(rm_count);
       numSol -= rm_count;
       writeln("fluid density",numSol/(6 * pi * ca ** 2));
+   } else if (bd.t == BD_TYPE.EPICYCLOID) {
+    // var fluid_x = (max reduce bound.x) - (min reduce bound.x);
+    // var fluid_y = (max reduce bound.y) - (min reduce bound.y);
+    // var numSol = ceil(fluid_rho * fluid_x*fluid_y):int;
+    // var pos : [1..numSol,1..3] real;
+    // var fluid_px = (max reduce bound.x);
+    // var fluid_mx = (min reduce bound.x);
+    // var fluid_py = (max reduce bound.y);
+    // var fluid_my = (min reduce bound.y);
+    // var nSol_row = floor(sqrt(floor(fluid_rho*fluid_x*fluid_y)));
+    // var spacing = fluid_x/nSol_row;
+    // var row,col:real;
+    // for i in 1..numSol {
+    //     row = i % nSol_row;
+    //     col = ((i - row)/nSol_row) + 1;
+    //     pos[i,1] = fluid_mx + spacing*col;
+    //     pos[i,2] = fluid_my - spacing*row;
+    //     pos[i,3] = 0.0;
+    // }
+    // var rm_count = 0;
+    //     for i in 1..numSol {
+    //         var dx = pos[i,1] - hxo2;
+    //         var dy = pos[i,2] - hyo2;
+    //         var r = sqrt(dx*dx + dy*dy);
+    //         var cycloid_radius = (0.5*(rwall/4 + 1)**2)*(5-3*cos(2*atan2(dy,dx)));
+    //         if r > cycloid_radius {
+    //             pos[i,3] = -1.0;
+    //             rm_count += 1;
+    //         }
+    //     }
+    //     numSol -= rm_count;
+    //     writeln("fluid_density ",numSol/(12*pi*(rwall/4 + 1)**2));
    } else {
     halt("no other boundaries supported yet");
    }
@@ -1450,6 +1526,65 @@ proc init_fluid_rsa2(ref solvent: [] Structs.Particle, ref numSol: int){
    init_timer.stop();
    writeln(init_timer.elapsed()," s for solvent init");
    return solvent;
+}
+
+proc init_fluid_rsa3(ref solvent: [] Structs.Particle, ref numSol: int) {
+    var isInCycloid,tooClose:bool;
+    var minDist = 1.5;
+    var numPlaced = 0; //Counter for the number of particles placed
+    var ca = (rwall/4)+1;
+    var init_timer:stopwatch, pl_timer:stopwatch;
+    init_timer.start();
+    while numPlaced <= numSol {
+        // generate random point within bounding square
+        var x = 2*rwall*randStream.getNext();
+        var y = 2*rwall*randStream.getNext();
+        // Check if the point is inside the nephroid
+        var dx = x - hxo2 - 0.95*ca;
+        var dy = y - hyo2;
+        var rCylc = 1.9*ca*(1+2*sin(t)/2); // somehow a circle? 2*ca?
+        //var rCylc = (0.5*(rwall/4 + 1)**2)*(5-3*cos(2*atan2(x,x)));//sqrt((cylc_x-x)**2 + (cylc_y-y)**2);
+        var r = sqrt(dx*dx + dy*dy);
+        if r <= 0.95*rCylc {
+            isInCycloid = true;
+        } else {
+            isInCycloid = false;
+        }
+        // check if the point is too close to other particles
+        tooClose = false;
+        for i in 1..numPlaced {
+            var dist = sqrt((solvent[i].x - x)**2 + (solvent[i].y - y)**2);
+            if dist < minDist {
+                tooClose = true;
+                break;
+            }
+        }
+        if isInCycloid && !tooClose {
+            writeln(numPlaced,"/",numSol," ",numPlaced/(12 * pi * ca ** 2)," ",init_timer.elapsed());
+            numPlaced += 1;
+            if numPlaced > numSol {
+                break;
+            }
+            solvent[numPlaced].x = x;
+            solvent[numPlaced].y = y;
+            solvent[numPlaced].z = 0.0;
+            solvent[numPlaced].vx = 0.0;
+            solvent[numPlaced].vy = 0.0;
+            solvent[numPlaced].vz = 0.0;
+            solvent[numPlaced].fx = 0.0;
+            solvent[numPlaced].fy = 0.0;
+            solvent[numPlaced].fz = 0.0;
+            solvent[numPlaced].ptype = 2;
+            solvent[numPlaced].m = 1.0;
+        }
+        if init_timer.elapsed() > (720*60) {
+            writeln("FLUID INIT FAILED, CHECK minDist AND fluid_rho VALUES");
+            halt();
+        }
+    }
+    init_timer.stop();
+    writeln(init_timer.elapsed()," s for solvent init");
+    return solvent;
 }
 
 proc init_fluid_rsa1(ref solvent: [] Structs.Particle, ref numSol: int){
