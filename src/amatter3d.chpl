@@ -9,6 +9,7 @@ use DynamicIters;
 // user-defined modules
 import Structs;
 import C; // import C-extension module for logging/appending
+use BoundaryTypes;
 
 
 const numTasks = here.numPUs();
@@ -26,21 +27,25 @@ config const np = 80,//16,
             dt = 0.015,
             kspring = 57.146436,
             k2spring = 50.0*kspring, //100
+            k3spring = 75.0*kspring, //10.0 25.0 50.0
             kbend = 40.0,
             length0 = 0.8, //particle spacing on worms
             rcut = 2.5,
             save_interval = 4000,
-            boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel, 4 = torus
+            boundary = 2, // 1 = circle, 2 = cardioid, 3 = epicycloid, 4 = epigraph
             fluid_cpl = true,
             debug = false,
             thermo = true, // turn thermostat on? for solvent only
             thermow = false, // thermostat flag for worms
             kbt = 1.5,
+            gamma = 6.0, // frictional constant for dissipative force (~1/damp)
             //numSol = 7000, // cardiod number of solution particles
-            fluid_rho = 0.1,//8000, // disk number of solution particles
+            fluid_rho = 0.2,//8000, // disk number of solution particles
             sigma = 2.0,
-            worm_particle_mass = 4.0,
+            worm_particle_mass = 1.0,
+            sw_epsilon = 2.0, // solvent-worm interaction epsilon
             L = 3.2, // thickness of cell
+            fdrag = 0.01, // pairwise drag force for solvent-worm interaction
             restart_filename = "";
 
 // parameters 
@@ -68,24 +73,50 @@ const r2cut = rcut*rcut,
       length2 = 2.0*length0,
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
-      a = 0.14, // 0.18,0.48 layer spacing of worms in init_worms?
-      gamma = 6.0, // frictional constant for dissipative force (~1/damp)
+      a = 0.13, // 0.12,0.18,0.48 layer spacing of worms in init_worms?
       dpd_ratio = 1.0,
       sqrt_gamma_term = sqrt(2.0*kbt*gamma),
-      numPoints = 5000,//1200//589, //number of boundary points (for circle w/ r-75)
-      fluid_offset = rcutsmall*sigma,//3.0; // z-offset of fluid
+      numPoints = 5000,//5000,1200//589, //number of boundary points (for circle w/ r-75)
+      fluid_offset = 2.0,//rcutsmall*sigma,//3.0; // z-offset of fluid
       io_interval = 500,
       restart_interval = save_interval*2,
-      sw_epsilon = 2.0, // solvent-worm interaction epsilon
-      ww_epsilon = 0.5; // worm-worm interaction epsilon
+      ww_epsilon = 0.5, // worm-worm interaction epsilon
+      random_init = true; // use RSA to place particles
+
+
 
 
 var wormsDomain: domain(2) = {1..nworms,1..np};
 var worms: [wormsDomain] Structs.Particle;
 Structs.ptc_init_counter = 1;
+var bd = boundary_type_init(boundary);
 
 var numSol:int;
-numSol = init_fluid_count();
+if random_init {
+    if (bd.t == BD_TYPE.CARDIOID) {
+        var ca = 1.5*(rwall/2);
+        writeln("ca ",ca);
+        writeln("cardioid area ",(6 * pi * ca ** 2));
+        numSol = ceil(fluid_rho * (6 * pi * ca ** 2)):int; // Total number of particles to generate
+    }
+    if (bd.t == BD_TYPE.CIRCLE) {
+        writeln("disk area ",(pi*rwall*rwall));
+        numSol = ceil(fluid_rho * (pi*rwall**2)):int;
+    }
+    if (bd.t == BD_TYPE.EPICYCLOID) {
+        var k = 2;
+        var cylc_area = 12*pi*((rwall/4)+1)**2;
+        writeln("epicycloid area ",cylc_area);
+        numSol = ceil(fluid_rho * cylc_area):int;
+    }
+   writeln("RSA numSol ",numSol);
+
+} else {
+   numSol = init_fluid_count();
+   writeln("Array numSol ",numSol);
+}
+
+
 var solvent: [1..numSol] Structs.Particle;
 Structs.ptc_init_counter = 1;
 
@@ -150,10 +181,22 @@ proc main() {
     }
 
     if (fluid_cpl) {
+      if random_init {
+        if (bd.t == BD_TYPE.CARDIOID) {
+            solvent = init_fluid_rsa2(solvent,numSol);
+        }
+        if (bd.t == BD_TYPE.CIRCLE) {
+            solvent = init_fluid_rsa1(solvent,numSol);
+        }
+        if (bd.t == BD_TYPE.EPICYCLOID) {
+            solvent = init_fluid_rsa3(solvent,numSol);
+        }
+      } else {
         solvent = init_fluid(solvent, numSol);
+      }
     }
     // populate the bins with lists of atoms
-    update_cells(0); //again after fluid
+    //update_cells(0); //again after fluid
     write_log(logfile,"numSol\t"+numSol:string);
     write_log(logfile,"fluid equilibrated...5000dt");
 
@@ -259,9 +302,9 @@ proc init_worms() {
     var thetanow = 5.0*pi :real; // changes the initial radius of annulus
     var rmin = a*thetanow;
     var density = 0.0;
-    if (boundary == 1) {
+    if (bd.t == BD_TYPE.CIRCLE) {
         density = nworms*np/(pi*rwall**2); //density for a circle
-    } else if (boundary == 2) {
+    } else if (bd.t == BD_TYPE.CARDIOID) {
         density = nworms*np/(6*pi*(1.5*(rwall/2))**2); // density for a cardioid
     }
     write_log(logfile,"nworms\t"+nworms:string);
@@ -272,7 +315,7 @@ proc init_worms() {
     write_log(logfile,"dt\t"+dt:string);
     write_log(logfile,"opt numPoints\t"+(ceil(2*pi*rwall)/rcutsmall):string);
     //setting up the worms
-    if (boundary == 1){
+    if (bd.t == BD_TYPE.CIRCLE){
         // circular bound
         var equidistantThetaValues: [1..numPoints] real = 0.0;
         var deltaTheta = 2 * pi / numPoints;
@@ -317,7 +360,7 @@ proc init_worms() {
             }
             thetanow += 2.0*dth;
         }
-    } else if (boundary == 2) {
+    } else if (bd.t == BD_TYPE.CARDIOID) {
         // cardioid boundary
         var equidistantArcLengths: [1..numPoints] real;
         var thetaValues: [1..numPoints] real;
@@ -337,111 +380,119 @@ proc init_worms() {
             bound[i].ptype = 3;
         }
         //now place worm particles
-        /*
-        for iw in 1..nworms {
-            ireverse[iw] = 0;
-            rand1 = randStream.getNext();
-            if (rand1 <= 0.5) {
-                ireverse[iw] = 1;
-            }
-            var worm_z_height = randStream.getNext()*(L);
-            for i in 1..np {
-                r = a*thetanow;
-                dth = length0/r;
-                thetanow += dth;
-                worms[iw,i].x = hxo2 + r*cos(thetanow);
-                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
-                worms[iw,i].y = hyo2 + r*sin(thetanow);
-                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
-                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
-                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
-                //TODO give them an initial velocity going around the circle
-                worms[iw,i].ptype = 1;
-                worms[iw,i].m = 1.0; // setting mass
-                // vx[iw,i] = 0.0;
-                // vy[iw,i] = 0.0;
-                worms[iw,i].vxave = 0.0;
-                worms[iw,i].vyave = 0.0;
-                worms[iw,i].vzave = 0.0;
-                // fx[iw,i] = 0.0;
-                // fy[iw,i] = 0.0;
-                // fxold[iw,i] = 0.0;
-                // fyold[iw,i] = 0.0;
-            }
-            thetanow += 2.0*dth;
-        }*/
-         // high-density placement
-         
+        // high-density placement 
+        var n_levels = 4; // number of levels of filaments
         var theta_now_init = thetanow;
-        for iw in 1..nworms/2 {
-            ireverse[iw] = 0;
-            rand1 = randStream.getNext();
-            if (rand1 <= 0.5) {
-                ireverse[iw] = 1;
+        for ilevel in 1..n_levels {
+            thetanow = theta_now_init;
+            var wormstart = (nworms/n_levels)*(ilevel-1)+1;
+            var wormend = wormstart + (nworms/n_levels)-1;
+            writeln(ilevel," ",nworms/n_levels);
+            for iw in wormstart..wormend {
+                ireverse[iw] = 0;
+                rand1 = randStream.getNext();
+                if (rand1 <= 0.5) {
+                    ireverse[iw] = 1;
+                }
+                var worm_z_height = ((0.5*randStream.getNext())*L)/n_levels + (L/n_levels)*(ilevel-1);
+                // if worm_z_height >= L {
+                //     worm_z_height= L-0.01;
+                // }
+                // if worm_z_height <= 0.0 {
+                //     worm_z_height = 0.01;
+                // }
+                //writeln(ilevel*L/n_levels);
+                for i in 1..np {
+                    r = a*thetanow;
+                    dth = (length0)/r;
+                    thetanow += dth;
+                    worms[iw,i].x = hxo2 + r*cos(thetanow);
+                    //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
+                    worms[iw,i].y = hyo2 + r*sin(thetanow);
+                    //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
+                    worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                    xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                    //TODO give them an initial velocity going around the circle
+                    worms[iw,i].ptype = 1;
+                    worms[iw,i].m = 1.0; // setting mass
+                    // vx[iw,i] = 0.0;
+                    // vy[iw,i] = 0.0;
+                    worms[iw,i].vxave = 0.0;
+                    worms[iw,i].vyave = 0.0;
+                    worms[iw,i].vzave = 0.0;
+                    // fx[iw,i] = 0.0;
+                    // fy[iw,i] = 0.0;
+                    // fxold[iw,i] = 0.0;
+                    // fyold[iw,i] = 0.0;
+                }
+                thetanow += 2.0*dth;
             }
-            var worm_z_height = randStream.getNext()*(L/2);
-            for i in 1..np {
-                r = a*thetanow;
-                dth = length0/r;
-                thetanow += dth;
-                worms[iw,i].x = hxo2 + r*cos(thetanow);
-                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
-                worms[iw,i].y = hyo2 + r*sin(thetanow);
-                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
-                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
-                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
-                //TODO give them an initial velocity going around the circle
-                worms[iw,i].ptype = 1;
-                worms[iw,i].m = 1.0; // setting mass
-                // vx[iw,i] = 0.0;
-                // vy[iw,i] = 0.0;
-                worms[iw,i].vxave = 0.0;
-                worms[iw,i].vyave = 0.0;
-                worms[iw,i].vzave = 0.0;
-                // fx[iw,i] = 0.0;
-                // fy[iw,i] = 0.0;
-                // fxold[iw,i] = 0.0;
-                // fyold[iw,i] = 0.0;
-            }
-            thetanow += 2.0*dth;
         }
-        thetanow = theta_now_init;//5.0*pi;
-        for iw in nworms/2..nworms {
-            ireverse[iw] = 0;
-            rand1 = randStream.getNext();
-            if (rand1 <= 0.5) {
-                ireverse[iw] = 1;
-            }
-            var worm_z_height = randStream.getNext()*(L/2)+L/2;
-            for i in 1..np {
-                r = a*thetanow;
-                dth = length0/r;
-                thetanow += dth;
-                worms[iw,i].x = hxo2 + r*cos(thetanow);
-                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
-                worms[iw,i].y = hyo2 + r*sin(thetanow);
-                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
-                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
-                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
-                //TODO give them an initial velocity going around the circle
-                worms[iw,i].ptype = 1;
-                worms[iw,i].m = 1.0; // setting mass
-                // vx[iw,i] = 0.0;
-                // vy[iw,i] = 0.0;
-                worms[iw,i].vxave = 0.0;
-                worms[iw,i].vyave = 0.0;
-                worms[iw,i].vzave = 0.0;
-                // fx[iw,i] = 0.0;
-                // fy[iw,i] = 0.0;
-                // fxold[iw,i] = 0.0;
-                // fyold[iw,i] = 0.0;
-            }
-            thetanow += 2.0*dth;
-        }
+    } else if (bd.t == BD_TYPE.EPICYCLOID) {
+        // epicycloid boundary
+        var k = 2; // Change the value of k here
+        var xoffset1 = 1.25*hxo2;
+        var yoffset1 = 0.55*hyo2;
+        var yoffset2 = 1.45*hyo2;
+        writeln("EPICYCLOID BOUNDARY k = ",k);
+        var equidistantArcLengths: [1..numPoints] real;
+        var thetaValues: [1..numPoints] real;
+        var ca = (rwall/4)-1;
+        writeln("ca=",ca," numpoints=",numPoints);
+        var totalArcLength = 4*(k+1)*ca;
 
-    } else if (boundary == 3) {
-        // channel boundary
-        writeln("channel boundary not implemented");
+        for i in 1..numPoints {
+            // note that 1.5*i is necessary for even-ish spacing
+            equidistantArcLengths[i] = totalArcLength * (1.5*i - 1) / (numPoints - 1);
+            //equidistantArcLengths[i] = totalArcLength * (i) / (numPoints);
+            thetaValues[i] = 4 * asin(sqrt(equidistantArcLengths[i] / totalArcLength));
+        }
+        for i in 1..numPoints {
+            bound[i].x = ca * (k + 1) * cos(thetaValues[i]) - ca * cos((k + 1) * thetaValues[i]) + hxo2 + ca;
+            bound[i].y = ca * (k + 1) * sin(thetaValues[i]) - ca * sin((k + 1) * thetaValues[i]) + hyo2;
+            bound[i].z = 0.0;
+            bound[i].ptype = 3;
+        }
+        //  LOWER LOBE high-density placement 
+        var n_levels = 4 b; // number of levels of filaments
+        var theta_now_init = thetanow;
+        for ilevel in 1..n_levels {
+            thetanow = theta_now_init;
+            var wormstart = (nworms/n_levels)*(ilevel-1)+1;
+            var wormend = wormstart + (nworms/n_levels)-1;
+            writeln(ilevel," ",nworms/n_levels);
+            for iw in wormstart..wormend {
+                ireverse[iw] = 0;
+                rand1 = randStream.getNext();
+                if (rand1 <= 0.5) {
+                    ireverse[iw] = 1;
+                }
+                var worm_z_height = ((0.5*randStream.getNext())*L)/n_levels + (L/n_levels)*(ilevel-1);
+                for i in 1..np {
+                    r = a*thetanow;
+                    dth = (length0)/r;
+                    thetanow += dth;
+                    worms[iw,i].x = xoffset1 + r*cos(thetanow);
+                    if ilevel%2 == 0 {
+                        worms[iw,i].y = yoffset1 + r*sin(thetanow);
+                    } else {
+                        worms[iw,i].y = yoffset2 + r*sin(thetanow);
+                    }
+                    worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                    xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                    //TODO give them an initial velocity going around the circle
+                    worms[iw,i].ptype = 1;
+                    worms[iw,i].m = 1.0; // setting mass
+                    worms[iw,i].vxave = 0.0;
+                    worms[iw,i].vyave = 0.0;
+                    worms[iw,i].vzave = 0.0;
+                }
+                thetanow += 2.0*dth;
+            }
+        }
+    } else if (bd.t == BD_TYPE.EPIGRAPH) {
+        // epigraph boundary
+        writeln("epigraph boundary not implemented");
         halt();
     }
     //reverse some of the worms and give them crazy colors
@@ -554,7 +605,6 @@ proc intraworm_forces() {
         }
     }
     // 3-spring bond-bending
-    var k3spring = 50.0*kspring; //10.0 25.0 50.0
     var length3 = 3.0*length0;
     forall iw in 1..nworms {
         var ip3:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
@@ -848,7 +898,7 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
     }
     //solvent-worm interaction 2D
     if ((itype == 2) && (jtype == 1)) {
-        var dx,dy,dz,r2,ffor,ffx,ffy:real;
+        var dx,dy,dz,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,fdrag,dv_dot_rhat:real;
         var iw,ip:int;
         iw = 1 + ((j - 1)/np):int; // find which worm j is in
         ip = j - np*(iw - 1); // which particle in the worm is j?
@@ -859,17 +909,27 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
         if (r2 <= r2cut) {
             //writeln("solvent worm ",sqrt(r2),"\t",sqrt(r2cut));
             //writeln("solvent worm ",r2,"\t",r2cut);
-            ffor = -48.0*sw_epsilon*r2**(-7.0) + 24.0*sw_epsilon*r2**(-4.0);
+            ffor = -48.0*sw_epsilon*r2**(-7.0) + 24.0*sw_epsilon*r2**(-4.0); 
             ffx = ffor*dx;
             ffy = ffor*dy;
-            solvent[i].fx += ffx;
-            solvent[i].fy += ffy;
-            worms[iw,ip].fx -= ffx;
-            worms[iw,ip].fy -= ffy;
+
+            // pairwise drag force - March 22
+            if (fdrag > 0) {
+                dvx = solvent[i].vx - worms[iw,ip].vx;
+                dvy = solvent[i].vy - worms[iw,ip].vy;
+                rhatx = dx/sqrt(r2);
+                rhaty = dy/sqrt(r2);
+                dv_dot_rhat = dvx*rhatx + dvy*rhaty;
+                ffx += fdrag*dv_dot_rhat*dx;
+                ffy += fdrag*dv_dot_rhat*dy;
+            }
+            solvent[i].fx -= ffx;
+            solvent[i].fy -= ffy;
+            worms[iw,ip].fx += ffx;
+            worms[iw,ip].fy += ffy;
         }
     } else if ((itype == 1) && (jtype == 2)) {
-         
-        var dx,dy,dz,r2,ffor,ffx,ffy:real;
+        var dx,dy,dz,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,fdrag,dv_dot_rhat:real;
         var iw,ip:int;
         iw = 1 + ((i - 1)/np):int; // find which worm i is in
         ip = i - np*(iw - 1); // which particle in the worm is i?
@@ -883,10 +943,22 @@ inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
             ffor = -48.0*sw_epsilon*r2**(-7.0) + 24.0*sw_epsilon*r2**(-4.0);
             ffx = ffor*dx;
             ffy = ffor*dy;
-            solvent[j].fx += ffx;
-            solvent[j].fy += ffy;
-            worms[iw,ip].fx -= ffx;
-            worms[iw,ip].fy -= ffy;
+
+            // pairwise drag force - March 22
+            if (fdrag > 0) {
+                dvx = solvent[i].vx - worms[iw,ip].vx;
+                dvy = solvent[i].vy - worms[iw,ip].vy;
+                rhatx = dx/sqrt(r2);
+                rhaty = dy/sqrt(r2);
+                dv_dot_rhat = dvx*rhatx + dvy*rhaty;
+                ffx += fdrag*dv_dot_rhat*dx;
+                ffy += fdrag*dv_dot_rhat*dy;
+            }
+            
+            solvent[j].fx -= ffx;
+            solvent[j].fy -= ffy;
+            worms[iw,ip].fx += ffx;
+            worms[iw,ip].fy += ffy;
         }
     }
     //solvent-solvent interaction 2D
@@ -925,7 +997,7 @@ inline proc worm_cell_forces(i:int,j:int) {
       //add attractive force fdep between all pairs
       if (r2 <= r2cutsmall) {
             ffor = -48.0*ww_epsilon*r2**(-7.0) + 24.0*ww_epsilon*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
-            //ffor = -48.0*(r2-r2shift)**(-7.0) + 24.0*(r2-r2shift)**(-4.0) + fdep/riijj;
+            //ffor = -48.0*(r2-r2shift)**(-7.0)  + 24.0*(r2-r2shift)**(-4.0) + fdep/riijj;
             ffx = ffor*dddx;
             ffy = ffor*dddy;
             ffz = ffor*dddz;
@@ -1152,7 +1224,7 @@ proc update_vel() {
 //FLUID FUNCTIONS
 proc init_fluid_count():int {
    var numSol:int;
-   if (boundary == 1) {
+   if (bd.t == BD_TYPE.CIRCLE) {
       var fluid_a = 2*rwall;
       var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
       numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
@@ -1186,9 +1258,9 @@ proc init_fluid_count():int {
       // recounting
       writeln(rm_count);
       numSol -= rm_count;
-   } else if (boundary == 2) {
+   } else if (bd.t == BD_TYPE.CARDIOID) {
       var fluid_a = 2*rwall;
-            var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
       numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
       var pos : [1..numSol,1..3] real;
       var fluid_px = fluid_a;
@@ -1202,8 +1274,8 @@ proc init_fluid_count():int {
             row = i % row_length;
             col = ((i - row)/row_length)+1;
 
-            pos[i,1] = fluid_mx + spacing*row + spacing; // x
-            pos[i,2] = fluid_my + spacing*col; // y
+            pos[i,1] = fluid_mx + spacing*col; // x
+            pos[i,2] = fluid_my + spacing*row; // y
             pos[i,3] = 0.0;
       }
       // mark all solvent particles that are out of bounds
@@ -1220,8 +1292,41 @@ proc init_fluid_count():int {
          }
       }
       // recounting
-      writeln(rm_count);
+      //writeln(rm_count);
       numSol -= rm_count;
+      writeln("fluid density",numSol/(6 * pi * ca ** 2));
+   } else if (bd.t == BD_TYPE.EPICYCLOID) {
+    // var fluid_x = (max reduce bound.x) - (min reduce bound.x);
+    // var fluid_y = (max reduce bound.y) - (min reduce bound.y);
+    // var numSol = ceil(fluid_rho * fluid_x*fluid_y):int;
+    // var pos : [1..numSol,1..3] real;
+    // var fluid_px = (max reduce bound.x);
+    // var fluid_mx = (min reduce bound.x);
+    // var fluid_py = (max reduce bound.y);
+    // var fluid_my = (min reduce bound.y);
+    // var nSol_row = floor(sqrt(floor(fluid_rho*fluid_x*fluid_y)));
+    // var spacing = fluid_x/nSol_row;
+    // var row,col:real;
+    // for i in 1..numSol {
+    //     row = i % nSol_row;
+    //     col = ((i - row)/nSol_row) + 1;
+    //     pos[i,1] = fluid_mx + spacing*col;
+    //     pos[i,2] = fluid_my - spacing*row;
+    //     pos[i,3] = 0.0;
+    // }
+    // var rm_count = 0;
+    //     for i in 1..numSol {
+    //         var dx = pos[i,1] - hxo2;
+    //         var dy = pos[i,2] - hyo2;
+    //         var r = sqrt(dx*dx + dy*dy);
+    //         var cycloid_radius = (0.5*(rwall/4 + 1)**2)*(5-3*cos(2*atan2(dy,dx)));
+    //         if r > cycloid_radius {
+    //             pos[i,3] = -1.0;
+    //             rm_count += 1;
+    //         }
+    //     }
+    //     numSol -= rm_count;
+    //     writeln("fluid_density ",numSol/(12*pi*(rwall/4 + 1)**2));
    } else {
     halt("no other boundaries supported yet");
    }
@@ -1231,7 +1336,7 @@ proc init_fluid_count():int {
 proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
    var random_placement = false;
    // place particles in a square lattice centered in the boundary
-   if (boundary == 1) {
+   if (bd.t == BD_TYPE.CIRCLE) {
       // circular boundary
       var fluid_a = 2*rwall;
       var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
@@ -1273,7 +1378,7 @@ proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
             count +=1;
          }
       }
-   } else if (boundary == 2) {
+   } else if (bd.t == BD_TYPE.CARDIOID) {
       // cardioid boundary
       // circular boundary
       var fluid_a = 2*rwall;
@@ -1285,14 +1390,15 @@ proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
       var fluid_py = fluid_a;
       var fluid_my = 0;
       var spacing = fluid_a/nSol_row;
+      write_log(logfile,"spacing "+spacing:string);
       var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
       var row,col:real;
       for i in 1..numSol_tmp {
             row = i % row_length;
             col = ((i - row)/row_length)+1;
 
-            pos[i,1] = fluid_mx + spacing*row + spacing; // x
-            pos[i,2] = fluid_my + spacing*col; // y
+            pos[i,1] = fluid_mx + spacing*col; // x
+            pos[i,2] = fluid_my + spacing*row; // y
             pos[i,3] = 0.0;
       }
       // mark all solvent particles that are out of bounds
@@ -1304,7 +1410,7 @@ proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
          var r = sqrt(dx*dx + dy*dy);
          var cardioidRadius = 1 - cos(atan2(dy, dx));
          if r < (0.95*ca*cardioidRadius) {
-            solvent[count].x = pos[i,1] + 0.95*ca;
+            solvent[count].x = pos[i,1]+0.5*ca;
             solvent[count].y = pos[i,2];
             solvent[count].z = 0.0;
             solvent[count].vx = 0.0;
@@ -1318,6 +1424,8 @@ proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
             count +=1;
          }
       }
+      writeln((max reduce solvent.x)," ",(min reduce solvent.y));
+      writeln((max reduce solvent.x)," ",(min reduce solvent.y));
    } else if (boundary == 3) {
       writeln("haven't put in channel fluid");
       halt();
@@ -1329,12 +1437,179 @@ proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
    for i in 1..numSol {
       KEsol[i] = 0.0;
    }
-   if (boundary == 1){
+   if (bd.t == BD_TYPE.CIRCLE){
       writeln("fluid density=",numSol/(pi*rwall**2));
-   } else if (boundary == 2){
+   } else if (bd.t == BD_TYPE.CARDIOID){
       writeln("fluid density=",numSol/(6*pi*(1.5*(rwall/2))**2));
    }
    writeln("fluid init done");
+   return solvent;
+}
+
+proc init_fluid_rsa2(ref solvent: [] Structs.Particle, ref numSol: int){
+   var isInCardioid,tooClose:bool;
+   var minDist = 1.5;
+   var numPlaced = 0; //Counter for the number of particles placed
+   var ca = 1.5*(rwall/2);
+   var init_timer:stopwatch, pl_timer:stopwatch;
+   init_timer.start();
+   while numPlaced <= numSol {
+      // generate random point within bounding square
+      var x = 2*rwall*randStream.getNext();
+      var y = 2*rwall*randStream.getNext();
+      // Check if the point is inside the cardioid
+      var dx = x - hxo2 - 0.95*ca;
+      var dy = y - hyo2;
+      var r = sqrt(dx*dx + dy*dy);
+      var rCardioid = ca * (1 - cos(atan2(dy, dx)));
+      if r <= 0.95*rCardioid {
+         isInCardioid = true;
+      } else {
+         isInCardioid = false;
+      }
+      // check if the point is too close to other particles
+      tooClose = false;
+      for i in 1..numPlaced {
+         var dist = sqrt((solvent[i].x - x)**2 + (solvent[i].y - y)**2);
+         if dist < minDist {
+            tooClose = true;
+            break;
+         }
+      }
+      if isInCardioid && !tooClose {
+         writeln(numPlaced,"/",numSol," ",numPlaced/(6 * pi * ca ** 2)," ",init_timer.elapsed());
+         numPlaced += 1;
+         solvent[numPlaced].x = x;
+         solvent[numPlaced].y = y;
+         solvent[numPlaced].z = 0.0;
+         solvent[numPlaced].vx = 0.0;
+         solvent[numPlaced].vy = 0.0;
+         solvent[numPlaced].vz = 0.0;
+         solvent[numPlaced].fx = 0.0;
+         solvent[numPlaced].fy = 0.0;
+         solvent[numPlaced].fz = 0.0;
+         solvent[numPlaced].ptype = 2;
+         solvent[numPlaced].m = 1.0;
+      }
+      if init_timer.elapsed() > (720*60) {
+         writeln("FLUID INIT FAILED, CHECK minDist AND fluid_rho VALUES");
+         halt();
+      }
+   }
+   init_timer.stop();
+   writeln(init_timer.elapsed()," s for solvent init");
+   return solvent;
+}
+
+proc init_fluid_rsa3(ref solvent: [] Structs.Particle, ref numSol: int) {
+    var isInCycloid,tooClose:bool;
+    var minDist = 1.5;
+    var numPlaced = 0; //Counter for the number of particles placed
+    var ca = (rwall/4)+1;
+    var init_timer:stopwatch, pl_timer:stopwatch;
+    init_timer.start();
+    while numPlaced <= numSol {
+        // generate random point within bounding square
+        var x = 2*rwall*randStream.getNext();
+        var y = 2*rwall*randStream.getNext();
+        // Check if the point is inside the nephroid
+        var dx = x - hxo2 - 0.95*ca;
+        var dy = y - hyo2;
+        var rCylc = 1.9*ca*(1+2*sin(t)/2); // somehow a circle? 2*ca?
+        //var rCylc = (0.5*(rwall/4 + 1)**2)*(5-3*cos(2*atan2(x,x)));//sqrt((cylc_x-x)**2 + (cylc_y-y)**2);
+        var r = sqrt(dx*dx + dy*dy);
+        if r <= 0.95*rCylc {
+            isInCycloid = true;
+        } else {
+            isInCycloid = false;
+        }
+        // check if the point is too close to other particles
+        tooClose = false;
+        for i in 1..numPlaced {
+            var dist = sqrt((solvent[i].x - x)**2 + (solvent[i].y - y)**2);
+            if dist < minDist {
+                tooClose = true;
+                break;
+            }
+        }
+        if isInCycloid && !tooClose {
+            writeln(numPlaced,"/",numSol," ",numPlaced/(12 * pi * ca ** 2)," ",init_timer.elapsed());
+            numPlaced += 1;
+            if numPlaced > numSol {
+                break;
+            }
+            solvent[numPlaced].x = x;
+            solvent[numPlaced].y = y;
+            solvent[numPlaced].z = 0.0;
+            solvent[numPlaced].vx = 0.0;
+            solvent[numPlaced].vy = 0.0;
+            solvent[numPlaced].vz = 0.0;
+            solvent[numPlaced].fx = 0.0;
+            solvent[numPlaced].fy = 0.0;
+            solvent[numPlaced].fz = 0.0;
+            solvent[numPlaced].ptype = 2;
+            solvent[numPlaced].m = 1.0;
+        }
+        if init_timer.elapsed() > (720*60) {
+            writeln("FLUID INIT FAILED, CHECK minDist AND fluid_rho VALUES");
+            halt();
+        }
+    }
+    init_timer.stop();
+    writeln(init_timer.elapsed()," s for solvent init");
+    return solvent;
+}
+
+proc init_fluid_rsa1(ref solvent: [] Structs.Particle, ref numSol: int){
+   var isInCardioid,tooClose:bool;
+   var minDist = 1.5;
+   var numPlaced = 0; //Counter for the number of particles placed
+   var init_timer:stopwatch, pl_timer:stopwatch;
+   init_timer.start();
+   while numPlaced <= numSol {
+      // generate random point within bounding square
+      var x = 2*rwall*randStream.getNext();
+      var y = 2*rwall*randStream.getNext();
+      // Check if the point is inside the cardioid
+      var dx = x - hxo2;
+      var dy = y - hyo2;
+      var r = sqrt(dx*dx + dy*dy);
+      if r <= 0.95*rwall {
+         isInCardioid = true;
+      } else {
+         isInCardioid = false;
+      }
+      // check if the point is too close to other particles
+      tooClose = false;
+      for i in 1..numPlaced {
+         var dist = sqrt((solvent[i].x - x)**2 + (solvent[i].y - y)**2);
+         if dist < minDist {
+            tooClose = true;
+            break;
+         }
+      }
+      if isInCardioid && !tooClose {
+         writeln(numPlaced,"/",numSol," ",numPlaced/(pi*rwall**2)," ",init_timer.elapsed());
+         numPlaced += 1;
+         solvent[numPlaced].x = x;
+         solvent[numPlaced].y = y;
+         solvent[numPlaced].z = 0.0;
+         solvent[numPlaced].vx = 0.0;
+         solvent[numPlaced].vy = 0.0;
+         solvent[numPlaced].vz = 0.0;
+         solvent[numPlaced].fx = 0.0;
+         solvent[numPlaced].fy = 0.0;
+         solvent[numPlaced].fz = 0.0;
+         solvent[numPlaced].ptype = 2;
+         solvent[numPlaced].m = 1.0;
+      }
+      if init_timer.elapsed() > (720*60) {
+         writeln("FLUID INIT FAILED, CHECK minDist AND fluid_rho VALUES");
+         halt();
+      }
+   }
+   init_timer.stop();
+   writeln(init_timer.elapsed()," s for solvent init");
    return solvent;
 }
 
@@ -1840,24 +2115,31 @@ proc write_params() {
         myFileWriter.writeln("fdep\t",fdep.type:string,"\t",fdep);
         myFileWriter.writeln("dogic_fdep\t",dogic_fdep.type:string,"\t",dogic_fdep);
         myFileWriter.writeln("fdepwall\t",fdepwall.type:string,"\t",fdepwall);
-        myFileWriter.writeln("diss\t",diss.type:string,"\t",diss);
         myFileWriter.writeln("dt\t",dt.type:string,"\t",dt);
         myFileWriter.writeln("kspring\t",kspring.type:string,"\t",kspring);
+        myFileWriter.writeln("k2spring\t",k2spring.type:string,"\t",k2spring);
+        myFileWriter.writeln("k3psring\t",k3spring.type:string,"\t",k3spring);
         myFileWriter.writeln("kbend\t",kbend.type:string,"\t",kbend);
         myFileWriter.writeln("length0\t",length0.type:string,"\t",length0);
         myFileWriter.writeln("rcut\t",rcut.type:string,"\t",rcut);
         myFileWriter.writeln("save_interval\t",save_interval.type:string,"\t",save_interval);
-        myFileWriter.writeln("boundary\t",boundary.type:string,"\t",boundary);
+        myFileWriter.writeln("boundary\t",bd.type:string,"\t",bd.t);
         myFileWriter.writeln("fluid_cpl\t",fluid_cpl.type:string,"\t",fluid_cpl);
         myFileWriter.writeln("debug\t",debug.type:string,"\t",debug);
         myFileWriter.writeln("thermo\t",thermo.type:string,"\t",thermo);
+        myFileWriter.writeln("thermow\t",thermo.type:string,"\t",thermow);
         myFileWriter.writeln("kbt\t",kbt.type:string,"\t",kbt);
         myFileWriter.writeln("sigma\t",sigma.type:string,"\t",sigma);
         myFileWriter.writeln("gamma\t",gamma.type:string,"\t",gamma);
+        myFileWriter.writeln("fdrag\t",fdrag.type:string,"\t",fdrag);
         myFileWriter.writeln("numPoints\t",numPoints.type:string,"\t",numPoints);
+        myFileWriter.writeln("fluid_rho\t",fluid_rho.type:string,"\t",fluid_rho);
+        myFileWriter.writeln("random_init\t",random_init.type:string,"\t",random_init);
         myFileWriter.writeln("numSol\t",numSol.type:string,"\t",numSol);
         myFileWriter.writeln("fluid_offset\t",fluid_offset.type:string,"\t",fluid_offset);
         myFileWriter.writeln("worm_particl_mass\t",worm_particle_mass.type:string,"\t",worm_particle_mass);
+        myFileWriter.writeln("sw_epsilon\t",sw_epsilon.type:string,"\t",sw_epsilon);
+        myFileWriter.writeln("ww_epsilon\t",ww_epsilon.type:string,"\t",ww_epsilon);
         myFileWriter.writeln("L\t",L.type:string,"\t",L);
         paramsfile.fsync();
         //paramsfile.close();
@@ -1882,7 +2164,12 @@ proc restart_write(istep:int) {
     The data will the be as follows with numSol lines
     i:int x:real, y:real vx:real vy:real
     */
-    var filename:string = "amatter.restart";
+    var filename:string;
+    if istep == 0 {
+      filename = "amatter_init.restart";
+    } else {
+      filename = "amatter.restart";
+    }
     try {
         var restart_file = open(filename, ioMode.cw);
         var restartWriter = restart_file.writer();

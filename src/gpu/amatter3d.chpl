@@ -1,0 +1,2127 @@
+use Math;
+use Random;
+use IO;
+use IO.FormattedIO;
+use Time; // for stopwatch
+use List;
+use CTypes; // for chpl string -> c string pointer conversion
+use DynamicIters;
+// user-defined modules
+import Structs;
+import C; // import C-extension module for logging/appending
+
+
+const numTasks = here.numPUs();
+// configuration
+config const np = 80,//16,
+            nworms = 800,//625,
+            nsteps = 12000000    ,//00,
+            fdogic = 0.06,
+            walldrive = false,
+            fdogicwall = 0.001,
+            fdep = 0.25,
+            dogic_fdep = 0.25, // extra attractive force when dogic shearing is present (originall 0.7)
+            fdepwall = 6.0,
+            rwall = 164,//125.0*rcutsmall*sqrt(2.0),
+            dt = 0.015,
+            kspring = 57.146436,
+            k2spring = 50.0*kspring, //100
+            kbend = 40.0,
+            length0 = 0.8, //particle spacing on worms
+            rcut = 2.5,
+            save_interval = 4000,
+            boundary = 2, // 1 = circle, 2 = cardioid, 3 = channel, 4 = torus
+            fluid_cpl = true,
+            debug = false,
+            thermo = true, // turn thermostat on? for solvent only
+            thermow = false, // thermostat flag for worms
+            kbt = 1.5,
+            //numSol = 7000, // cardiod number of solution particles
+            fluid_rho = 0.2,//8000, // disk number of solution particles
+            sigma = 2.0,
+            worm_particle_mass = 4.0,
+            L = 3.2, // thickness of cell
+            restart_filename = "";
+
+// parameters 
+const r2cut = rcut*rcut,
+      rcutsmall = 2.0**(1.0/6.0),
+      r2cutsmall = rcutsmall*rcutsmall,
+      diss = 0.002, // unused
+      pi = 4.0*atan(1.0),
+      twopi = 2*pi,
+      pio4 = pi*0.25,
+      hx = 2.0*rwall + 1.0,
+      hy = hx,
+      hyo2 = hy/2,
+      hxo2 = hx/2,
+      nxcell = ((hx/rcutsmall):int - 1),
+      nycell = ((hy/rcutsmall):int - 1),
+      dcell = hx/(nxcell:real),
+      ncells = nxcell*nycell,
+      nstepso500 = nsteps/500,
+      nstepso1e5 = nsteps/10000,
+      gnoise = 0.80/sqrt(10.0)*0.8,
+      dt2o2 = dt*dt*0.50,
+      dto2 = dt*0.50,
+      inv_sqrt_dt = 1.0/sqrt(dt),
+      length2 = 2.0*length0,
+      lengthmax = (length0)*((np - 1):real),
+      r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
+      a = 0.14, // 0.18,0.48 layer spacing of worms in init_worms?
+      gamma = 6.0, // frictional constant for dissipative force (~1/damp)
+      dpd_ratio = 1.0,
+      sqrt_gamma_term = sqrt(2.0*kbt*gamma),
+      numPoints = 5000,//1200//589, //number of boundary points (for circle w/ r-75)
+      fluid_offset = 2.0,//rcutsmall*sigma,//3.0; // z-offset of fluid
+      io_interval = 500,
+      restart_interval = save_interval*2,
+      sw_epsilon = 2.0, // solvent-worm interaction epsilon
+      ww_epsilon = 0.5; // worm-worm interaction epsilon
+
+
+var wormsDomain: domain(2) = {1..nworms,1..np};
+var worms: [wormsDomain] Structs.Particle;
+Structs.ptc_init_counter = 1;
+
+var numSol:int;
+numSol = init_fluid_count();
+var solvent: [1..numSol] Structs.Particle;
+Structs.ptc_init_counter = 1;
+
+var bound: [1..numPoints] Structs.Particle;
+const nptc = numPoints+numSol+nworms*np;
+var particles: [1..nptc] Structs.Particle; // global particle array, 
+
+var savex: [1..np] real(64);
+var savey: [1..np] real(64);
+var savez: [1..np] real(64);
+var ireverse: [1..nworms] int;
+var ddx: [1..9] int;
+var ddy: [1..9] int;
+var hhead: [1..ncells] int; //
+var ipointto: [1..nworms*np+numPoints] int; // linked list, every particle points to another particle
+var nnab: [wormsDomain] int = 1;
+var KEworm: [1..nworms*np] real; // Kinetic energy of individual worm particles
+var KEworm_local: [1..nworms*np] real; // this is the for velocity minus the average velocity (tries to measure thermal fluctuations)
+var AMworm: [1..nworms*np] real; // angular momentum of individual worm particles
+var KEsol: [1..numSol] real; // Kinetic energy of individual fluid particles
+var AMsol: [1..numSol] real; // angular momentum of individual fluid particles
+var KEworm_total: [1..nsteps] real;
+var KEworm_local_total: [1..nsteps] real;
+var AMworm_total: [1..nsteps] real;
+var KEsol_total: [1..nsteps] real;
+var AMsol_total: [1..nsteps] real;
+
+var numBins = ceil(hx/rcut):int;
+writeln("numBins:\t",numBins);
+//const binSpace = {1..numBins, 1..numBins};
+const binSpace = {1..numBins*numBins};
+var bins : [1..numBins*numBins] Structs.Bin;
+var binSpaceiodd : [1..(numBins*numBins)/2] int;
+var binSpacejodd : [1..(numBins*numBins)/2] int;
+var binSpaceieven : [1..(numBins*numBins)/2] int;
+var binSpacejeven : [1..(numBins*numBins)/2] int;
+
+var ptc_count : [{1..numBins,1..numBins}] int;
+var column_sum : [1..numBins] int;
+var prefix_sum : [{1..numBins,1..numBins}] int;
+var particle_id : [1..nptc] int;
+var list_head : [1..numBins*numBins] int;
+var list_cur : [1..numBins*numBins] atomic int;
+var list_tail : [1..numBins*numBins] int;
+
+var randStream = new RandomStream(real); // creating random number generator
+var restart_timestep = 0; // timestep read in from restart file
+var logfile:string = "amatter.log";
+var t = 0.0;
+var total_time = 0.0;
+var ct: stopwatch, wt:stopwatch, xt:stopwatch; //calc time, io time, totaltime
+//main
+proc main() {
+    init_log(logfile);
+    write_log(logfile, "=============== AMATTER3D ===============");
+    write_log(logfile,date.today():string+":Matt Deutsch, Kent State University");
+    write_log(logfile,"starting... "+numTasks:string+" procs");
+    
+    // save params to file
+    write_params();
+    // initialize the alternating loops over bins
+    init_binspace();
+    // initialize bins and neighboring bin lists
+    init_bins();
+    // initialize worms
+    init_worms();
+
+    //setting mass of worms to be differents
+    for iw in 1..nworms {
+        for i in 1..np {
+            worms[iw,i].m = worm_particle_mass;
+        }
+    }
+
+    if (fluid_cpl) {
+        solvent = init_fluid(solvent, numSol);
+    }
+    // transferring all the particles to the global array
+    for iw in 1..nworms {
+      for ip in 1..np {
+         var wormid = (iw-1)*np + ip;
+         particles[wormid] = worms[iw,ip];
+      }
+    }
+    for i in 1..numSol {
+      particles[(nworms*np)+i] = solvent[i];
+    }
+    for i in 1..numPoints {
+      particles[(nworms*np) + numSol + i] = bound[i];
+    }
+    // populate the bins with lists of atoms
+    //update_cells(0); //again after fluid
+    write_log(logfile,"numSol\t"+numSol:string);
+    write_log(logfile,"fluid equilibrated...5000dt");
+
+    var macro_filename:string = "energies.dat";
+    init_macro(macro_filename);
+    if (restart_filename.isEmpty() == false) {
+        //restart_read("amatter.restart")
+        restart_timestep = restart_read(restart_filename);
+        write_xyzv(0+restart_timestep);
+        restart_write(0+restart_timestep);
+        write_log(logfile,"simulation loaded from "+restart_filename+" at itime="+restart_timestep:string);
+    } else {
+        write_xyzv(0);
+        restart_write(0);
+    }
+
+    //halt();
+    
+    //setting up stopwatch
+    var log_str:string;
+    xt.start();
+    for itime in 1..nsteps {
+        //writeln(itime);
+        t = (itime:real) *dt;
+
+        if (itime % io_interval == 0) {
+            xt.stop();
+            total_time += xt.elapsed();
+            var out_str:string = "Step: "+(itime+restart_timestep):string+"\t"+
+                      (io_interval/xt.elapsed()):string+"iter/s\tCalc:"+
+                      ((ct.elapsed()/total_time)*100):string+"%\tIO:"+
+                      ((wt.elapsed()/total_time)*100):string+" %\tElapsed:"+
+                      total_time:string+" s\t Est:"+
+                      ((nsteps-itime)*(total_time/itime)):string+" s";
+            write_log(logfile,out_str);
+            //writeln((+ reduce solvent.vx),"\t",(+ reduce solvent.vy));
+            //writeln((+ reduce solvent.x),"\t",(+ reduce solvent.y));
+            xt.restart();
+            }
+	    ct.start();
+        // first update positions and store old forces
+        update_pos(itime);
+         writeln(itime);
+        //update_cells(itime);
+
+        intraworm_forces();
+
+        calc_forces(itime,dt);
+        //calc_forces_bf(itime,dt);
+
+        if (fluid_cpl) {
+            KEsol_total[itime] = (+ reduce KEsol);
+            AMsol_total[itime] = (+ reduce AMsol);
+        } else {
+            KEsol_total[itime] = 0.0;
+        }
+
+        update_vel();
+
+        KEworm_total[itime] = (+ reduce KEworm);
+        KEworm_local_total[itime] = (+ reduce KEworm_local);
+        AMworm_total[itime] = (+ reduce AMworm);
+
+	    ct.stop();
+        wt.start();
+        if (itime % nstepso1e5 == 0){
+            write_macro(macro_filename,itime);
+        }
+        if (itime % save_interval == 0){
+            write_xyzv(itime+restart_timestep);
+            if (itime % restart_interval == 0) {
+                restart_write(itime+restart_timestep);
+            }
+        }
+        wt.stop();
+    }
+    //finalize();
+    xt.stop();
+    //write_macro(nsteps);
+    write_log(logfile,"Total Time:"+total_time:string+" s");
+}
+
+// //functions
+proc init_worms() {
+    //array for locating neighbor cells
+    var rand1:real; // temp fix for randSteam
+    var r:real, dth:real, xangle:real;
+    ddx[1] = 1;
+    ddy[1] = 0;
+    ddx[2] = 1;
+    ddy[2] = 1;
+    ddx[3] = 0;
+    ddy[3] = 1;
+    ddx[4] = -1;
+    ddy[4] = 1;
+    ddx[5] = -1;
+    ddy[5] = 0;
+    ddx[6] = -1;
+    ddy[6] = -1;
+    ddx[7] = 0;
+    ddy[7] = -1;
+    ddx[8] = 1;
+    ddy[8] = -1;
+    ddx[9] = 0;
+    ddy[9] = 0;
+    var thetanow = 5.0*pi :real; // changes the initial radius of annulus
+    var rmin = a*thetanow;
+    var density = 0.0;
+    if (boundary == 1) {
+        density = nworms*np/(pi*rwall**2); //density for a circle
+    } else if (boundary == 2) {
+        density = nworms*np/(6*pi*(1.5*(rwall/2))**2); // density for a cardioid
+    }
+    write_log(logfile,"nworms\t"+nworms:string);
+    write_log(logfile,"np\t"+np:string);
+    write_log(logfile,"rwall\t"+rwall:string);
+    write_log(logfile,"nxcells\t"+nxcell:string+"\t nycells\t"+nycell:string);
+    write_log(logfile,"density\t"+density:string);
+    write_log(logfile,"dt\t"+dt:string);
+    write_log(logfile,"opt numPoints\t"+(ceil(2*pi*rwall)/rcutsmall):string);
+    //setting up the worms
+    if (boundary == 1){
+        // circular bound
+        var equidistantThetaValues: [1..numPoints] real = 0.0;
+        var deltaTheta = 2 * pi / numPoints;
+
+        for i in 1..numPoints {
+            equidistantThetaValues[i] = i * deltaTheta;
+        }
+
+        for i in 1..numPoints {
+            bound[i].x = rwall * cos(equidistantThetaValues[i])+hxo2;
+            bound[i].y = rwall * sin(equidistantThetaValues[i])+hyo2;
+            bound[i].z = 0.0;
+            bound[i].ptype = 3;
+        }
+        for iw in 1..nworms {
+            ireverse[iw] = 0;
+            rand1 = randStream.getNext();
+            if (rand1 <= 0.5) {
+                ireverse[iw] = 1;
+            }
+            var worm_z_height = randStream.getNext()*(L);
+            for i in 1..np {
+                r = a*thetanow;
+                dth = length0/r;
+                thetanow += dth;
+                worms[iw,i].x = hxo2 + r*cos(thetanow);
+                worms[iw,i].y = hyo2 + r*sin(thetanow);
+                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                //TODO give them an initial velocity going around the circle
+                worms[iw,i].ptype = 1;
+                worms[iw,i].m = 1.0; // setting mass
+                // vx[iw,i] = 0.0; // NOTE: this is all set by initializer
+                // vy[iw,i] = 0.0;
+                worms[iw,i].vxave = 0.0;
+                worms[iw,i].vyave = 0.0;
+                worms[iw,i].vzave = 0.0;
+                // fx[iw,i] = 0.0;
+                // fy[iw,i] = 0.0;
+                // fxold[iw,i] = 0.0;
+                // fyold[iw,i] = 0.0;
+            }
+            thetanow += 2.0*dth;
+        }
+    } else if (boundary == 2) {
+        // cardioid boundary
+        var equidistantArcLengths: [1..numPoints] real;
+        var thetaValues: [1..numPoints] real;
+        var ca = 1.5*(rwall/2);
+        var totalArcLength = 8 * ca;
+        write_log(logfile,"cardioid width: "+(ca*2):string);
+        write_log(logfile,"cardioid cirum: "+totalArcLength:string+"\t"+(totalArcLength/r2cutsmall):string);
+        for i in 1..numPoints {
+            equidistantArcLengths[i] = totalArcLength * (i - 1) / (numPoints - 1);
+            thetaValues[i] = 4 * asin(sqrt(equidistantArcLengths[i] / totalArcLength));
+        }
+
+        for i in 1..numPoints {
+            bound[i].x = ca * (1 - cos(thetaValues[i])) * cos(thetaValues[i]) + hxo2 + ca;
+            bound[i].y = ca * (1 - cos(thetaValues[i])) * sin(thetaValues[i]) + hyo2;
+            bound[i].z = 0.0;
+            bound[i].ptype = 3;
+        }
+        //now place worm particles
+        /*
+        for iw in 1..nworms {
+            ireverse[iw] = 0;
+            rand1 = randStream.getNext();
+            if (rand1 <= 0.5) {
+                ireverse[iw] = 1;
+            }
+            var worm_z_height = randStream.getNext()*(L);
+            for i in 1..np {
+                r = a*thetanow;
+                dth = length0/r;
+                thetanow += dth;
+                worms[iw,i].x = hxo2 + r*cos(thetanow);
+                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
+                worms[iw,i].y = hyo2 + r*sin(thetanow);
+                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
+                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                //TODO give them an initial velocity going around the circle
+                worms[iw,i].ptype = 1;
+                worms[iw,i].m = 1.0; // setting mass
+                // vx[iw,i] = 0.0;
+                // vy[iw,i] = 0.0;
+                worms[iw,i].vxave = 0.0;
+                worms[iw,i].vyave = 0.0;
+                worms[iw,i].vzave = 0.0;
+                // fx[iw,i] = 0.0;
+                // fy[iw,i] = 0.0;
+                // fxold[iw,i] = 0.0;
+                // fyold[iw,i] = 0.0;
+            }
+            thetanow += 2.0*dth;
+        }*/
+         // high-density placement
+        var theta_now_init = thetanow;
+        for iw in 1..nworms/2 {
+            ireverse[iw] = 0;
+            rand1 = randStream.getNext();
+            if (rand1 <= 0.5) {
+                ireverse[iw] = 1;
+            }
+            var worm_z_height = randStream.getNext()*(L/2);
+            for i in 1..np {
+                r = a*thetanow;
+                dth = length0/r;
+                thetanow += dth;
+                worms[iw,i].x = hxo2 + r*cos(thetanow);
+                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
+                worms[iw,i].y = hyo2 + r*sin(thetanow);
+                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
+                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                //TODO give them an initial velocity going around the circle
+                worms[iw,i].ptype = 1;
+                worms[iw,i].m = 1.0; // setting mass
+                // vx[iw,i] = 0.0;
+                // vy[iw,i] = 0.0;
+                worms[iw,i].vxave = 0.0;
+                worms[iw,i].vyave = 0.0;
+                worms[iw,i].vzave = 0.0;
+                // fx[iw,i] = 0.0;
+                // fy[iw,i] = 0.0;
+                // fxold[iw,i] = 0.0;
+                // fyold[iw,i] = 0.0;
+            }
+            thetanow += 2.0*dth;
+        }
+        thetanow = theta_now_init;//5.0*pi;
+        for iw in nworms/2..nworms {
+            ireverse[iw] = 0;
+            rand1 = randStream.getNext();
+            if (rand1 <= 0.5) {
+                ireverse[iw] = 1;
+            }
+            var worm_z_height = randStream.getNext()*(L/2)+L/2;
+            for i in 1..np {
+                r = a*thetanow;
+                dth = length0/r;
+                thetanow += dth;
+                worms[iw,i].x = hxo2 + r*cos(thetanow);
+                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
+                worms[iw,i].y = hyo2 + r*sin(thetanow);
+                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
+                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                //TODO give them an initial velocity going around the circle
+                worms[iw,i].ptype = 1;
+                worms[iw,i].m = 1.0; // setting mass
+                // vx[iw,i] = 0.0;
+                // vy[iw,i] = 0.0;
+                worms[iw,i].vxave = 0.0;
+                worms[iw,i].vyave = 0.0;
+                worms[iw,i].vzave = 0.0;
+                // fx[iw,i] = 0.0;
+                // fy[iw,i] = 0.0;
+                // fxold[iw,i] = 0.0;
+                // fyold[iw,i] = 0.0;
+            }
+            thetanow += 2.0*dth;
+        }
+    } else if (boundary == 3) {
+        // channel boundary
+        writeln("channel boundary not implemented");
+        halt();
+    }
+    //reverse some of the worms and give them crazy colors
+    for iw in 1..nworms {
+        if (ireverse[iw] == 1) {
+            for i in 1..np {
+                savex[i] = worms[iw,i].x;
+                savey[i] = worms[iw,i].y;
+                savez[i] = worms[iw,i].z;
+            }
+            for ip in 1..np {
+                worms[iw,ip].x = savex[np+1-ip];
+                worms[iw,ip].y = savey[np+1-ip];
+                worms[iw,ip].z = savez[np+1-ip];
+            }
+        }
+    }
+
+    //init macro variable arrays
+    for i in 1..nworms*np{
+        KEworm[i] = 0.0;
+    }
+    write_log(logfile,"init done");
+}
+
+proc update_pos(itime:int) {
+    //forall iw in 1..nworms {
+   foreach i in 1..(nptc-numPoints) {
+      var iw,ip :int;
+      if i <= nworms*np {
+         // update worms
+         //iw = 1 + ((i - 1)/np):int;
+         //ip = i - np*(iw - 1);
+         
+         particles[i].fx = particles[i].fx/particles[i].m;
+         particles[i].fy = particles[i].fy/particles[i].m;
+         particles[i].fz = particles[i].fz/particles[i].m;
+
+         particles[i].x = particles[i].x + particles[i].vx*dt + particles[i].fx*dt2o2;
+         particles[i].y = particles[i].y + particles[i].vy*dt + particles[i].fy*dt2o2;
+         particles[i].z = particles[i].z + particles[i].vz*dt + particles[i].fz*dt2o2;
+
+         particles[i].fxold = particles[i].fx;
+         particles[i].fyold = particles[i].fy;
+         particles[i].fzold = particles[i].fz;
+
+         particles[i].fx = 0.0;
+         particles[i].fy = 0.0;
+         particles[i].fz = 0.0;
+
+         //periodic boundary conditions
+         if particles[i].z > L {
+            //particles[i].z = particles[i].z - L;
+            particles[i].z = L;
+         } else if particles[i].z < 0.0 {
+            //particles[i].z = particles[i].z + L;
+            particles[i].z = 0.0;
+         }
+      } else if i <= (nworms*np) + numSol {
+         particles[i].x += particles[i].vx*dt + (particles[i].fx/2)*(dt**2);
+         particles[i].y += particles[i].vy*dt + (particles[i].fy/2)*(dt**2);
+         // updating velocity and position
+         // solvx[i] += solfx[i] * dt;
+         // solvy[i] += solfy[i] * dt;
+         // solx[i] += solvx[i] * dt;
+         // soly[i] += solvy[i] * dt;
+
+         // doing a velocity half-step here
+         particles[i].fx = particles[i].fx/particles[i].m;
+         particles[i].fy = particles[i].fy/particles[i].m;
+         particles[i].vx += 0.5*dt*particles[i].fx;
+         particles[i].vy += 0.5*dt*particles[i].fy;
+         particles[i].vz = 0.0; // just in case
+         particles[i].fx = 0.0;
+         particles[i].fy = 0.0;
+         particles[i].fz = 0.0; // just in case
+      }
+   }
+   /*
+    forall iw in 1..nworms {
+       forall i in 1..np {
+            worms[iw,i].fx = worms[iw,i].fx/worms[iw,i].m;
+            worms[iw,i].fy = worms[iw,i].fy/worms[iw,i].m;
+            worms[iw,i].fz = worms[iw,i].fz/worms[iw,i].m;
+
+            //dissipation proportional to v relative to local average
+            //worms[iw,i].fx = worms[iw,i].fx - diss*(worms[iw,i].vx - worms[iw,i].vxave);
+            //worms[iw,i].fy = worms[iw,i].fy - diss*(worms[iw,i].vy - worms[iw,i].vyave);
+
+            worms[iw,i].x = worms[iw,i].x + worms[iw,i].vx*dt + worms[iw, i].fx*dt2o2;
+            worms[iw,i].y = worms[iw,i].y + worms[iw,i].vy*dt + worms[iw, i].fy*dt2o2;
+            worms[iw,i].z = worms[iw,i].z + worms[iw,i].vz*dt + worms[iw, i].fz*dt2o2;
+
+            worms[iw,i].fxold = worms[iw,i].fx;
+            worms[iw,i].fyold = worms[iw,i].fy;
+            worms[iw,i].fzold = worms[iw,i].fz;
+
+            worms[iw,i].fx = 0.0;
+            worms[iw,i].fy = 0.0;
+            worms[iw,i].fz = 0.0;
+
+            // periodic boundary conditions top and bottom for worms
+            //periodic boundary conditions
+            if worms[iw,i].z > L {
+                //worms[iw,i].z = worms[iw,i].z - L;
+                worms[iw,i].z = L;
+            } else if worms[iw,i].z < 0.0 {
+                //worms[iw,i].z = worms[iw,i].z + L;
+                worms[iw,i].z = 0.0;
+            }
+        }
+    }
+    fluid_pos(dt);
+    */
+}
+
+proc intraworm_forces() {
+    //first set of springs nearest neighbor springs
+    foreach iw in 1..nworms*np by np {
+        var ip1:int,ip:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
+        for i in iw..(iw+np)-1 {
+            ip1 = i+1;//(iw-1)*np + i + 1;
+            dx = particles[ip1].x - particles[i].x;
+            dy = particles[ip1].y - particles[i].y;
+            dz = particles[ip1].z - particles[i].z;
+            r = sqrt(dx*dx + dy*dy + dz*dz);
+
+            ff = -kspring*(r - length0)/r;
+            ffx = ff*dx;
+            ffy = ff*dy;
+            ffz = ff*dz;
+            particles[ip1].fx += ffx;
+            particles[i].fx -= ffx;
+            particles[ip1].fy += ffy;
+            particles[i].fy -= ffy;
+            particles[ip1].fz += ffz;
+            particles[i].fz -= ffz;
+        }
+    }
+    //bond bending terms
+    foreach iw in 1..nworms*np by np {
+        var ip2:int,ip:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
+        for i in iw..(iw+np)-2 {
+            ip2 = i + 2;
+            dx = particles[ip2].x - particles[i].x;
+            dy = particles[ip2].y - particles[i].y;
+            dz = particles[ip2].z - particles[i].z;
+            r = sqrt(dx*dx + dy*dy + dz*dz);
+
+            ff = -k2spring*(r - length2)/r;
+            ffx = ff*dx;
+            ffy = ff*dy;
+            ffz = ff*dz;
+
+            particles[ip2].fx += ffx;
+            particles[i].fx -= ffx;
+
+            particles[ip2].fy += ffy;
+            particles[i].fy -= ffy;
+
+            particles[ip2].fz += ffz;
+            particles[i].fz -= ffz;
+        }
+    }
+    // 3-spring bond-bending
+    var k3spring = 75.0*kspring; //10.0 25.0 50.0
+    var length3 = 3.0*length0;
+    foreach iw in 1..nworms*np by np {
+        var ip3:int,r:real,ff:real,ffx:real,ffy:real,ffz:real,dx:real,dy:real,dz:real;
+        for i in iw..(iw+np)-3 { 
+            ip3 = i + 3;
+            dx = particles[ip3].x - particles[i].x;
+            dy = particles[ip3].y - particles[i].y;
+            dz = particles[ip3].z - particles[i].z;
+            r = sqrt(dx*dx + dy*dy + dz*dz);
+
+            ff = -k3spring*(r - length3)/r;
+            ffx = ff*dx;
+            ffy = ff*dy;
+            ffz = ff*dz;
+
+            particles[ip3].fx += ffx;
+            particles[i].fx -= ffx;
+
+            particles[ip3].fy += ffy;
+            particles[i].fy -= ffy;
+
+            particles[ip3].fz += ffz;
+            particles[i].fz -= ffz;
+        }
+    }
+    /*
+    forall iw in 1..nworms {
+        var i3:int,i4:int,x2:real,x3:real,x4:real,y2:real,y3:real,y4:real,z2:real,z3:real,z4:real,z23:real,z34:real,y23:real,y34:real,x23:real,x34:real,r23:real,r34:real,cosvalue:real;
+	    var sinvalue:real,ff:real,dot:real,fac:real,f2x:real,f2y:real,f2z:real,f3x:real,f3y:real,f3z:real,f4x:real,f4y:real,f4z:real;
+        for i2 in 1..(np-2) {
+            i3 = i2 + 1;
+            i4 = i2 + 2;
+            //print*, i2,i3,i4
+            x2 = worms[iw, i2].x;
+            y2 = worms[iw, i2].y;
+            z2 = worms[iw, i2].z;
+
+            x3 = worms[iw, i3].x;
+            y3 = worms[iw, i3].y;
+            z3 = worms[iw, i3].z;
+
+            x4 = worms[iw, i4].x;
+            y4 = worms[iw, i4].y;
+            z4 = worms[iw, i4].z;
+
+            z23 = z3-z2;
+            z34 = z4-z2;
+
+            y23 = y3 - y2;
+            y34 = y4 - y3;
+
+            x23 = x3 - x2;
+            x34 = x4 - x3;
+
+            r23 = sqrt(x23*x23 + y23*y23 + z23*z23);
+            r34 = sqrt(x34*x34 + y34*y34 + z34*z34);
+
+            cosvalue = abs(x23*x34 + y23*y34 + z23*z34)/(r23*r34);
+            //cosvalue = (x23*x34 + y23*y34)/(r23*r34)
+            //print*, x23,x34,y23,y34,r23,r34
+            if (cosvalue < 0.0) {
+               cosvalue = 0.0;
+               //print *, x23, x34, y23, y34, r23, r34
+               //print *, "cosvalue .lt. 0.0d0"
+               //stop
+            }
+            if (cosvalue > 1.0) {
+               cosvalue = 1.0;
+            }
+            sinvalue = sqrt(1.0 - cosvalue*cosvalue);
+
+            ff = -kbend*sinvalue/(r23*r34);
+
+            dot = x23*x34 + y23*y34 + z23*z34;
+            fac = dot/(r23*r23);
+
+            f2x = ff*(x34 - fac*x23);
+            f2y = ff*(y34 - fac*y23);
+            f2z = ff*(z34 - fac*z23);
+
+            fac = dot/(r34*r34);
+            f4x = ff*(fac*x34 - x23);
+            f4y = ff*(fac*y34 - y23);
+            f4z = ff*(fac*z34 - z23);
+
+            f3x = -f2x - f4x;
+            f3y = -f2y - f4y;
+            f3z = -f2z - f4z;
+
+            worms[iw, i2].fx += f2x;
+            worms[iw, i2].fy += f2y;
+            worms[iw, i2].fz += f2z;
+
+            worms[iw, i3].fx += f3x;
+            worms[iw, i3].fy += f3y;
+            worms[iw, i3].fz += f3z;
+
+            worms[iw, i4].fx += f4x;
+            worms[iw, i4].fy += f4y;
+            worms[iw, i4].fz += f3z;
+        }
+    }
+    */
+}
+
+proc calc_forces(istep:int,dt:real) {
+   ptc_count = 0;
+
+   foreach i in 1..nptc {
+      var ibin,jbin:int;
+      ibin=1+ceil(particles[i].x/rcut):int;
+      jbin=1+ceil(particles[i].y/rcut):int;
+      //writeln(i," ",ibin," ",jbin," ",particles[i].x," ",particles[i].y," ",particles[i].ptype);
+      //if i == 64001 {
+      //   writeln(i+1," ",particles[i+1].ptype);
+      //}
+      //binid=(jbin-1)*numBins+ibin;
+      ptc_count[ibin,jbin] += 1;
+   }
+   foreach i in 1..numBins {
+      var sum = 0;
+      for j in 1..numBins {
+         sum += ptc_count[i,j];
+      }
+      column_sum[i] = sum;
+   }
+   prefix_sum[1,1] = 0;
+   for i in 2..numBins {
+      prefix_sum[i,1] = prefix_sum[i-1,1] + column_sum[i-1];
+   }
+   foreach i in 1..numBins {
+      for j in 1..numBins {
+         if j == 1 {
+            prefix_sum[i,j] += ptc_count[i,j];
+         } else {
+            prefix_sum[i,j] = prefix_sum[i,j-1] + ptc_count[i,j];
+         }
+
+         var linear_idx = (i-1) * numBins + j;
+         list_head[linear_idx] = prefix_sum[i,j] - ptc_count[i,j];
+         if list_head[linear_idx] == 0 {
+            //writeln(linear_idx," ",prefix_sum[i,j]," ",ptc_count[i,j]);
+            //halt();
+         }
+         list_cur[linear_idx].write(list_head[linear_idx]);
+         list_tail[linear_idx] = prefix_sum[i,j];
+      }
+   }
+   foreach i in 1..nptc {
+      var ibin,jbin,binid:int;
+      ibin=1+ceil(particles[i].x/rcut):int;
+      jbin=1+ceil(particles[i].y/rcut):int;
+      binid=(ibin-1)*numBins+jbin;
+      if binid < 0 {
+         writeln(binid);
+      }
+      if binid > numBins*numBins {
+         writeln(binid);
+      }
+      var temp_loc = list_cur[binid].read();
+      var ptc_location = temp_loc + 1;
+      list_cur[binid].write(ptc_location);
+      particle_id[ptc_location] = i;
+      //writeln(i," ",ibin," ",jbin," ",binid," ",temp_loc," ",ptc_location);
+   }
+   foreach i in 1..nptc {
+      var ibin,jbin,x_begin,x_end,y_begin,y_end:int;
+      ibin=1+ceil(particles[i].x/rcut):int;
+      jbin=1+ceil(particles[i].y/rcut):int;
+      x_begin = max(ibin-1,1);
+      x_end = min(ibin+1,numBins);
+
+      y_begin = max(jbin-1,1);
+      y_end = min(jbin+1,numBins);
+      for neigh_i in x_begin..x_end {
+         for neigh_j in y_begin..y_end {
+            var neigh_linear_idx = (neigh_i-1)*numBins + neigh_j;
+            //writeln(neigh_i," ",neigh_j," ",neigh_linear_idx);
+            for p_idx in list_head[neigh_linear_idx]..list_tail[neigh_linear_idx] {
+               if p_idx == 0 {
+                  //writeln(neigh_i," ",neigh_j," ",neigh_linear_idx," "," ",p_idx);
+               }
+               if p_idx != 0 {
+               var j = particle_id[p_idx];
+               if i < j {
+                  cell_forces(i,j,particles[i].ptype,particles[j].ptype);
+               }
+               }
+            }
+
+         }
+      }
+   }
+}
+
+proc calc_forces_bf(istep:int,dt:real) {
+   for i in 1..nptc {
+      for j in (i+1)..nptc {
+         var itype = particles[i].ptype;
+         var jtype = particles[j].ptype;
+         cell_forces(i,j,itype,jtype);
+
+      }
+   }
+}
+
+inline proc cell_forces(i:int,j:int,itype:int,jtype:int) {
+    //worm-worm interaction 3D
+    if (itype == 1) && (jtype == 1) {
+        worm_cell_forces(i,j);
+    }
+    //worm-boundary interaction 2D
+    if ((itype == 1) && (jtype == 3)) {
+        dogic_wall(i,j);
+    } else if ((itype == 3) && (jtype == 1)) {
+        var iw,ip:int;
+        dogic_wall(j,i);
+    }
+    //solvent-worm interaction 2D
+    if ((itype == 2) && (jtype == 1)) {
+        var dx,dy,dz,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,fdrag,dv_dot_rhat:real;
+        var iw,ip:int;
+        //iw = 1 + ((j - 1)/np):int; // find which worm j is in
+        //ip = j - np*(iw - 1); // which particle in the worm is j?
+        dz = fluid_offset;
+        dx = particles[i].x - particles[j].x;//solvent[i].x - worms[iw,ip].x;
+        dy = particles[i].y - particles[j].y;//solvent[i].y - worms[iw,ip].y;
+        r2 = (dx*dx + dy*dy + dz*dz);
+        if (r2 <= r2cut) {
+            //writeln("solvent worm ",sqrt(r2),"\t",sqrt(r2cut));
+            //writeln("solvent worm ",r2,"\t",r2cut);
+            ffor = -48.0*sw_epsilon*r2**(-7.0) + 24.0*sw_epsilon*r2**(-4.0);
+            ffx = ffor*dx;
+            ffy = ffor*dy;
+            particles[i].fx += ffx;
+            particles[i].fy += ffy;
+            particles[j].fx -= ffx;
+            particles[j].fy -= ffy;
+            /*
+            solvent[i].fx += ffx;
+            solvent[i].fy += ffy;
+            worms[iw,ip].fx -= ffx;
+            worms[iw,ip].fy -= ffy;
+            */
+        }
+    } else if ((itype == 1) && (jtype == 2)) {
+        var dx,dy,dz,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,fdrag,dv_dot_rhat:real;
+        var iw,ip:int;
+        iw = 1 + ((i - 1)/np):int; // find which worm i is in
+        ip = i - np*(iw - 1); // which particle in the worm is i?
+        dz = fluid_offset;
+        dx = particles[j].x - particles[i].x;//solvent[j].x - worms[iw,ip].x;
+        dy = particles[j].x - particles[i].x;//solvent[j].y - worms[iw,ip].y;
+        r2 = (dx*dx + dy*dy + dz*dz);
+        if (r2 <= r2cut) {
+            //writeln("worm solvent ",sqrt(r2),"\t",sqrt(r2cut));
+            //writeln("worm solvent",r2,"\t",r2cut);
+            ffor = -48.0*sw_epsilon*r2**(-7.0) + 24.0*sw_epsilon*r2**(-4.0);
+            ffx = ffor*dx;
+            ffy = ffor*dy;
+
+            // pairwise drag force - March 22
+            // fdrag = 0.05;            
+            // dvx = solvent[j].vx - worms[iw,ip].vx;
+            // dvy = solvent[j].vy - worms[iw,ip].vy;
+
+            // rhatx = dx/sqrt(r2);
+            // rhaty = dy/sqrt(r2);
+
+            // dv_dot_rhat = dvx*rhatx + dvy*rhaty;
+            // ffx += fdrag*dv_dot_rhat*rhatx; 
+            // ffy += fdrag*dv_dot_rhat*rhaty;
+
+            particles[j].fx += ffx;
+            particles[j].fy += ffy;
+            particles[i].fx -= ffx;
+            particles[i].fy -= ffy;
+            /*
+            solvent[j].fx += ffx;
+            solvent[j].fy += ffy;
+            worms[iw,ip].fx -= ffx;
+            worms[iw,ip].fy -= ffy;
+            */
+        }
+    }
+    //solvent-solvent interaction 2D
+    if (itype == 2) && (jtype == 2) {
+        lj_thermo(i,j,r2cutsmall);
+    }
+    //solvent-boundary interaction 2D
+    if ((itype == 2) && (jtype == 3)) {
+        lj(j,i,sigma*r2cutsmall);
+    } else if ((itype == 3) && (jtype == 2)) {
+        lj(i,j,sigma*r2cutsmall);
+    }
+}
+
+inline proc worm_cell_forces(i:int,j:int) {
+   var dddx:real,dddy:real,dddz:real,r2:real,riijj:real,ffor:real,ffx:real,ffy:real,ffz:real,dxi:real,dxj:real,
+       ri:real,rj:real,r:real,dx:real,dy:real,dz:real,dyi:real,dyj:real,dzi:real,dzj:real,r2shift:real;
+   var dvx:real,dvy:real,dvz:real,dv_dot_rhat:real,rhatx:real,rhaty:real,rhatz:real,omega:real,fdissx:real,fdissy:real,fdissz:real,gauss:real,frand:real;
+   var iworm:int,jworm:int,ip:int,jp:int,ip1:int,jp1:int,inogo:int;
+   iworm = 1 + ((i - 1)/np):int;
+   ip = i - np*(iworm - 1);
+   jworm = 1 + ((j - 1)/np):int;
+   jp = j - np*(jworm - 1);
+
+   inogo = 0;
+   if ((iworm == jworm) && (abs(ip-jp) <= 2)) {
+      // on the same worm and close means no interaction calculated here
+      inogo = 1;
+   }
+   if (inogo == 0) {
+      dddx = particles[j].x - particles[i].x;
+      dddy = particles[j].y - particles[i].y;
+      dddz = particles[j].z - particles[i].z;
+      r2 = dddx**2 + dddy**2 + dddz**2;
+      riijj = sqrt(r2);
+      //add attractive force fdep between all pairs
+      if (r2 <= r2cutsmall) {
+            ffor = -48.0*ww_epsilon*r2**(-7.0) + 24.0*ww_epsilon*r2**(-4.0) + fdep/riijj; //TODO: shoudl fdep = -?
+            //ffor = -48.0*(r2-r2shift)**(-7.0)  + 24.0*(r2-r2shift)**(-4.0) + fdep/riijj;
+            ffx = ffor*dddx;
+            ffy = ffor*dddy;
+            ffz = ffor*dddz;
+            particles[i].fx += ffx;
+            particles[j].fx -= ffx;
+            particles[i].fy += ffy;
+            particles[j].fy -= ffy;
+            particles[i].fz += ffz;
+            particles[j].fz -= ffz;
+            
+
+            // DPD thermostat https://docs.lammps.org/pair_dpd.html
+            //adding dissipative force
+            if (thermow) {
+               dvx = particles[j].vx - particles[i].vx;
+               dvy = particles[j].vy - particles[i].vy;
+               dvz = particles[j].vz - particles[i].vz;
+
+               rhatx = dddx/riijj;
+               rhaty = dddy/riijj;
+               rhatz = dddz/riijj;
+
+               omega = (1.0-riijj/rcutsmall);
+               dv_dot_rhat = dvx*rhatx + dvy*rhaty + dvz*rhatz;
+               fdissx = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhatx; //gamma = 1/damp (proportional to friction force)
+               fdissy = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhaty;
+               fdissz = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhatz;
+
+               particles[i].fx -= fdissx;
+               particles[i].fy -= fdissy;
+               particles[i].fz -= fdissz;
+
+               particles[j].fx += fdissx;
+               particles[j].fy += fdissy;
+               particles[j].fz += fdissz;
+
+               // adding random forces
+               gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
+               frand = dpd_ratio*(inv_sqrt_dt)*omega*gauss*sqrt_gamma_term;
+
+               particles[i].fx += frand*rhatx;
+               particles[i].fy += frand*rhaty;
+               particles[i].fz += frand*rhatz;
+
+               particles[j].fx -= frand*rhatx;
+               particles[j].fy -= frand*rhaty;
+               particles[j].fz -= frand*rhatz;
+            }
+            //vxave,vyave
+            particles[i].vxave += particles[j].vx;
+            particles[i].vyave += particles[j].vy;
+            particles[i].vzave += particles[j].vz;
+
+            particles[j].vxave += particles[i].vx;
+            particles[j].vyave += particles[i].vy;
+            particles[j].vzave += particles[i].vz;
+
+            //nnab[iworm,ip] += 1;
+            //nnab[jworm,jp] += 1;
+
+            //add 'dogic drive' to interacting pairs
+            //first calculate unit vectors along each worm
+            ip1 = (iworm-1)*np + ip+1;//ip + 1;
+            if (ip+1 <= np) {
+               dxi = particles[ip1].x - particles[i].x;
+               dyi = particles[ip1].y - particles[i].y;
+               dzi = particles[ip1].z - particles[i].z;
+            } else {
+               dxi = particles[i].x - particles[(iworm-1)*np + ip+1].x;
+               dyi = particles[i].y - particles[(iworm-1)*np + ip+1].y;
+               dzi = particles[i].z - particles[(iworm-1)*np + ip+1].z;
+            }
+
+            jp1 = (jworm-1)*np + jp+1;//jp + 1;
+            if (jp+1 <= np) {
+               dxj = particles[jp1].x - particles[j].x;
+               dyj = particles[jp1].y - particles[j].y;
+               dzj = particles[jp1].z - particles[j].z;
+            } else {
+               dxj = particles[j].x - particles[(jworm-1)*np + jp-1].x;
+               dyj = particles[j].y - particles[(jworm-1)*np + jp-1].y;
+               dzj = particles[j].z - particles[(jworm-1)*np + jp-1].z;
+            }
+
+
+            //if the two vectors have any component pointing in opposite directions
+            if (dxi*dxj + dyi*dyj + dzi*dzj <= -0.5) {
+            //if (dxi*dxj + dyi*dyj + dzi*dzj<= 0.0) {
+               //normalize those vectors to make them unit vectors
+               ri = sqrt(dxi*dxi + dyi*dyi *dzi*dzi);
+               dxi = dxi/ri;
+               dyi = dyi/ri;
+               dzi = dzi/ri;
+
+               rj = sqrt(dxj*dxj + dyj*dyj + dzj*dzj);
+               dxj = dxj/rj;
+               dyj = dyj/rj;
+               dzj = dzj/rj;
+               //now they are both unit vectors. Find the direction for the force...
+
+               dx = (dxi - dxj)/2.0;
+               dy = (dyi - dyj)/2.0;
+               dz = (dzi - dzj)/2.0;
+
+               //normalize
+
+               r = sqrt(dx*dx + dy*dy + dz*dz);
+               dx = dx/r;
+               dy = dy/r;
+               dz = dz/r;
+
+               //add an extra attractive component where kinesin drive is present
+
+               ffx = fdogic*(dx) + dogic_fdep*dddx/riijj;
+               ffy = fdogic*(dy) + dogic_fdep*dddy/riijj;
+               ffz = fdogic*(dz) + dogic_fdep*dddz/riijj;
+
+               particles[i].fx += ffx;
+               particles[j].fx -= ffx;
+               particles[i].fy += ffy;
+               particles[j].fy -= ffy;
+               particles[i].fz += ffz;
+               particles[j].fz -= ffz;
+            }
+      }
+   }
+}
+
+inline proc dogic_wall(i:int,ib:int){
+    var dx:real, dy:real, r:real, r2:real, th:real,
+        xwall:real, ywall:real, rr2:real, ffor:real,
+        dxi:real, dyi:real, ri:real, dxj:real, dyj:real, ffx:real, ffy:real;
+    var ip1,ib1:int;
+    var iw,ip:int;
+    iw = 1 + ((i - 1)/np):int; // find which worm i is in
+    ip = i - np*(iw - 1); // which particle in the worm is i?
+    //calculate distance to the wall
+    dx = particles[i].x-particles[ib].x;
+    dy = particles[i].y-particles[ib].y;
+    r2 = (dx*dx + dy*dy);
+    //if close enough to the wall, calculate wall forces
+    //use the short cut-off
+    if (r2 <= r2cutsmall) {
+        r = sqrt(r2);
+        //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
+        //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+        ffor = (1/r)*6.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
+        //ffor = (1/r)**6.0 - fdepwall/r;
+        particles[i].fx += ffor*dx;
+        particles[i].fy += ffor*dy;
+        if (walldrive) {
+            //first calculate unit vector along the worm
+            ip1 = (iw-1)*np + ip+1;//ip + 1;
+            if (ip+1 <= np) {
+                dxi = particles[ip1].x - particles[i].x;
+                dyi = particles[ip1].y - particles[i].y;
+            } else {
+                dxi = particles[i].x - particles[(iw-1)*np + ip-1].x;
+                dyi = particles[i].y - particles[(iw-1)*np + ip-1].y;
+            }
+            //make it a unit vector
+            ri = sqrt(dxi*dxi + dyi*dyi);
+            dxi = dxi/ri;
+            dyi = dyi/ri;
+            //calculate the unit vector along the wall
+            ib1 = ib + 1;
+            if (ib1 <= nptc) {
+                dxj = particles[ib1].x - particles[ib].x;
+                dyj = particles[ib1].y - particles[ib].y;
+            } else {
+                dxj = particles[ib].x - particles[ib-1].x;
+                dyj = particles[ib].y - particles[ib-1].y;
+            }
+            ri = sqrt(dxj*dxj + dyj*dyj);
+            dxj = dxj/ri;
+            dyj = dyj/ri;
+
+            //if the vectors are not antiparallel, reverse the vector along the wall
+            if (dxi*dxj + dyi*dyj > 0.0) {
+                dxj = -dxj;
+                dyj = -dyj;
+            }
+            //if the two vectors have any component pointing in opposite directions
+            if (dxi*dxj + dyi*dyj < 0.0) {
+                //Find the direction for the force...
+                dx = (dxi - dxj)/2.0;
+                dy = (dyi - dyj)/2.0;
+                //normalize the direction vector
+                ri = sqrt(dx*dx + dy*dy);
+                dx = dx/ri;
+                dy = dy/ri;
+
+                //turn on extra-strong driving force
+                ffx = fdogicwall*dx;
+                ffy = fdogicwall*dy;
+                particles[i].fx += ffx;
+                particles[i].fy += ffy;
+            }
+        }
+    }
+}
+
+proc update_vel() {
+   foreach i in 1..(nptc-numPoints) {
+      if i <= (nworms*np) {
+         particles[i].vx += dto2*(particles[i].fx + particles[i].fxold);
+         particles[i].vy += dto2*(particles[i].fy + particles[i].fyold);
+         //particles[i].vz += dto2*(particles[i].fz + particles[i].fzold);
+
+         //particles[i].vxave = particles[i].vxave/nnab[iw, i]:real;
+         //particles[i].vyave = particles[i].vyave/nnab[iw, i]:real;
+         //particles[i].vzave = particles[i].vzave/nnab[iw, i]:real;
+
+         KEworm[i] = 0.5*particles[i].m*(particles[i].vx * particles[i].vx + particles[i].vy * particles[i].vy);
+         KEworm_local[i] = 0.5*particles[i].m*((particles[i].vx-particles[i].vxave) * (particles[i].vx-particles[i].vxave) + (particles[i].vy-particles[i].vyave) * (particles[i].vy-particles[i].vyave));
+         AMworm[i] = (particles[i].x-hxo2)*particles[i].vy - (particles[i].y-hyo2)*particles[i].vx; // angular momentum calculation
+
+         // nnab[iw,i] = 1;
+         // worms[iw,i].vxave = 0.0;
+         // worms[iw,i].vyave = 0.0;
+         // worms[iw,i].vzave = 0.0;
+      } else if i <= (nworms*np) + numSol {
+         //solvent[i].vx += 0.5*dt_fluid*(solvent[i].fxold + solvent[i].fx);
+         //solvent[i].vy += 0.5*dt_fluid*(solvent[i].fyold + solvent[i].fy);
+         //solvent[i].fxold = solvent[i].fx;
+         //solvent[i].fyold = solvent[i].fy;
+         particles[i].fx = particles[i].fx/particles[i].m;
+         particles[i].fy = particles[i].fy/particles[i].m;
+         particles[i].vx += 0.5*dt*particles[i].fx;
+         particles[i].vy += 0.5*dt*particles[i].fy;
+         // calculating kinetic energy here too
+         KEsol[i-(nworms*np)] = 0.5*particles[i].m*(particles[i].vx * particles[i].vx + particles[i].vy * particles[i].vy);
+         AMsol[i-(nworms*np)] = (particles[i].x-hxo2)*particles[i].vy - (particles[i].y-hyo2)*particles[i].vx; // angular momentum calculation
+      }
+   }
+   /*
+    forall iw in 1..nworms {
+        forall i in 1..np {
+            worms[iw, i].vx += dto2*(worms[iw,i].fx + worms[iw,i].fxold);
+            worms[iw, i].vy += dto2*(worms[iw,i].fy + worms[iw,i].fyold);
+            //worms[iw, i].vz += dto2*(worms[iw,i].fz + worms[iw,i].fzold);
+
+            worms[iw, i].vxave = worms[iw, i].vxave/nnab[iw, i]:real;
+            worms[iw, i].vyave = worms[iw, i].vyave/nnab[iw, i]:real;
+            worms[iw, i].vzave = worms[iw, i].vzave/nnab[iw, i]:real;
+
+            KEworm[iw*i] = 0.5*worms[iw,i].m*(worms[iw,i].vx * worms[iw,i].vx + worms[iw,i].vy * worms[iw,i].vy);
+            KEworm_local[iw*i] = 0.5*worms[iw,i].m*((worms[iw,i].vx-worms[iw,i].vxave) * (worms[iw,i].vx-worms[iw,i].vxave) + (worms[iw,i].vy-worms[iw,i].vyave) * (worms[iw,i].vy-worms[iw,i].vyave));
+            AMworm[iw*i] = (worms[iw,i].x-hxo2)*worms[iw,i].vy - (worms[iw,i].y-hyo2)*worms[iw,i].vx; // angular momentum calculation
+
+            nnab[iw,i] = 1;
+            worms[iw,i].vxave = 0.0;
+            worms[iw,i].vyave = 0.0;
+            worms[iw,i].vzave = 0.0;
+        }
+    }
+    fluid_vel(dt);
+    */
+}
+
+//FLUID FUNCTIONS
+proc init_fluid_count():int {
+   var numSol:int;
+   if (boundary == 1) {
+      var fluid_a = 2*rwall;
+      var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
+      var pos : [1..numSol,1..3] real;
+      var fluid_px = fluid_a;
+      var fluid_mx = 0;
+      var fluid_py = fluid_a;
+      var fluid_my = 0;
+      var spacing = fluid_a/nSol_row;
+      var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      var row,col:real;
+      for i in 1..numSol {
+            row = i % row_length;
+            col = ((i - row)/row_length)+1;
+
+            pos[i,1] = fluid_mx + spacing*row + spacing; // x
+            pos[i,2] = fluid_my + spacing*col; // y
+            pos[i,3] = 0.0;
+      }
+      // mark all solvent particles that are out of bounds
+      var rm_count = 0;
+      for i in 1..numSol {
+         var dx = pos[i,1] - hxo2;
+         var dy = pos[i,2] - hyo2;
+         var r = sqrt(dx*dx + dy*dy);
+         if r > (0.95*rwall) {
+            pos[i,3] = -1.0;
+            rm_count +=1;
+         }
+      }
+      // recounting
+      writeln(rm_count);
+      numSol -= rm_count;
+   } else if (boundary == 2) {
+      var fluid_a = 2*rwall;
+            var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
+      var pos : [1..numSol,1..3] real;
+      var fluid_px = fluid_a;
+      var fluid_mx = 0;
+      var fluid_py = fluid_a;
+      var fluid_my = 0;
+      var spacing = fluid_a/nSol_row;
+      var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      var row,col:real;
+      for i in 1..numSol {
+            row = i % row_length;
+            col = ((i - row)/row_length)+1;
+
+            pos[i,1] = fluid_mx + spacing*row + spacing; // x
+            pos[i,2] = fluid_my + spacing*col; // y
+            pos[i,3] = 0.0;
+      }
+      // mark all solvent particles that are out of bounds
+      var rm_count = 0;
+      var ca = 1.5*(rwall/2);
+      for i in 1..numSol {
+         var dx = pos[i,1] - hxo2;
+         var dy = pos[i,2] - hyo2;
+         var r = sqrt(dx*dx + dy*dy);
+         var cardioidRadius = 1 - cos(atan2(dy, dx));
+         if r > (0.95*ca*cardioidRadius) {
+            pos[i,3] = -1.0;
+            rm_count +=1;
+         }
+      }
+      // recounting
+      writeln(rm_count);
+      numSol -= rm_count;
+   } else {
+    halt("no other boundaries supported yet");
+   }
+   return numSol;
+}
+
+proc init_fluid(ref solvent: [] Structs.Particle,ref numSol: int) {
+   var random_placement = false;
+   // place particles in a square lattice centered in the boundary
+   if (boundary == 1) {
+      // circular boundary
+      var fluid_a = 2*rwall;
+      var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      var numSol_tmp = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
+      var pos : [1..numSol_tmp,1..3] real;
+      var fluid_px = fluid_a;
+      var fluid_mx = 0;
+      var fluid_py = fluid_a;
+      var fluid_my = 0;
+      var spacing = fluid_a/nSol_row;
+      var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      var row,col:real;
+      for i in 1..numSol_tmp {
+            row = i % row_length;
+            col = ((i - row)/row_length)+1;
+
+            pos[i,1] = fluid_mx + spacing*row + spacing; // x
+            pos[i,2] = fluid_my + spacing*col; // y
+            pos[i,3] = 0.0;
+      }
+      // mark all solvent particles that are out of bounds
+      var count = 1;
+      for i in 1..numSol_tmp {
+         var dx = pos[i,1] - hxo2;
+         var dy = pos[i,2] - hyo2;
+         var r = sqrt(dx*dx + dy*dy);
+         if r < (0.95*rwall) {
+            solvent[count].x = pos[i,1];
+            solvent[count].y = pos[i,2];
+            solvent[count].z = 0.0;
+            solvent[count].vx = 0.0;
+            solvent[count].vy = 0.0;
+            solvent[count].vz = 0.0;
+            solvent[count].fx = 0.0;
+            solvent[count].fy = 0.0;
+            solvent[count].fz = 0.0;
+            solvent[count].ptype = 2;
+            solvent[count].m = 1.0;
+            count +=1;
+         }
+      }
+   } else if (boundary == 2) {
+      // cardioid boundary
+      // circular boundary
+      var fluid_a = 2*rwall;
+      var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      var numSol_tmp = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
+      var pos : [1..numSol_tmp,1..3] real;
+      var fluid_px = fluid_a;
+      var fluid_mx = 0;
+      var fluid_py = fluid_a;
+      var fluid_my = 0;
+      var spacing = fluid_a/nSol_row;
+      var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+      var row,col:real;
+      for i in 1..numSol_tmp {
+            row = i % row_length;
+            col = ((i - row)/row_length)+1;
+
+            pos[i,1] = fluid_mx + spacing*row + spacing; // x
+            pos[i,2] = fluid_my + spacing*col; // y
+            pos[i,3] = 0.0;
+      }
+      // mark all solvent particles that are out of bounds
+      var count = 1;
+      var ca = 1.5*(rwall/2);
+      for i in 1..numSol_tmp {
+         var dx = pos[i,1] - hxo2;
+         var dy = pos[i,2] - hyo2;
+         var r = sqrt(dx*dx + dy*dy);
+         var cardioidRadius = 1 - cos(atan2(dy, dx));
+         if r < (0.95*ca*cardioidRadius) {
+            solvent[count].x = pos[i,1] + 0.95*ca;
+            solvent[count].y = pos[i,2];
+            solvent[count].z = 0.0;
+            solvent[count].vx = 0.0;
+            solvent[count].vy = 0.0;
+            solvent[count].vz = 0.0;
+            solvent[count].fx = 0.0;
+            solvent[count].fy = 0.0;
+            solvent[count].fz = 0.0;
+            solvent[count].ptype = 2;
+            solvent[count].m = 1.0;
+            count +=1;
+         }
+      }
+   } else if (boundary == 3) {
+      writeln("haven't put in channel fluid");
+      halt();
+   } else {
+      writeln("invalid boundary");
+      halt();
+   }
+   // init macro variable arrays
+   for i in 1..numSol {
+      KEsol[i] = 0.0;
+   }
+   if (boundary == 1){
+      writeln("fluid density=",numSol/(pi*rwall**2));
+   } else if (boundary == 2){
+      writeln("fluid density=",numSol/(6*pi*(1.5*(rwall/2))**2));
+   }
+   writeln("fluid init done");
+   return solvent;
+}
+
+inline proc lj_thermo(i:int,j:int,r2cut_local:real) {
+    var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,r,rhatx,rhaty,omega,fdissx,fdissy,gauss,frand,dv_dot_rhat :real;
+    dx = particles[j].x - particles[i].x;
+    dy = particles[j].y - particles[i].y;
+    r2 = (dx*dx + dy*dy);
+    //if (debug) {writeln("icount: ",icount,"\t",i,"\tjcount: ",jcount,"\t",j,"\t",r2,"\t",r2cut);}
+    if (r2 <= r2cut_local) {
+        // LJ force
+        ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+        ffx = ffor*dx;
+        ffy = ffor*dy;
+        particles[i].fx += ffx;
+        particles[i].fy += ffy;
+        particles[j].fx -= ffx;
+        particles[j].fy -= ffy;
+        if (thermo) {
+            // DPD thermostat
+            //adding dissipative force
+            dvx = particles[j].vx - particles[i].vx;
+            dvy = particles[j].vy - particles[i].vy;
+            r = sqrt(r2);
+            rhatx = dx/r;
+            rhaty = dy/r;
+            omega = (1.0-r/sqrt(r2cut_local));
+            dv_dot_rhat = dvx*rhatx + dvy*rhaty;
+            fdissx = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhatx; //gamma = 1/damp (proportional to friction force)
+            fdissy = -1.0*gamma*(omega*omega)*dv_dot_rhat*rhaty;
+            particles[i].fx -= fdissx;
+            particles[i].fy -= fdissy;
+            particles[j].fx += fdissx;
+            particles[j].fy += fdissy;
+            // adding random forces
+            gauss = gaussRand(0.0,1.0); // generates normal random numbers (mean, stddev)
+            //gauss = randStream.getNext();
+            frand = dpd_ratio*(inv_sqrt_dt)*omega*gauss*sqrt_gamma_term;
+            particles[i].fx += frand*rhatx;
+            particles[i].fy += frand*rhaty;
+            particles[j].fx -= frand*rhatx;
+            particles[j].fy -= frand*rhaty;
+        }
+    }
+}
+
+inline proc lj(i:int,j:int,r2cut_local:real) {
+    var dx,dy,r2,ffor,ffx,ffy,sigma12,sigma6:real;
+    //calculate distance to the wall
+    dx = particles[j].x - particles[i].x;
+    dy = particles[j].y - particles[i].y;
+    r2 = (dx*dx + dy*dy);
+    //if close enough to the wall, calculate wall forces
+    //use the short cut-off
+    if (r2 <= r2cut_local) {
+        //ffor=-48.d0*rr2**(-7)+24.d0*rr2**(-4)+fdepwall/r
+        //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+        //sigma12 = sigma**12;
+        //sigma6 = sigma**6;
+        //ffor = 48.0*sigma12*r2**(-7.0) -24*sigma6*r2**(-4.0);
+        ffor = (1/r2)**2.0;
+        particles[j].fx += ffor*dx;
+        particles[j].fy += ffor*dy;
+    }
+}
+
+inline proc fluid_pos(dt_fluid:real) {
+    forall i in 1..numSol {
+        solvent[i].x += solvent[i].vx*dt_fluid + (solvent[i].fx/2)*(dt_fluid**2);
+        solvent[i].y += solvent[i].vy*dt_fluid + (solvent[i].fy/2)*(dt_fluid**2);
+        // updating velocity and position
+        // solvx[i] += solfx[i] * dt;
+        // solvy[i] += solfy[i] * dt;
+        // solx[i] += solvx[i] * dt;
+        // soly[i] += solvy[i] * dt;
+
+        // doing a velocity half-step here
+        solvent[i].fx = solvent[i].fx/solvent[i].m;
+        solvent[i].fy = solvent[i].fy/solvent[i].m;
+        solvent[i].vx += 0.5*dt_fluid*solvent[i].fx;
+        solvent[i].vy += 0.5*dt_fluid*solvent[i].fy;
+        solvent[i].vz = 0.0; // just in case
+        solvent[i].fx = 0.0;
+        solvent[i].fy = 0.0;
+        solvent[i].fz = 0.0; // just in case
+    }
+}
+
+proc fluid_force_old() {
+         // fluid-fluid
+       var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,rhatx,rhaty,r,frand,gauss,fdissx,fdissy,omega:real;
+         for i in 1..numSol {
+             // calculating the force
+             for j in (i+1)..numSol {
+                 lj_thermo(i,j,r2cut);
+             }
+         }
+         //fluid-boundary
+         // var r2cutsol = r2cut
+         var r2cutsol = sigma*r2cutsmall;
+         forall i in 1..numSol {
+             // calculate the force on the boundaries.
+             for ib in 1..numPoints  {
+                 lj(ib,i,r2cutsol);
+
+             }
+            //lj(1,i,r2cutsol);
+         }
+
+    //     // fluid-worms
+    //     var dz = fluid_offset;
+    //     for i in 1..numSol{
+    //         var dx,dy,r2,ffor,ffx,ffy:real;
+    //         for iw in 1..nworms {
+    //             for ip in 1..np {
+    //                 dx = solvent[i].x - worms[iw,i].x;
+    //                 dy = solvent[i].y - worms[iw,i].y;
+    //                 r2 = (dx*dx + dy*dy + dz*dz);
+    //                 if (r2 <= r2cutsmall) {
+    //                     ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
+    //                     ffx = ffor*dx;
+    //                     ffy = ffor*dy;
+    //                     solvent[i].fx += ffx;
+    //                     solvent[i].fy += ffy;
+    //                     worms[iw,ip].fx -= ffx;
+    //                     worms[iw,ip].fy -= ffy;
+    //                 }
+    //             }
+    //         }
+    //     }
+}
+
+inline proc fluid_vel(dt_fluid:real) {
+    //update velocities
+    forall i in 1..numSol {
+        //solvent[i].vx += 0.5*dt_fluid*(solvent[i].fxold + solvent[i].fx);
+        //solvent[i].vy += 0.5*dt_fluid*(solvent[i].fyold + solvent[i].fy);
+        //solvent[i].fxold = solvent[i].fx;
+        //solvent[i].fyold = solvent[i].fy;
+        solvent[i].fx = solvent[i].fx/solvent[i].m;
+        solvent[i].fy = solvent[i].fy/solvent[i].m;
+        solvent[i].vx += 0.5*dt_fluid*solvent[i].fx;
+        solvent[i].vy += 0.5*dt_fluid*solvent[i].fy;
+        // calculating kinetic energy here too
+        KEsol[i] = 0.5*solvent[i].m*(solvent[i].vx * solvent[i].vx + solvent[i].vy * solvent[i].vy);
+        AMsol[i] = (solvent[i].x-hxo2)*solvent[i].vy - (solvent[i].y-hyo2)*solvent[i].vx; // angular momentum calculation
+    }
+}
+
+proc fluid_step(istep:int,dt_fluid:real) {
+    // update positions
+    fluid_pos(dt_fluid);
+    // update_fluid_cells(istep);
+    fluid_force_old();
+
+    fluid_vel(dt_fluid);
+}
+
+// CELL LIST FUNCTIONS
+proc update_cells(istep:int) {
+    // ncount array set to zero
+    // particle list set to empty
+
+    // resetting all other bins lists for worms and solvent
+    for binid in binSpace{
+        if bins[binid].ncount > 0 {
+            bins[binid].ncount = 0; // number of boundary atoms should not change
+            bins[binid].scount = 0;
+            bins[binid].wcount = 0;
+            bins[binid].bcount = 0;
+            bins[binid].atoms.clear();
+            bins[binid].types.clear();
+        }
+    }
+    var ibin,jbin,binid :int;
+    for i in 1..numSol { // populating solvent particles into bins
+        ibin=ceil(solvent[i].x/rcut):int;
+        jbin=ceil(solvent[i].y/rcut):int;
+        binid=(jbin-1)*numBins+ibin;
+        if (binid > numBins*numBins) {
+            write_log(logfile,solvent[i].info());
+            sudden_halt(istep);
+        } else if (binid < 1) {
+            write_log(logfile,solvent[i].info());
+            sudden_halt(istep);
+        }
+        //append i to particle_list for binid
+        bins[binid].scount += 1;
+        bins[binid].ncount += 1;
+        bins[binid].atoms.pushBack(solvent[i].id);
+        bins[binid].types.pushBack(solvent[i].ptype);
+        //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
+    }
+    var wormid : int;
+    for iw in 1..nworms { // populating worm particles into bins
+        for ip in 1..np {
+            ibin=ceil(worms[iw,ip].x/rcut):int;
+            jbin=ceil(worms[iw,ip].y/rcut):int;
+            binid=(jbin-1)*numBins+ibin;
+            wormid = (iw-1)*np+ip;
+            if (binid > numBins*numBins) {
+                write_log(logfile,worms[iw,ip].info());
+                sudden_halt(istep);
+            } else if (binid < 1) {
+                write_log(logfile,worms[iw,ip].info());
+                sudden_halt(istep);
+            }
+            //append i to particle_list for binid
+            bins[binid].wcount += 1;
+            bins[binid].ncount += 1;
+            bins[binid].atoms.pushBack(wormid);
+            bins[binid].types.pushBack(worms[iw,ip].ptype);
+            //if (debug) {writeln(i,"\t",solvent[i].x,"\t",solvent[i].y,"\t",binposx,"\t",binposy);}
+        }
+    }
+    for ib in 1..numPoints {
+        ibin=ceil(bound[ib].x/rcut):int;
+        jbin=ceil(bound[ib].y/rcut):int;
+        binid=(jbin-1)*numBins+ibin;
+        //append i to particle_list for binid
+        bins[binid].bcount += 1;
+        bins[binid].ncount += 1;
+        bins[binid].atoms.pushBack(bound[ib].id);
+        bins[binid].types.pushBack(bound[ib].ptype);
+    }
+}
+
+proc init_bins() {
+    // writeln((4/numBins):int +1); //row
+    // writeln(4%numBins); // col
+    var binid,ibinnab,jbinnab,binidnbor:int;
+    for ibin in 1..numBins {
+        for jbin in 1..numBins {
+            binid = (jbin-1)*numBins+ibin;
+            //  4   3   2
+            //     (*)   1
+            //
+            /*  1 = i+1,j
+                2 = i+1,j+1
+                3 = i,j+1
+                4 = i-1,j+1
+            */
+            ibinnab=ibin+1;
+            jbinnab=jbin;
+            if (ibinnab <= numBins) {
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                bins[binid].neighbors[1] = binidnbor;
+            } else {
+                bins[binid].neighbors[1] = -1;
+            }
+
+            ibinnab=ibin+1;
+            jbinnab=jbin+1;
+            if (ibinnab <= numBins) && (jbinnab <= numBins) {
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                bins[binid].neighbors[2] = binidnbor;
+            } else {
+                bins[binid].neighbors[2] = -1;
+            }
+
+            ibinnab=ibin;
+            jbinnab=jbin+1;
+            if (jbinnab <= numBins) {
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                bins[binid].neighbors[3] = binidnbor;
+            } else {
+                bins[binid].neighbors[3] = -1;
+            }
+
+            ibinnab=ibin-1;
+            jbinnab=jbin+1;
+            if (ibinnab > 0) && (jbinnab <= numBins){
+                binidnbor=(jbinnab-1)*numBins+ibinnab;
+                bins[binid].neighbors[4] = binidnbor;
+            } else {
+                bins[binid].neighbors[4] = -1;
+            }
+
+        }
+    }
+        // bins[ibin].x[0] = (ibin[0]-1)*rcut;
+        // bins[ibin].x[1] = ibin[0]*rcut;
+        // bins[ibin].y[0] = (ibin[1]-1)*rcut;
+        // bins[ibin].y[1] = ibin[1]*rcut;
+}
+
+proc init_binspace() {
+    // making lists of binids for different
+    var icount = 0;
+     for ibin in 1..numBins by 2 {
+         for jbin in 1..numBins {
+            icount += 1;
+            binSpaceiodd[icount] = (jbin-1)*numBins+ibin;
+        }
+    }
+    icount = 0;
+    for ibin in 2..numBins by 2 {
+        for jbin in 1..numBins {
+            icount +=1;
+            binSpaceieven[icount] = (jbin-1)*numBins+ibin;
+        }
+    }
+    icount = 0;
+    for ibin in 1..numBins {
+        for jbin in 1..numBins by 2 {
+            icount += 1;
+            binSpacejodd[icount] = (jbin-1)*numBins+ibin;
+        }
+    }
+    icount = 0;
+    for ibin in 1..numBins {
+        for jbin in 2..numBins by 2 {
+            icount += 1;
+            binSpacejeven[icount] = (jbin-1)*numBins+ibin;
+        }
+    }
+}
+
+// IO FUNCTIONS
+proc write_xyz(istep:int) {
+    var dx :real, dy:real, xang:real, rx:real,ry:real,dot:real;
+    var ic:int;
+    var filename:string = "amatter%{010u}.xyz".format(istep);
+    //var filename = "amatter" + (istep:string) + ".xyz";
+    try {
+    var xyzfile = open(filename, ioMode.cw);
+    var myFileWriter = xyzfile.writer();
+    // number of active particles + 4 edge-defining particles + boundary + solvent (optional)
+    if (fluid_cpl) {
+        myFileWriter.writeln(nworms * np + 4 + numPoints + numSol);
+    } else {
+        myFileWriter.writeln(nworms*np + 4 + numPoints);
+    }
+    myFileWriter.writeln("# 0");
+    ic = 2;
+    for iw in 1..nworms {
+        dx = worms[iw,1].x - hxo2;
+        dy = worms[iw,1].y - hyo2;
+        xang = atan2(dy,dx);
+        rx = -sin(xang);
+        ry = cos(xang);
+        dot = (worms[iw,1].x - worms[iw,np].x)*rx + (worms[iw,1].y - worms[iw,np].y)*ry;
+        if (dot >= 0.0) {
+            for i in 1..np {
+                myFileWriter.writeln("A ",worms[iw,i].x," ",worms[iw,i].y," ", worms[iw,i].z);
+                //myFileWriter.writeln("A ",x[iw,i]," ",y[iw,i]," ", 0.0," ",vx[iw,i]," ",vy[iw,i]," ",0.0);
+                ic += 1;
+            }
+        } else {
+            for i in 1..np {
+                myFileWriter.writeln("B ",worms[iw,i].x," ",worms[iw,i].y," ", worms[iw,i].z);
+                //myFileWriter.writeln("B ",x[iw,i]," ",y[iw,i]," ", 0.0," ",vx[iw,i]," ",vy[iw,i]," ",0.0);
+                ic += 1;
+            }
+        }
+    }
+    for i in 1..numPoints {
+        myFileWriter.writeln("I ",bound[i].x," ",bound[i].y," ",0.0);
+        ic += 1;
+    }
+    if (fluid_cpl) {
+        for i in 1..numSol {
+            myFileWriter.writeln("S ",solvent[i].x," ",solvent[i].y," ",0.0);
+            ic += 1;
+        }
+    }
+    myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0);
+    myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0);
+    myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0);
+    myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0);
+    //ic += 4;
+    // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    //writeln(filename,"\t",ic," lines written");
+    //xyzfile.close();
+    } catch e: Error {
+        writeln(e);
+    }
+}
+
+proc write_xyzv(istep:int) {
+    var dx :real, dy:real, xang:real, rx:real,ry:real,dot:real;
+    var ic:int;
+    var filename:string = "amatter%{010u}.xyz".format(istep);
+    //var filename = "amatter" + (istep:string) + ".xyz";
+    try {
+    var xyzfile = open(filename, ioMode.cw);
+    var myFileWriter = xyzfile.writer();
+    // number of active particles + 4 edge-defining particles + boundary + solvent (optional)
+    if (fluid_cpl) {
+        myFileWriter.writeln(nworms * np + 4 + numPoints + numSol);
+    } else {
+        myFileWriter.writeln(nworms*np + 4 + numPoints);
+    }
+    myFileWriter.writeln("# 0");
+    ic = 2;
+    for i in 1..nptc {
+      if i <= nworms*np {
+         var iw = 1 + ((i - 1)/np):int;
+         var ip = i - np*(iw - 1);
+         var ptc_begin = (iw-1)*np + 1 ;
+         var ptc_end = (iw-1)*np + np;
+        dx = particles[ptc_begin].x - hxo2;
+        dy = particles[ptc_begin].y - hyo2;
+        xang = atan2(dy,dx);
+        rx = -sin(xang);
+        ry = cos(xang);
+        dot = (particles[ptc_begin].x - particles[ptc_end].x)*rx + (particles[ptc_begin].y - particles[ptc_end].y)*ry;
+        if (dot >= 0.0) {
+            for i in 1..np {
+                myFileWriter.writeln("A ",particles[i].x," ",particles[i].y," ", particles[i].z," ",particles[i].vx," ",particles[i].vy," ",particles[i].vz);
+                //myFileWriter.writeln("A ",x[iw,i]," ",y[iw,i]," ", 0.0," ",vx[iw,i]," ",vy[iw,i]," ",0.0);
+                ic += 1;
+            }
+        } else {
+            for i in 1..np {
+                myFileWriter.writeln("B ",particles[i].x," ",particles[i].y," ", particles[i].z," ",particles[i].vx," ",particles[i].vy," ",particles[i].vz);
+                //myFileWriter.writeln("B ",x[iw,i]," ",y[iw,i]," ", 0.0," ",vx[iw,i]," ",vy[iw,i]," ",0.0);
+                ic += 1;
+            }
+        }
+      } else if i <= ((nworms*np)+numSol) {
+         // writing out solvent particles
+         myFileWriter.writeln("S ",particles[i].x," ",particles[i].y," ",0.0," ",particles[i].vx," ",particles[i].vy," ",0.0);
+      } else {
+         // must be a boundary particles 
+         myFileWriter.writeln("I ",particles[i].x," ",particles[i].y," ",0.0," ",0.0," ",0.0," ",0.0);
+      }
+    }
+    /*
+    for iw in 1..nworms {
+        dx = worms[iw,1].x - hxo2;
+        dy = worms[iw,1].y - hyo2;
+        xang = atan2(dy,dx);
+        rx = -sin(xang);
+        ry = cos(xang);
+        dot = (worms[iw,1].x - worms[iw,np].x)*rx + (worms[iw,1].y - worms[iw,np].y)*ry;
+        if (dot >= 0.0) {
+            for i in 1..np {
+                myFileWriter.writeln("A ",worms[iw,i].x," ",worms[iw,i].y," ", worms[iw,i].z," ",worms[iw,i].vx," ",worms[iw,i].vy," ",worms[iw,i].vz);
+                //myFileWriter.writeln("A ",x[iw,i]," ",y[iw,i]," ", 0.0," ",vx[iw,i]," ",vy[iw,i]," ",0.0);
+                ic += 1;
+            }
+        } else {
+            for i in 1..np {
+                myFileWriter.writeln("B ",worms[iw,i].x," ",worms[iw,i].y," ",worms[iw,i].z," ",worms[iw,i].vx," ",worms[iw,i].vy," ",worms[iw,i].vz);
+                //myFileWriter.writeln("B ",x[iw,i]," ",y[iw,i]," ", 0.0," ",vx[iw,i]," ",vy[iw,i]," ",0.0);
+                ic += 1;
+            }
+        }
+    }
+    for i in 1..numPoints {
+        myFileWriter.writeln("I ",bound[i].x," ",bound[i].y," ",0.0," ",0.0," ",0.0," ",0.0);
+        ic += 1;
+    }
+    if (fluid_cpl) {
+        for i in 1..numSol {
+            myFileWriter.writeln("S ",solvent[i].x," ",solvent[i].y," ",0.0," ",solvent[i].vx," ",solvent[i].vy," ",0.0);
+            ic += 1;
+        }
+    }*/
+    myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    //ic += 4;
+    // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    // myFileWriter.writeln("E ",hxo2 - rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 - rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    // myFileWriter.writeln("E ",hxo2 + rwall," ",hyo2 + rwall," ",0.0," ",0.0," ",0.0," ",0.0);
+    write_log(logfile,filename+"\t"+ic:string+" lines written",true);
+    //xyzfile.close();
+    } catch e: Error {
+        writeln(e);
+    }
+}
+
+proc init_macro(filename:string) {
+    if C.appendFileExists(filename.c_str()) != 0 {
+        var error_str:string = filename+" already exists";
+        halt(error_str);
+    } else {
+        try {
+            var datfile = open(filename, ioMode.cw);
+            var myFileWriter = datfile.writer();
+            myFileWriter.writeln("step \t KEworm \t KEworm-vave \t KEsol");
+            datfile.fsync();
+            write_log(logfile,filename+" header written");
+        } catch e: Error {
+            writeln(e);
+        }
+    }
+}
+
+proc write_macro(filename: string,istep: int) {
+    var ret_int:int;
+    var out_str:string = istep:string+"\t"+KEworm_total[istep]:string+"\t"+KEworm_local_total[istep]:string+"\t"+KEsol_total[istep]:string+"\t"+AMworm_total[istep]:string+"\t"+AMsol_total[istep]:string;
+    ret_int = C.appendToFile(filename.c_str(),out_str.c_str());
+    if ret_int != 0 {
+        var err_str:string = "error in appending to "+filename;
+        halt(err_str);
+    }
+}
+
+proc init_log(filename:string) {
+    if C.appendFileExists(filename.c_str()) != 0 {
+        var error_str:string = filename+" already exists";
+        halt(error_str);
+    }
+}
+
+proc write_log(filename: string, out_str: string, silent: bool = false) {
+    if silent == false {
+      writeln(out_str);
+    }
+    var ret_int: int;
+    ret_int = C.appendToFile(filename.c_str(),out_str.c_str());
+    if ret_int != 0 {
+        var err_str:string = "error in appending to "+filename;
+        halt(err_str);
+    }
+}
+
+proc write_params() {
+    var filename:string = "params.dat";
+    try {
+        var paramsfile = open(filename, ioMode.cw);
+        var myFileWriter = paramsfile.writer();
+        myFileWriter.writeln("np\t",np.type:string,"\t",np);
+        myFileWriter.writeln("nworms\t",nworms.type:string,"\t",nworms);
+        myFileWriter.writeln("nsteps\t",nsteps.type:string,"\t",nsteps);
+        myFileWriter.writeln("fdogic\t",fdogic.type:string,"\t",fdogic);
+        myFileWriter.writeln("walldrive\t",walldrive.type:string,"\t",walldrive);
+        myFileWriter.writeln("fdogicwall\t",fdogicwall.type:string,"\t",fdogicwall);
+        myFileWriter.writeln("fdep\t",fdep.type:string,"\t",fdep);
+        myFileWriter.writeln("dogic_fdep\t",dogic_fdep.type:string,"\t",dogic_fdep);
+        myFileWriter.writeln("fdepwall\t",fdepwall.type:string,"\t",fdepwall);
+        myFileWriter.writeln("diss\t",diss.type:string,"\t",diss);
+        myFileWriter.writeln("dt\t",dt.type:string,"\t",dt);
+        myFileWriter.writeln("kspring\t",kspring.type:string,"\t",kspring);
+        myFileWriter.writeln("kbend\t",kbend.type:string,"\t",kbend);
+        myFileWriter.writeln("length0\t",length0.type:string,"\t",length0);
+        myFileWriter.writeln("rcut\t",rcut.type:string,"\t",rcut);
+        myFileWriter.writeln("save_interval\t",save_interval.type:string,"\t",save_interval);
+        myFileWriter.writeln("boundary\t",boundary.type:string,"\t",boundary);
+        myFileWriter.writeln("fluid_cpl\t",fluid_cpl.type:string,"\t",fluid_cpl);
+        myFileWriter.writeln("debug\t",debug.type:string,"\t",debug);
+        myFileWriter.writeln("thermo\t",thermo.type:string,"\t",thermo);
+        myFileWriter.writeln("kbt\t",kbt.type:string,"\t",kbt);
+        myFileWriter.writeln("sigma\t",sigma.type:string,"\t",sigma);
+        myFileWriter.writeln("gamma\t",gamma.type:string,"\t",gamma);
+        myFileWriter.writeln("numPoints\t",numPoints.type:string,"\t",numPoints);
+        myFileWriter.writeln("numSol\t",numSol.type:string,"\t",numSol);
+        myFileWriter.writeln("fluid_offset\t",fluid_offset.type:string,"\t",fluid_offset);
+        myFileWriter.writeln("worm_particl_mass\t",worm_particle_mass.type:string,"\t",worm_particle_mass);
+        myFileWriter.writeln("L\t",L.type:string,"\t",L);
+        paramsfile.fsync();
+        //paramsfile.close();
+        write_log(logfile,"params.dat written");
+    } catch e: Error {
+        writeln(e);
+    }
+}
+
+proc restart_write(istep:int) {
+   /*
+    File structures
+    all lines starting with '#' are comment lines and contain data about the rest of the simulation
+    First # line is the time step of the restart
+    First, all worms will be written out, starting with 2 comment lines, the first containing nworms, 2nd containing np
+    The data will then be as following with nworms*np lines
+    iworm:int ip:int x:real y:real z:real vx:real vy:real vz:real
+    The next comment line will denote the beginning of the boundary section and contains numPoints
+    The data will then be as follows with numPoints lines
+    i:int, x:real, y:real
+    The next comment line will denote the beginning of the fluid section (if applicable) and contains numSol
+    The data will the be as follows with numSol lines
+    i:int x:real, y:real vx:real vy:real
+    */
+    var filename:string = "amatter.restart";
+    try {
+        var restart_file = open(filename, ioMode.cw);
+        var restartWriter = restart_file.writer();
+        // total number of particles = number of active particles + boundary + solvent (optional)
+        restartWriter.writeln("# ",istep);
+        restartWriter.writeln("#nworms:",nworms);
+        restartWriter.writeln("#np:",np);
+        for iw in 1..nworms {
+            for i in 1..np {
+                restartWriter.writeln(iw," ",i," ",worms[iw,i].x," ",worms[iw,i].y," ", worms[iw,i].z," ",worms[iw,i].vx," ",worms[iw,i].vy," ",worms[iw,i].vz);
+            }
+        }
+        restartWriter.writeln("#numPoints:",numPoints);
+        for i in 1..numPoints {
+            restartWriter.writeln(i," ",bound[i].x," ",bound[i].y);
+        }
+        if fluid_cpl {
+            restartWriter.writeln("#numSol:",numSol);
+            for i in 1..numSol {
+                restartWriter.writeln(i," ",solvent[i].x," ",solvent[i].y," ",solvent[i].vx," ",solvent[i].vy);
+            }
+        }
+        //restart_file.fsync();
+        //restart_file.close();
+    } catch e: Error {
+        writeln(e);
+    }
+}
+
+proc restart_read(filename) {
+    var istep_read =  0;
+    try {
+    var restart_file = open(filename, ioMode.r).reader();
+    var read_sucess :bool;
+    var linestring :string;
+    read_sucess = restart_file.readLine(linestring,stripNewline=true);
+    writeln("Reading restart from step ", linestring);
+    istep_read = linestring.partition(" ")[2]:int;
+
+    read_sucess = restart_file.readLine(linestring,stripNewline=true);
+    var nworms_read = linestring.partition(":")[2]:int;
+    read_sucess = restart_file.readLine(linestring,stripNewline=true);
+    var np_read = linestring.partition(":")[2]:int;
+    if worms.shape != (nworms_read,np_read) {
+        writeln("nworms: ",nworms," ",nworms_read);
+        writeln("np: ",np," ",np_read);
+        halt("shape of input from restart wrong!");
+    }
+    for iline in 1..(nworms_read*np_read) {
+        read_sucess = restart_file.readLine(linestring,stripNewline=true);
+        var istring : [1..8] string;
+        for (i,isep) in zip(1..8,linestring.split(" ",-1)) {
+            istring[i] = isep;
+        }
+        var iw = istring[1]:int;
+        var ip = istring[2]:int;
+        worms[iw,ip].x = istring[3]:real;
+        worms[iw,ip].y = istring[4]:real;
+        worms[iw,ip].z = istring[5]:real;
+        worms[iw,ip].vx = istring[6]:real;
+        worms[iw,ip].vy = istring[7]:real;
+        worms[iw,ip].vz = istring[8]:real;
+        worms[iw,ip].fx = 0.0;
+        worms[iw,ip].fy = 0.0;
+        worms[iw,ip].fz = 0.0;
+        worms[iw,ip].fxold = 0.0;
+        worms[iw,ip].fyold = 0.0;
+        worms[iw,ip].fzold = 0.0;
+        worms[iw,ip].ptype = 1;
+        worms[iw,ip].m = worm_particle_mass;
+    }
+    read_sucess = restart_file.readLine(linestring,stripNewline=true);
+    var numPoints_read = linestring.partition(":")[2]:int;
+    if (numPoints != numPoints_read) {
+        writeln("numPoints:",numPoints," ",numPoints_read);
+        halt("shape of input from restart wrong");
+    }
+    for iline in 1..numPoints_read {
+        read_sucess = restart_file.readLine(linestring,stripNewline=true);
+        var istring : [1..3] string;
+        for (i,isep) in zip(1..3,linestring.split(" ",-1)) {
+            istring[i] = isep;
+        }
+        var ib = istring[1]:int;
+        bound[ib].x = istring[2]:real;
+        bound[ib].y = istring[3]:real;
+        bound[ib].z = 0.0;
+        bound[ib].ptype = 3;
+    }
+    //assert(bound==bound2);
+    if (fluid_cpl) {
+        read_sucess = restart_file.readLine(linestring,stripNewline=true);
+        var numSol_read = linestring.partition(":")[2]:int;
+        if (numSol != numSol_read) {
+            writeln("numSol:",numSol," ",numSol_read);
+            halt("shape of input from restart wrong");
+        }
+        for iline in 1..numSol_read {
+            read_sucess = restart_file.readLine(linestring,stripNewline=true);
+            var istring : [1..5] string;
+            for (i,isep) in zip(1..5,linestring.split(" ",-1)) {
+                istring[i] = isep;
+            }
+            var ip = istring[1]:int;
+            solvent[ip].x = istring[2]:real;
+            solvent[ip].y = istring[3]:real;
+            solvent[ip].z = 0.0;
+            solvent[ip].vx = istring[4]:real;
+            solvent[ip].vy = istring[5]:real;
+            solvent[ip].vz = 0.0;
+            solvent[ip].m = 1.0;
+            solvent[ip].ptype = 2;
+        }
+        //assert(solvent==solvent2);
+    }
+    //restart_file.fsync();
+    //restart_file.close();
+    } catch e: Error {
+        writeln(e);
+    }
+    return istep_read;
+}
+// HELPER FUNCTIONS
+inline proc gaussRand(mean: real, stddev: real): real {
+    var u1 = randStream.getNext();
+    var u2 = randStream.getNext();
+    var z0 = sqrt(-2.0 * log(u1)) * cos(2.0 * pi * u2);  // Box-Muller transform
+    var gauss = mean + stddev * z0;
+    if (gauss > 2.5) {
+        gauss = 2.5;
+    } else if (gauss < -2.5) {
+        gauss = -2.5;
+    }
+    return gauss;
+}
+
+proc sudden_halt(istep:int) {
+   writeln("halted step # ",istep);
+    write_xyzv(istep);
+    //restart_write(istep);
+    //write_macro(nsteps);
+}
