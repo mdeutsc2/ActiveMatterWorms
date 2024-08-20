@@ -5,8 +5,8 @@ from tqdm import tqdm
 import asyncio
 
 #ti.init(arch=ti.cpu,advanced_optimization=False,debug=True,cpu_max_num_threads=1)
-#ti.init(arch=ti.cpu,kernel_profiler=True)
-ti.init(arch=ti.gpu)
+ti.init(arch=ti.cpu,kernel_profiler=True)
+#ti.init(arch=ti.cpu)
 
 vec = ti.math.vec3
 
@@ -64,13 +64,19 @@ pf = Particle.field(shape=(n,)) # pf -> particle field, first n_active, then n_b
 # structures for cells
 grid_n = int(ti.ceil(rwall/rcut))
 print(grid_n,grid_n)
-ptc_count = ti.field(dtype=ti.i32,shape=(grid_n, grid_n),name="ptc_count")
-column_sum = ti.field(dtype=ti.i32, shape=grid_n, name="column_sum")
-prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="prefix_sum")
-particle_id = ti.field(dtype=ti.i32, shape=n, name="particle_id")
-list_head = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
-list_cur = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
-list_tail = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
+bin_type = ti.root.dense(ti.i, grid_n*grid_n).dynamic(ti.j, 1024, chunk_size=32)
+bins = ti.field(int)
+bin_type.place(bins)
+
+@ti.kernel
+def test_bins():
+   for i in range(grid_n*grid_n):
+      for k in range(5):
+         bins[i].append(k)
+      print(bins[i].length(),bins[i])
+
+test_bins()
+exit()
 
 #arrays for init
 i_reverse = ti.field(ti.f32, shape=nworms)
