@@ -73,10 +73,10 @@ const r2cut = rcut*rcut,
       length2 = 2.0*length0,
       lengthmax = (length0)*((np - 1):real),
       r2inside = (rwall - rcutsmall) * (rwall-rcutsmall),
-      a = 0.12, // 0.18,0.48 layer spacing of worms in init_worms?
+      a = 0.13, // 0.12,0.18,0.48 layer spacing of worms in init_worms?
       dpd_ratio = 1.0,
       sqrt_gamma_term = sqrt(2.0*kbt*gamma),
-      numPoints = 5000,//1200//589, //number of boundary points (for circle w/ r-75)
+      numPoints = 5000,//5000,1200//589, //number of boundary points (for circle w/ r-75)
       fluid_offset = 2.0,//rcutsmall*sigma,//3.0; // z-offset of fluid
       io_interval = 500,
       restart_interval = save_interval*2,
@@ -381,75 +381,59 @@ proc init_worms() {
         }
         //now place worm particles
         // high-density placement 
+        var n_levels = 4; // number of levels of filaments
         var theta_now_init = thetanow;
-        for iw in 1..nworms/2 {
-            ireverse[iw] = 0;
-            rand1 = randStream.getNext();
-            if (rand1 <= 0.5) {
-                ireverse[iw] = 1;
+        for ilevel in 1..n_levels {
+            thetanow = theta_now_init;
+            var wormstart = (nworms/n_levels)*(ilevel-1)+1;
+            var wormend = wormstart + (nworms/n_levels)-1;
+            writeln(ilevel," ",nworms/n_levels);
+            for iw in wormstart..wormend {
+                ireverse[iw] = 0;
+                rand1 = randStream.getNext();
+                if (rand1 <= 0.5) {
+                    ireverse[iw] = 1;
+                }
+                var worm_z_height = ((0.5*randStream.getNext())*L)/n_levels + (L/n_levels)*(ilevel-1);
+                // if worm_z_height >= L {
+                //     worm_z_height= L-0.01;
+                // }
+                // if worm_z_height <= 0.0 {
+                //     worm_z_height = 0.01;
+                // }
+                //writeln(ilevel*L/n_levels);
+                for i in 1..np {
+                    r = a*thetanow;
+                    dth = (length0)/r;
+                    thetanow += dth;
+                    worms[iw,i].x = hxo2 + r*cos(thetanow);
+                    //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
+                    worms[iw,i].y = hyo2 + r*sin(thetanow);
+                    //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
+                    worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                    xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                    //TODO give them an initial velocity going around the circle
+                    worms[iw,i].ptype = 1;
+                    worms[iw,i].m = 1.0; // setting mass
+                    // vx[iw,i] = 0.0;
+                    // vy[iw,i] = 0.0;
+                    worms[iw,i].vxave = 0.0;
+                    worms[iw,i].vyave = 0.0;
+                    worms[iw,i].vzave = 0.0;
+                    // fx[iw,i] = 0.0;
+                    // fy[iw,i] = 0.0;
+                    // fxold[iw,i] = 0.0;
+                    // fyold[iw,i] = 0.0;
+                }
+                thetanow += 2.0*dth;
             }
-            var worm_z_height = randStream.getNext()*(L/2);
-            for i in 1..np {
-                r = a*thetanow;
-                dth = length0/r;
-                thetanow += dth;
-                worms[iw,i].x = hxo2 + r*cos(thetanow);
-                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
-                worms[iw,i].y = hyo2 + r*sin(thetanow);
-                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
-                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
-                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
-                //TODO give them an initial velocity going around the circle
-                worms[iw,i].ptype = 1;
-                worms[iw,i].m = 1.0; // setting mass
-                // vx[iw,i] = 0.0;
-                // vy[iw,i] = 0.0;
-                worms[iw,i].vxave = 0.0;
-                worms[iw,i].vyave = 0.0;
-                worms[iw,i].vzave = 0.0;
-                // fx[iw,i] = 0.0;
-                // fy[iw,i] = 0.0;
-                // fxold[iw,i] = 0.0;
-                // fyold[iw,i] = 0.0;
-            }
-            thetanow += 2.0*dth;
-        }
-        thetanow = theta_now_init;//5.0*pi;
-        for iw in nworms/2..nworms {
-            ireverse[iw] = 0;
-            rand1 = randStream.getNext();
-            if (rand1 <= 0.5) {
-                ireverse[iw] = 1;
-            }
-            var worm_z_height = randStream.getNext()*(L/2)+L/2;
-            for i in 1..np {
-                r = a*thetanow;
-                dth = length0/r;
-                thetanow += dth;
-                worms[iw,i].x = hxo2 + r*cos(thetanow);
-                //worms[iw,i].x = r * (1 - cos(thetanow)) * cos(thetanow) + hxo2 + ca;
-                worms[iw,i].y = hyo2 + r*sin(thetanow);
-                //worms[iw,i].y = r * (1 - cos(thetanow)) * sin(thetanow) + hyo2;
-                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
-                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
-                //TODO give them an initial velocity going around the circle
-                worms[iw,i].ptype = 1;
-                worms[iw,i].m = 1.0; // setting mass
-                // vx[iw,i] = 0.0;
-                // vy[iw,i] = 0.0;
-                worms[iw,i].vxave = 0.0;
-                worms[iw,i].vyave = 0.0;
-                worms[iw,i].vzave = 0.0;
-                // fx[iw,i] = 0.0;
-                // fy[iw,i] = 0.0;
-                // fxold[iw,i] = 0.0;
-                // fyold[iw,i] = 0.0;
-            }
-            thetanow += 2.0*dth;
         }
     } else if (bd.t == BD_TYPE.EPICYCLOID) {
         // epicycloid boundary
         var k = 2; // Change the value of k here
+        var xoffset1 = 1.25*hxo2;
+        var yoffset1 = 0.55*hyo2;
+        var yoffset2 = 1.45*hyo2;
         writeln("EPICYCLOID BOUNDARY k = ",k);
         var equidistantArcLengths: [1..numPoints] real;
         var thetaValues: [1..numPoints] real;
@@ -469,53 +453,42 @@ proc init_worms() {
             bound[i].z = 0.0;
             bound[i].ptype = 3;
         }
+        //  LOWER LOBE high-density placement 
+        var n_levels = 4 b; // number of levels of filaments
         var theta_now_init = thetanow;
-        for iw in 1..nworms/2 {
-            ireverse[iw] = 0;
-            rand1 = randStream.getNext();
-            if (rand1 <= 0.5) {
-                ireverse[iw] = 1;
+        for ilevel in 1..n_levels {
+            thetanow = theta_now_init;
+            var wormstart = (nworms/n_levels)*(ilevel-1)+1;
+            var wormend = wormstart + (nworms/n_levels)-1;
+            writeln(ilevel," ",nworms/n_levels);
+            for iw in wormstart..wormend {
+                ireverse[iw] = 0;
+                rand1 = randStream.getNext();
+                if (rand1 <= 0.5) {
+                    ireverse[iw] = 1;
+                }
+                var worm_z_height = ((0.5*randStream.getNext())*L)/n_levels + (L/n_levels)*(ilevel-1);
+                for i in 1..np {
+                    r = a*thetanow;
+                    dth = (length0)/r;
+                    thetanow += dth;
+                    worms[iw,i].x = xoffset1 + r*cos(thetanow);
+                    if ilevel%2 == 0 {
+                        worms[iw,i].y = yoffset1 + r*sin(thetanow);
+                    } else {
+                        worms[iw,i].y = yoffset2 + r*sin(thetanow);
+                    }
+                    worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
+                    xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
+                    //TODO give them an initial velocity going around the circle
+                    worms[iw,i].ptype = 1;
+                    worms[iw,i].m = 1.0; // setting mass
+                    worms[iw,i].vxave = 0.0;
+                    worms[iw,i].vyave = 0.0;
+                    worms[iw,i].vzave = 0.0;
+                }
+                thetanow += 2.0*dth;
             }
-            var worm_z_height = randStream.getNext()*(L/2);
-            for i in 1..np {
-                r = a*thetanow;
-                dth = length0/r;
-                thetanow += dth;
-                worms[iw,i].x = 1.25*hxo2 + r*cos(thetanow);
-                worms[iw,i].y = 0.75*hyo2 + r*sin(thetanow);
-                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
-                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
-                worms[iw,i].ptype = 1;
-                worms[iw,i].m = 1.0; // setting mass
-                worms[iw,i].vxave = 0.0;
-                worms[iw,i].vyave = 0.0;
-                worms[iw,i].vzave = 0.0;
-            }
-            thetanow += 2.0*dth;
-        }
-        thetanow = theta_now_init;//5.0*pi;
-        for iw in nworms/2..nworms {
-            ireverse[iw] = 0;
-            rand1 = randStream.getNext();
-            if (rand1 <= 0.5) {
-                ireverse[iw] = 1;
-            }
-            var worm_z_height = randStream.getNext()*(L/2)+L/2;
-            for i in 1..np {
-                r = a*thetanow;
-                dth = length0/r;
-                thetanow += dth;
-                worms[iw,i].x = 1.25*hxo2 + r*cos(thetanow);
-                worms[iw,i].y = 0.75*hyo2 + r*sin(thetanow);
-                worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.getNext()*(L);
-                xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
-                worms[iw,i].ptype = 1;
-                worms[iw,i].m = 1.0; // setting mass
-                worms[iw,i].vxave = 0.0;
-                worms[iw,i].vyave = 0.0;
-                worms[iw,i].vzave = 0.0;
-            }
-            thetanow += 2.0*dth;
         }
     } else if (bd.t == BD_TYPE.EPIGRAPH) {
         // epigraph boundary
@@ -1639,7 +1612,6 @@ proc init_fluid_rsa1(ref solvent: [] Structs.Particle, ref numSol: int){
    writeln(init_timer.elapsed()," s for solvent init");
    return solvent;
 }
-
 
 inline proc lj_thermo(i:int,j:int,r2cut_local:real) {
     var dx,dy,r2,ffor,ffx,ffy,dvx,dvy,r,rhatx,rhaty,omega,fdissx,fdissy,gauss,frand,dv_dot_rhat :real;
