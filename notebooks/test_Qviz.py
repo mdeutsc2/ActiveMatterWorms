@@ -11,6 +11,10 @@ filename = "/media/matt/SCRATCH/ActiveMatterWorms/data_02_02_2024/filament_data.
 #filename = "/media/matt/SCRATCH/ActiveMatterWorms/data_17_02_2024/filament_data.npz"
 filename = "/media/matt/SCRATCH/ActiveMatterWorms/data_24_01_2024-2/filament_data.npz"
 filename = "/media/matt/ASTRO/SCRATCH/ActiveMatterWorms/data_04_03_2024/filament_data.npz"
+#data for the ISMC/UMass poster
+#filename = "/media/matt/DATA/data_22_05_2024/filament_data.npz"
+filename = "/media/matt/DATA/osc_data/data_15_05_2024-2/filament_data.npz"
+
 data = np.load(filename)
 pos_data = data['a']
 vel_data = data['b']
@@ -167,13 +171,13 @@ def plot_frame(iframe,pos_data):
                        scale_units='xy',
                        scale=0.25
     )
-    #ax2.plot(cx,cy,color='k')
-    pcm = ax2.imshow(dij,cmap="seismic",interpolation="bicubic",alpha=0.5,origin="lower",extent=(min_x,max_x,min_y,max_y))
+    ##ax2.plot(cx,cy,color='k')
+    #pcm = ax2.imshow(dij,cmap="seismic",interpolation="bicubic",alpha=0.5,origin="lower",extent=(min_x,max_x,min_y,max_y))
     #pcm = ax2.imshow(dij,cmap="hot",alpha=0.5,origin="lower",extent=(min_x,max_x,min_y,max_y))
-    cbar = fig.colorbar(pcm, shrink=0.77, ax=ax2,ticks=[-0.5, -0.25, 0, 0.25, 0.5],format=mticker.FixedFormatter(['-0.5', '', '0', '', '0.5']))
-    #labels = cbar.ax.get_yticklabels()
-    #labels[0].set_verticalalignment('top')
-    #labels[-1].set_verticalalignment('bottom')
+    #cbar = fig.colorbar(pcm, shrink=0.77, ax=ax2,ticks=[-0.5, -0.25, 0, 0.25, 0.5],format=mticker.FixedFormatter(['-0.5', '', '0', '', '0.5']))
+    ##labels = cbar.ax.get_yticklabels()
+    ##labels[0].set_verticalalignment('top')
+    ##labels[-1].set_verticalalignment('bottom')
     ax2.set_box_aspect(1)
     ax2.set_adjustable("datalim")
     ax2.set_title(iframe)
@@ -181,12 +185,13 @@ def plot_frame(iframe,pos_data):
     plt.savefig("frame"+str(iframe).zfill(5)+".png")
     #plt.show()
     
-frame_dir = "./anim_frames_seismic_clip_04_03"
+#frame_dir = "./anim_frames_nocolor_22_05"
+frame_dir = "./anim_frames_nocolor_15_05"
 try:  
     os.mkdir(frame_dir)  
 except OSError as error:  
     print(error)   
 os.chdir(frame_dir)
-frames = np.arange(nframes)[0:1500]#[1100:1600]
+frames = np.arange(nframes)#[0:1500]#[1100:1600]
 for iframe in tqdm.tqdm(frames):
     plot_frame(iframe,pos_data)
