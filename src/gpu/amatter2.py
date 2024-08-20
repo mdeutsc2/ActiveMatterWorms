@@ -4,9 +4,9 @@ import numpy
 from tqdm import tqdm
 import asyncio
 
-ti.init(arch=ti.cpu,advanced_optimization=False,debug=True)
-#ti.init(arch=ti.cpu,kernel_profiler=True)
-#ti.init(arch=ti.gpu)
+#ti.init(arch=ti.cpu,advanced_optimization=False,debug=True,cpu_max_num_threads=1)
+ti.init(arch=ti.cpu,kernel_profiler=True)
+#ti.init(arch=ti.cpu)
 
 vec = ti.math.vec3
 
@@ -27,8 +27,8 @@ dt2o2 = (dt*dt)/2
 dto2 = dt/2
 L = 3.2
 
-save_interval = 250
-nworms = 20
+save_interval = 500
+nworms = 800
 np = 80
 n_active = nworms*np
 n_bound = 5000
@@ -36,14 +36,14 @@ n_fluid = 0
 
 n = n_active + n_bound + n_fluid
 
-nsteps = 20000
+nsteps = 1000
 kspring = 57.146436
 k2spring = 50.0*kspring
 k3spring = 75.0*kspring
 length0 = 0.8
 length2 = 2.0*length0
 length3 = 3.0*length0
-rwall = 100
+rwall = 150
 fdep = 0.25
 fdogic =0.06
 dogic_fdep = 0.25
@@ -62,15 +62,21 @@ r2cutsmall = rcutsmall*rcutsmall
 pf = Particle.field(shape=(n,)) # pf -> particle field, first n_active, then n_bound, then n_fluid
 
 # structures for cells
-grid_n = int(ti.ceil(hx/rcut))
+grid_n = int(ti.ceil(rwall/rcut))
 print(grid_n,grid_n)
-ptc_count = ti.field(dtype=ti.i32,shape=(grid_n, grid_n),name="ptc_count")
-column_sum = ti.field(dtype=ti.i32, shape=grid_n, name="column_sum")
-prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="prefix_sum")
-particle_id = ti.field(dtype=ti.i32, shape=n, name="particle_id")
-list_head = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
-list_cur = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
-list_tail = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
+bin_type = ti.root.dense(ti.i, grid_n*grid_n).dynamic(ti.j, 1024, chunk_size=32)
+bins = ti.field(int)
+bin_type.place(bins)
+
+@ti.kernel
+def test_bins():
+   for i in range(grid_n*grid_n):
+      for k in range(5):
+         bins[i].append(k)
+      print(bins[i].length(),bins[i])
+
+test_bins()
+exit()
 
 #arrays for init
 i_reverse = ti.field(ti.f32, shape=nworms)
@@ -80,16 +86,14 @@ save_y = ti.field(ti.f32,shape=np)
 @ti.kernel
 def init_worms():
    #placing worm particles
-   thetanow = 10.0*numpy.pi
+   thetanow = 5.0*numpy.pi
    a = 0.14
-   ti.loop_config(serialize=True)
    for iw in range(nworms):
       if ti.random(ti.f32) < 0.5:
          i_reverse[iw] = 1
       dth = 0.0
       for ip in range(np):
          i = (iw)*np+(ip)
-         #print(iw,ip,i)
          r = a*thetanow
          dth = length0/r
          thetanow += dth
@@ -102,7 +106,7 @@ def init_worms():
          pf[i].t = 1
          pf[i].m = 1.0
       thetanow += 2.0*dth
-   ti.loop_config(serialize=True)
+
    for iw in range(nworms):
       if i_reverse[iw] == 1:
          for ip in range(np):
@@ -115,7 +119,6 @@ def init_worms():
             pf[i].p[1] = save_y[ip]
    
    # placing boundary particles
-   ti.loop_config(serialize=True)
    for ib in range(n_bound):
       theta = ib*(2*numpy.pi/n_bound)
       pf[n_active+ib].p[0] = rwall*ti.cos(theta) + hyo2
@@ -132,7 +135,7 @@ def init_worms():
 def update_pos():
    for i in pf:
       if i < n_active: #(n_active = nworms*np)
-         #pf[i].f /= pf[i].m
+         pf[i].f /= pf[i].m
          pf[i].p += pf[i].v*dt + pf[i].f*dt2o2
          pf[i].fold = pf[i].f
          pf[i].f = 0.0
@@ -202,16 +205,10 @@ def intraworm_forces():
 def calc_forces(pf: ti.template()):
    ptc_count.fill(0)
    #print(-1,ptc_count.shape)
+   #ti.loop_config(serialize=True)
    for i in range(n):
       grid_idx = ti.floor((pf[i].p[:2])/hx * grid_n, int)
-      if grid_idx[0] >= grid_n: 
-         print(grid_idx,pf[i].p[:2])
-      if grid_idx[0] < 0:
-         print(grid_idx,pf[i].p[:2])
-      if grid_idx[1] >= grid_n:
-         print(grid_idx,pf[i].p[:2])
-      if grid_idx[1] < 0:
-         print(grid_idx,pf[i].p[:2])
+      #print(grid_idx,pf[i].p[:2],ti.floor(pf[i].p[:2], int))
       ptc_count[grid_idx] += 1
       #print(grid_idx,pf[i].p[:2],ti.floor(pf[i].p[:2], int),ptc_count[grid_idx])
    #print(0)
@@ -265,7 +262,8 @@ def calc_forces(pf: ti.template()):
             for p_idx in range(list_head[neigh_linear_idx],list_tail[neigh_linear_idx]):
                j = particle_id[p_idx]
                if i < j:
-                  resolve_forces(i, j)
+                  pass
+                  #resolve_forces(i, j)
 
 @ti.func
 def resolve_forces(i,j):
@@ -316,6 +314,8 @@ def resolve_forces(i,j):
                ff = fdogic*dr_d_norm + dogic_fdep*dr/riijj
                pf[i].f += ff
                pf[j].f -= ff
+            
+
    # worm-solvent
 
    # worm-boundary
@@ -342,7 +342,7 @@ def resolve_forces(i,j):
    # fluid boundary
 
 def write_xyzv(istep):
-   xyzfile = open("amatter_"+str(istep).zfill(9)+".xyz", "w") 
+   xyzfile = open("amatter"+str(istep).zfill(9)+".xyz", "w") 
    xyzfile.write(str(n_active+n_bound+n_fluid+4)+"\n")
    xyzfile.write("# "+str(istep)+"\n")
    for iw in range(nworms):
@@ -393,8 +393,7 @@ def main():
    #write_params();
 
    init_worms()
-   # write_xyzv(0)
-   # exit()
+
    #init_fluid(solvent, numSol);
 
    #restart_write(0);
@@ -402,11 +401,25 @@ def main():
       if (itime % save_interval == 0) or itime == 0:
         write_xyzv(itime)
         #pass
-
+      #   if (itime % io_interval == 0) {
+      #       xt.stop();
+      #       total_time += xt.elapsed();
+      #       var out_str:string = "Step: "+(itime+restart_timestep):string+"\t"+
+      #                 (io_interval/xt.elapsed()):string+"iter/s\tCalc:"+
+      #                 ((ct.elapsed()/total_time)*100):string+"%\tIO:"+
+      #                 ((wt.elapsed()/total_time)*100):string+" %\tElapsed:"+
+      #                 total_time:string+" s\t Est:"+
+      #                 ((nsteps-itime)*(total_time/itime)):string+" s";
+      #       write_log(logfile,out_str);
+      #       //writeln((+ reduce solvent.vx),"\t",(+ reduce solvent.vy));
+      #       //writeln((+ reduce solvent.x),"\t",(+ reduce solvent.y));
+      #       xt.restart();
+      #       }
       update_pos()
 
       intraworm_forces()
 
+      #print("calculating forces")
       calc_forces(pf)
       #   if (fluid_cpl) {
       #       KEsol_total[itime] = (+ reduce KEsol);
@@ -419,7 +432,19 @@ def main():
       #   KEworm_total[itime] = (+ reduce KEworm);
       #   KEworm_local_total[itime] = (+ reduce KEworm_local);
       #   AMworm_total[itime] = (+ reduce AMworm);
+
+      #   if (itime % nstepso1e5 == 0){
+      #       write_macro(macro_filename,itime);
+      #   }
+      #   if (itime % save_interval == 0){
+      #       write_xyzv(itime+restart_timestep);
+      #       if (itime % restart_interval == 0) {
+      #           restart_write(itime+restart_timestep);
+      #       }
+      #   }
+   #print("Total Time:"+total_time:string+" s");
    #ti.profiler.print_kernel_profiler_info('trace')
    #ti.profiler.print_kernel_profiler_info()
+
 if __name__ == "__main__":
    main()
