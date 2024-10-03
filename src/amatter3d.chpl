@@ -454,7 +454,7 @@ proc init_worms() {
             bound[i].ptype = 3;
         }
         //  LOWER LOBE high-density placement 
-        var n_levels = 4 b; // number of levels of filaments
+        var n_levels = 4; // number of levels of filaments
         var theta_now_init = thetanow;
         for ilevel in 1..n_levels {
             thetanow = theta_now_init;
