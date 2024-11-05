@@ -203,3 +203,4 @@ ModelManifest.xml
 *.jupyter/
 *.tar.*
 *.restart
+.DS_Store
