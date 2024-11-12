@@ -76,7 +76,9 @@ const r2cut = rcut*rcut,
       a = 0.13, // 0.12,0.18,0.48 layer spacing of worms in init_worms?
       dpd_ratio = 1.0,
       sqrt_gamma_term = sqrt(2.0*kbt*gamma),
-      numPoints = 5000,//5000,1200//589, //number of boundary points (for circle w/ r-75)
+      //numPoints = 5000,//5000,1200//589, //number of boundary points (for circle w/ r-75)
+      numPoints = 9025, // given for epitrochoid of k=2, r = 41
+      bdSpacing = 0.1, // spacing for epitrochoid
       fluid_offset = 2.0,//rcutsmall*sigma,//3.0; // z-offset of fluid
       io_interval = 500,
       restart_interval = save_interval*2,
@@ -222,7 +224,7 @@ proc main() {
         restart_write(0);
     }
 
-    //halt();
+    halt();
     
     //setting up stopwatch
     var log_str:string;
@@ -286,28 +288,37 @@ proc main() {
 }
 
 // //functions
+proc epitrochoid_coords(theta,R,r,d) {
+    var x = (R + r) * cos(theta) - (d *r) *cos((R + r) / r * theta);
+    var y = (R + r) * sin(theta) - (d *r)* sin((R + r) / r * theta);
+    return (x, y);
+}
+
+proc arc_length(theta1,theta2,R,r,d) { //epitrochoid arc length
+    // Arc length estimation function (using numerical integration)
+    var n = 25000; // Number of subdivisions for numerical integration
+    var dtheta = (theta2 - theta1) / n;
+    var length = 0.0;
+    for i in 1..n-1 {
+        var theta_left = theta1 + (i-1)*dtheta;
+        var theta_right = theta1 + i * dtheta;
+        var px_left = 0.0;
+        var py_left = 0.0; 
+        var px_right = 0.0;
+        var py_right = 0.0;
+        var p_left = epitrochoid_coords(theta_left,R,r,d);
+        var p_right = epitrochoid_coords(theta_right,R,r,d);
+        var dx = p_right[0]-p_left[0];
+        var dy = p_right[1]-p_left[1];
+        length += sqrt(dx*dx + dy*dy);
+    }
+    return length;
+}
+
 proc init_worms() {
     //array for locating neighbor cells
     var rand1:real; // temp fix for randSteam
     var r:real, dth:real, xangle:real;
-    ddx[1] = 1;
-    ddy[1] = 0;
-    ddx[2] = 1;
-    ddy[2] = 1;
-    ddx[3] = 0;
-    ddy[3] = 1;
-    ddx[4] = -1;
-    ddy[4] = 1;
-    ddx[5] = -1;
-    ddy[5] = 0;
-    ddx[6] = -1;
-    ddy[6] = -1;
-    ddx[7] = 0;
-    ddy[7] = -1;
-    ddx[8] = 1;
-    ddy[8] = -1;
-    ddx[9] = 0;
-    ddy[9] = 0;
     var thetanow = 5.0*pi :real; // changes the initial radius of annulus
     var rmin = a*thetanow;
     var density = 0.0;
@@ -576,35 +587,78 @@ proc init_worms() {
         writeln("Nworms failed ",nfailed);
         //halt();
     } else if (bd.t == BD_TYPE.EPICYCLOID2) {
-        // epicycloid boundary - Klein boundary condition
-        var a = 1.0;
-        var b = 1.1;
-        var k = 2; // Change the value of k here
-        var xoffset1 = 1.25*hxo2;
-        var yoffset1 = 0.55*hyo2;
-        var yoffset2 = 1.45*hyo2;
-        writeln("EPICYCLOID2 (Klein) BOUNDARY k = ",k);
-        halt();
-        var equidistantArcLengths: [1..numPoints] real;
-        var thetaValues: [1..numPoints] real;
-        var ca = (rwall/4)-1;
-        writeln("ca=",ca," numpoints=",numPoints);
-        var totalArcLength = 4*(k+1)*ca;
+        // epitrochoid
+        var d = 0.8;//0.99; // change smoothing parameter here
+        var k = 2.0; // Change the value of k here
+        var r = 41.0;// outer circle
+        var R = k*r; // inner circle 
+        var xoffset1 = hxo2; //1.25
+        var yoffset1 = 0.675*hyo2; // lower lobe
+        var yoffset2 = 1.325*hyo2; // upper lobe
+        writeln("outer circle ideal size: ",floor((2.0*rwall)/8.0)," ",r);
+        writeln("epitrochoid arc length ",arc_length(0.0,2.0*pi,R,r,d));
+        writeln("arc length/spacing ", arc_length(0.0,2.0*pi,R,r,d)/bdSpacing);
+        writeln("numPoints ",numPoints);
+        if (numPoints > arc_length(0.0,2.0*pi,R,r,d)/bdSpacing) {
+            writeln("numPoints > given spacing!!!");
+        }
+        // OLD-METHOD
+        // var equidistantArcLengths: [1..numPoints] real;
+        // var thetaValues: [1..numPoints] real;
+        // var totalArcLength = arc_length(0.0,2.0*pi,R,r,d);
+        // write_log(logfile,"epitrochoid width: "+(r+R):string);
+        // write_log(logfile,"epitrochoid cirum: "+totalArcLength:string+"\t"+(totalArcLength/r2cutsmall):string);
+        // for i in 1..numPoints {
+        //     equidistantArcLengths[i] = totalArcLength * (i - 1) / (numPoints - 1);
+        //     thetaValues[i] = 4 * asin(sqrt(equidistantArcLengths[i] / totalArcLength));
+        // }
+        // var max_y = 0.0;
+        // var min_y = 0.0;
+        // for i in 1..numPoints {
+        //     var x = (R + r) * cos(thetaValues[i]) - (d*r) * cos((R + r) / r * thetaValues[i]) + hxo2;
+        //     var y = (R + r) * sin(thetaValues[i]) - (d*r) * sin((R + r) / r * thetaValues[i]) + hyo2;
+        //     //points[i] = (x, y);
+        //     if (y > max_y) {
+        //         max_y = y;
+        //     }
+        //     if (y < min_y) {
+        //         min_y = y;
+        //     }
+        //     bound[i].x = x;
+        //     bound[i].y = y;
+        //     bound[i].z = 0.0;
+        //     bound[i].ptype = 3;
+        // }
+        // writeln("bound extents: ",max_y," ",min_y);
+        var total_length = 0.0;
+        var itheta = 0.0;
+        var x = (R + r) * cos(itheta) - (d*r) * cos((R + r) / r * itheta) + hxo2;
+        var y = (R + r) * sin(itheta) - (d*r) * sin((R + r) / r * itheta) + hyo2;
+        var iptc = 1;
+        bound[iptc].x = x;
+        bound[iptc].y = y;
+        bound[iptc].z = 0.0;
+        bound[iptc].ptype = 3;
+        while total_length <= arc_length(0.0,2.0*pi,R,r,d) {
+            var step_size = 0.001;
+            var next_theta = itheta + step_size;
+            var current_length = arc_length(0.0,next_theta,R,r,d);
+            if (current_length - total_length >= bdSpacing) {
+                bound[iptc].x = (R + r) * cos(next_theta) - (d*r) * cos((R + r) / r * next_theta) + hxo2;
+                bound[iptc].y = (R + r) * sin(next_theta) - (d*r) * sin((R + r) / r * next_theta) + hyo2;
+                bound[iptc].z = 0.0;
+                bound[iptc].ptype = 3;
+                iptc += 1;
+                total_length = current_length;
+                itheta = next_theta;
+            } else {
+                itheta = next_theta;
+            }
+        }
 
-        for i in 1..numPoints {
-            // note that 1.5*i is necessary for even-ish spacing
-            equidistantArcLengths[i] = totalArcLength * (1.5*i - 1) / (numPoints - 1);
-            //equidistantArcLengths[i] = totalArcLength * (i) / (numPoints);
-            thetaValues[i] = 4 * asin(sqrt(equidistantArcLengths[i] / totalArcLength));
-        }
-        for i in 1..numPoints {
-            bound[i].x = ca * (k + 1) * cos(thetaValues[i]) - ca * cos((k + 1) * thetaValues[i]) + hxo2 + ca;
-            bound[i].y = ca * (k + 1) * sin(thetaValues[i]) - ca * sin((k + 1) * thetaValues[i]) + hyo2;
-            bound[i].z = 0.0;
-            bound[i].ptype = 3;
-        }
         //  LOWER LOBE high-density placement 
-        var n_levels = 4; // number of levels of filaments
+        var n_levels = 8; // number of levels of filaments
+        //n_levels = 2*n_levels; // have to alternate number of filaments
         var theta_now_init = thetanow;
         for ilevel in 1..n_levels {
             thetanow = theta_now_init;
@@ -623,12 +677,14 @@ proc init_worms() {
                     dth = (length0)/r;
                     thetanow += dth;
                     worms[iw,i].x = xoffset1 + r*cos(thetanow);
-                    if ilevel%2 == 0 {
+                    if ilevel%(k:int) == 0 {
                         worms[iw,i].y = yoffset1 + r*sin(thetanow);
+                        worms[iw,i].z = worm_z_height;
                     } else {
                         worms[iw,i].y = yoffset2 + r*sin(thetanow);
+                        worms[iw,i].z = worm_z_height;
                     }
-                    worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.next()*(L);
+                    //worms[iw,i].z = worm_z_height;//0.5*L + gaussRand(0.0,0.1);//randStream.next()*(L);
                     xangle = atan2(worms[iw,i].y - hyo2, worms[iw,i].x - hxo2);
                     //TODO give them an initial velocity going around the circle
                     worms[iw,i].ptype = 1;
@@ -656,7 +712,6 @@ proc init_worms() {
             }
         }
     }
-
     //init macro variable arrays
     for i in 1..nworms*np{
         KEworm[i] = 0.0;
