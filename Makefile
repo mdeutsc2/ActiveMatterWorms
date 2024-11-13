@@ -25,3 +25,10 @@ debug: $(SOURCE)
 
 cuda:
 	$(CHPL) $(GPUFLAGS) $(SOURCE) -o $(OUTPUT)
+
+cleanup:
+	rm energies.dat
+	rm params.dat
+	rm amatter.log
+	rm *.restart
+	rm *.xyz

@@ -188,28 +188,28 @@ proc main() {
         }
     }
 
-    // if (fluid_cpl) {
-    //   if random_init {
-    //     if (bd.t == BD_TYPE.CARDIOID) {
-    //         solvent = init_fluid_rsa2(solvent,numSol);
-    //     }
-    //     if (bd.t == BD_TYPE.CIRCLE) {
-    //         solvent = init_fluid_rsa1(solvent,numSol);
-    //     }
-    //     if (bd.t == BD_TYPE.EPICYCLOID1) {
-    //         solvent = init_fluid_rsa3(solvent,numSol);
-    //     }
-    //     if (bd.t == BD_TYPE.EPICYCLOID2) {
-    //         solvent = init_fluid_rsa3(solvent,numSol);
-    //     }
-    //   } else {
-    //     solvent = init_fluid(solvent, numSol);
-    //   }
-    // }
-    // populate the bins with lists of atoms
-    //update_cells(0); //again after fluid
+    if (fluid_cpl) {
+      if random_init {
+        if (bd.t == BD_TYPE.CARDIOID) {
+            solvent = init_fluid_rsa2(solvent,numSol);
+        }
+        if (bd.t == BD_TYPE.CIRCLE) {
+            solvent = init_fluid_rsa1(solvent,numSol);
+        }
+        if (bd.t == BD_TYPE.EPICYCLOID1) {
+            solvent = init_fluid_rsa3(solvent,numSol);
+        }
+        if (bd.t == BD_TYPE.EPICYCLOID2) { // epitrochoid
+            solvent = init_fluid_rsa3(solvent,numSol);
+        }
+      } else {
+        solvent = init_fluid(solvent, numSol);
+      }
+    }
+    //populate the bins with lists of atoms
+    update_cells(0); //again after fluid // somehow segfaults here?
     write_log(logfile,"numSol\t"+numSol:string);
-    write_log(logfile,"fluid equilibrated...5000dt");
+    //write_log(logfile,"fluid equilibrated...5000dt");
 
     var macro_filename:string = "energies.dat";
     init_macro(macro_filename);
@@ -223,8 +223,6 @@ proc main() {
         write_xyzv(0);
         restart_write(0);
     }
-
-    halt();
     
     //setting up stopwatch
     var log_str:string;
@@ -238,8 +236,7 @@ proc main() {
             total_time += xt.elapsed();
             var out_str:string = "Step: "+(itime+restart_timestep):string+"\t"+
                       (io_interval/xt.elapsed()):string+"iter/s\tCalc:"+
-                      ((ct.elapsed()/total_time)*100):string+"%\tIO:"+
-                      ((wt.elapsed()/total_time)*100):string+" %\tElapsed:"+
+                      ((ct.elapsed()/total_time)*100):string+"%\tElapsed:"+
                       total_time:string+" s\t Est:"+
                       ((nsteps-itime)*(total_time/itime)):string+" s";
             write_log(logfile,out_str);
@@ -1342,8 +1339,8 @@ inline proc dogic_wall(iw:int,ip:int,ib:int){
         r = sqrt(r2);
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
-        ffor = (1/r)*6.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
-        //ffor = (1/r)**6.0 - fdepwall/r;
+        //ffor = (1/r)*6.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
+        ffor = (1/r)**6.0 - fdepwall/r;
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
@@ -1423,146 +1420,146 @@ proc update_vel() {
 }
 
 //FLUID FUNCTIONS
-proc init_fluid_count():int {
-   var numSol:int;
-   if (bd.t == BD_TYPE.CIRCLE) {
-      var fluid_a = 2*rwall;
-      var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
-      numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
-      var pos : [1..numSol,1..3] real;
-      var fluid_px = fluid_a;
-      var fluid_mx = 0;
-      var fluid_py = fluid_a;
-      var fluid_my = 0;
-      var spacing = fluid_a/nSol_row;
-      var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
-      var row,col:real;
-      for i in 1..numSol {
-            row = i % row_length;
-            col = ((i - row)/row_length)+1;
+proc init_fluid_count(bd:Boundary):int {
+        var numSol:int;
+        if (bd.t == BD_TYPE.CIRCLE) {
+            var fluid_a = 2*rwall;
+            var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+            numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
+            var pos : [1..numSol,1..3] real;
+            var fluid_px = fluid_a;
+            var fluid_mx = 0;
+            var fluid_py = fluid_a;
+            var fluid_my = 0;
+            var spacing = fluid_a/nSol_row;
+            var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+            var row,col:real;
+            for i in 1..numSol {
+                    row = i % row_length;
+                    col = ((i - row)/row_length)+1;
 
-            pos[i,1] = fluid_mx + spacing*row + spacing; // x
-            pos[i,2] = fluid_my + spacing*col; // y
-            pos[i,3] = 0.0;
-      }
-      // mark all solvent particles that are out of bounds
-      var rm_count = 0;
-      for i in 1..numSol {
-         var dx = pos[i,1] - hxo2;
-         var dy = pos[i,2] - hyo2;
-         var r = sqrt(dx*dx + dy*dy);
-         if r > (0.95*rwall) {
-            pos[i,3] = -1.0;
-            rm_count +=1;
-         }
-      }
-      // recounting
-      writeln(rm_count);
-      numSol -= rm_count;
-   } else if (bd.t == BD_TYPE.CARDIOID) {
-      var fluid_a = 2*rwall;
-      var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
-      numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
-      var pos : [1..numSol,1..3] real;
-      var fluid_px = fluid_a;
-      var fluid_mx = 0;
-      var fluid_py = fluid_a;
-      var fluid_my = 0;
-      var spacing = fluid_a/nSol_row;
-      var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
-      var row,col:real;
-      for i in 1..numSol {
-            row = i % row_length;
-            col = ((i - row)/row_length)+1;
+                    pos[i,1] = fluid_mx + spacing*row + spacing; // x
+                    pos[i,2] = fluid_my + spacing*col; // y
+                    pos[i,3] = 0.0;
+            }
+            // mark all solvent particles that are out of bounds
+            var rm_count = 0;
+            for i in 1..numSol {
+                var dx = pos[i,1] - hxo2;
+                var dy = pos[i,2] - hyo2;
+                var r = sqrt(dx*dx + dy*dy);
+                if r > (0.95*rwall) {
+                    pos[i,3] = -1.0;
+                    rm_count +=1;
+                }
+            }
+            // recounting
+            writeln(rm_count);
+            numSol -= rm_count;
+        } else if (bd.t == BD_TYPE.CARDIOID) {
+            var fluid_a = 2*rwall;
+            var nSol_row = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+            numSol = nSol_row*nSol_row; // calcuating the number of particles in the box (exceeds rwall)
+            var pos : [1..numSol,1..3] real;
+            var fluid_px = fluid_a;
+            var fluid_mx = 0;
+            var fluid_py = fluid_a;
+            var fluid_my = 0;
+            var spacing = fluid_a/nSol_row;
+            var row_length = floor(sqrt(floor(fluid_rho*fluid_a*fluid_a))):int;
+            var row,col:real;
+            for i in 1..numSol {
+                    row = i % row_length;
+                    col = ((i - row)/row_length)+1;
 
-            pos[i,1] = fluid_mx + spacing*col; // x
-            pos[i,2] = fluid_my + spacing*row; // y
-            pos[i,3] = 0.0;
-      }
-      // mark all solvent particles that are out of bounds
-      var rm_count = 0;
-      var ca = 1.5*(rwall/2);
-      for i in 1..numSol {
-         var dx = pos[i,1] - hxo2;
-         var dy = pos[i,2] - hyo2;
-         var r = sqrt(dx*dx + dy*dy);
-         var cardioidRadius = 1 - cos(atan2(dy, dx));
-         if r > (0.95*ca*cardioidRadius) {
-            pos[i,3] = -1.0;
-            rm_count +=1;
-         }
-      }
-      // recounting
-      //writeln(rm_count);
-      numSol -= rm_count;
-      writeln("fluid density",numSol/(6 * pi * ca ** 2));
-   } else if (bd.t == BD_TYPE.EPICYCLOID1) {
-    // var fluid_x = (max reduce bound.x) - (min reduce bound.x);
-    // var fluid_y = (max reduce bound.y) - (min reduce bound.y);
-    // var numSol = ceil(fluid_rho * fluid_x*fluid_y):int;
-    // var pos : [1..numSol,1..3] real;
-    // var fluid_px = (max reduce bound.x);
-    // var fluid_mx = (min reduce bound.x);
-    // var fluid_py = (max reduce bound.y);
-    // var fluid_my = (min reduce bound.y);
-    // var nSol_row = floor(sqrt(floor(fluid_rho*fluid_x*fluid_y)));
-    // var spacing = fluid_x/nSol_row;
-    // var row,col:real;
-    // for i in 1..numSol {
-    //     row = i % nSol_row;
-    //     col = ((i - row)/nSol_row) + 1;
-    //     pos[i,1] = fluid_mx + spacing*col;
-    //     pos[i,2] = fluid_my - spacing*row;
-    //     pos[i,3] = 0.0;
-    // }
-    // var rm_count = 0;
-    //     for i in 1..numSol {
-    //         var dx = pos[i,1] - hxo2;
-    //         var dy = pos[i,2] - hyo2;
-    //         var r = sqrt(dx*dx + dy*dy);
-    //         var cycloid_radius = (0.5*(rwall/4 + 1)**2)*(5-3*cos(2*atan2(dy,dx)));
-    //         if r > cycloid_radius {
-    //             pos[i,3] = -1.0;
-    //             rm_count += 1;
-    //         }
-    //     }
-    //     numSol -= rm_count;
-    //     writeln("fluid_density ",numSol/(12*pi*(rwall/4 + 1)**2));
-    } else if (bd.t == BD_TYPE.EPICYCLOID2) {
-    // var fluid_x = (max reduce bound.x) - (min reduce bound.x);
-    // var fluid_y = (max reduce bound.y) - (min reduce bound.y);
-    // var numSol = ceil(fluid_rho * fluid_x*fluid_y):int;
-    // var pos : [1..numSol,1..3] real;
-    // var fluid_px = (max reduce bound.x);
-    // var fluid_mx = (min reduce bound.x);
-    // var fluid_py = (max reduce bound.y);
-    // var fluid_my = (min reduce bound.y);
-    // var nSol_row = floor(sqrt(floor(fluid_rho*fluid_x*fluid_y)));
-    // var spacing = fluid_x/nSol_row;
-    // var row,col:real;
-    // for i in 1..numSol {
-    //     row = i % nSol_row;
-    //     col = ((i - row)/nSol_row) + 1;
-    //     pos[i,1] = fluid_mx + spacing*col;
-    //     pos[i,2] = fluid_my - spacing*row;
-    //     pos[i,3] = 0.0;
-    // }
-    // var rm_count = 0;
-    //     for i in 1..numSol {
-    //         var dx = pos[i,1] - hxo2;
-    //         var dy = pos[i,2] - hyo2;
-    //         var r = sqrt(dx*dx + dy*dy);
-    //         var cycloid_radius = (0.5*(rwall/4 + 1)**2)*(5-3*cos(2*atan2(dy,dx)));
-    //         if r > cycloid_radius {
-    //             pos[i,3] = -1.0;
-    //             rm_count += 1;
-    //         }
-    //     }
-    //     numSol -= rm_count;
-    //     writeln("fluid_density ",numSol/(12*pi*(rwall/4 + 1)**2));
-   } else {
-    halt("no other boundaries supported yet");
-   }
+                    pos[i,1] = fluid_mx + spacing*col; // x
+                    pos[i,2] = fluid_my + spacing*row; // y
+                    pos[i,3] = 0.0;
+            }
+            // mark all solvent particles that are out of bounds
+            var rm_count = 0;
+            var ca = 1.5*(rwall/2);
+            for i in 1..numSol {
+                var dx = pos[i,1] - hxo2;
+                var dy = pos[i,2] - hyo2;
+                var r = sqrt(dx*dx + dy*dy);
+                var cardioidRadius = 1 - cos(atan2(dy, dx));
+                if r > (0.95*ca*cardioidRadius) {
+                    pos[i,3] = -1.0;
+                    rm_count +=1;
+                }
+            }
+            // recounting
+            //writeln(rm_count);
+            numSol -= rm_count;
+            writeln("fluid density",numSol/(6 * pi * ca ** 2));
+        } else if (bd.t == BD_TYPE.EPICYCLOID1) {
+            // var fluid_x = (max reduce bound.x) - (min reduce bound.x);
+            // var fluid_y = (max reduce bound.y) - (min reduce bound.y);
+            // var numSol = ceil(fluid_rho * fluid_x*fluid_y):int;
+            // var pos : [1..numSol,1..3] real;
+            // var fluid_px = (max reduce bound.x);
+            // var fluid_mx = (min reduce bound.x);
+            // var fluid_py = (max reduce bound.y);
+            // var fluid_my = (min reduce bound.y);
+            // var nSol_row = floor(sqrt(floor(fluid_rho*fluid_x*fluid_y)));
+            // var spacing = fluid_x/nSol_row;
+            // var row,col:real;
+            // for i in 1..numSol {
+            //     row = i % nSol_row;
+            //     col = ((i - row)/nSol_row) + 1;
+            //     pos[i,1] = fluid_mx + spacing*col;
+            //     pos[i,2] = fluid_my - spacing*row;
+            //     pos[i,3] = 0.0;
+            // }
+            // var rm_count = 0;
+            //     for i in 1..numSol {
+            //         var dx = pos[i,1] - hxo2;
+            //         var dy = pos[i,2] - hyo2;
+            //         var r = sqrt(dx*dx + dy*dy);
+            //         var cycloid_radius = (0.5*(rwall/4 + 1)**2)*(5-3*cos(2*atan2(dy,dx)));
+            //         if r > cycloid_radius {
+            //             pos[i,3] = -1.0;
+            //             rm_count += 1;
+            //         }
+            //     }
+            //     numSol -= rm_count;
+            //     writeln("fluid_density ",numSol/(12*pi*(rwall/4 + 1)**2));
+            } else if (bd.t == BD_TYPE.EPICYCLOID2) {
+            // var fluid_x = (max reduce bound.x) - (min reduce bound.x);
+            // var fluid_y = (max reduce bound.y) - (min reduce bound.y);
+            // var numSol = ceil(fluid_rho * fluid_x*fluid_y):int;
+            // var pos : [1..numSol,1..3] real;
+            // var fluid_px = (max reduce bound.x);
+            // var fluid_mx = (min reduce bound.x);
+            // var fluid_py = (max reduce bound.y);
+            // var fluid_my = (min reduce bound.y);
+            // var nSol_row = floor(sqrt(floor(fluid_rho*fluid_x*fluid_y)));
+            // var spacing = fluid_x/nSol_row;
+            // var row,col:real;
+            // for i in 1..numSol {
+            //     row = i % nSol_row;
+            //     col = ((i - row)/nSol_row) + 1;
+            //     pos[i,1] = fluid_mx + spacing*col;
+            //     pos[i,2] = fluid_my - spacing*row;
+            //     pos[i,3] = 0.0;
+            // }
+            // var rm_count = 0;
+            //     for i in 1..numSol {
+            //         var dx = pos[i,1] - hxo2;
+            //         var dy = pos[i,2] - hyo2;
+            //         var r = sqrt(dx*dx + dy*dy);
+            //         var cycloid_radius = (0.5*(rwall/4 + 1)**2)*(5-3*cos(2*atan2(dy,dx)));
+            //         if r > cycloid_radius {
+            //             pos[i,3] = -1.0;
+            //             rm_count += 1;
+            //         }
+            //     }
+            //     numSol -= rm_count;
+            //     writeln("fluid_density ",numSol/(12*pi*(rwall/4 + 1)**2));
+        } else {
+            halt("no other boundaries supported yet");
+        }
    return numSol;
 }
 
@@ -1738,6 +1735,75 @@ proc init_fluid_rsa3(ref solvent: [] Structs.Particle, ref numSol: int) {
     var isInCycloid,tooClose:bool;
     var minDist = 1.5;
     var numPlaced = 0; //Counter for the number of particles placed
+    // epitrochoid
+    var d = 0.8;//0.99; // change smoothing parameter here
+    var k = 2.0; // Change the value of k here
+    var r = 41.0;// outer circle
+    var R = k*r; // inner circle
+    var xoffset1 = hxo2; //1.25
+    var yoffset1 = 0.675*hyo2; // lower lobe
+    var yoffset2 = 1.325*hyo2; // upper lobe
+
+    var init_timer:stopwatch, pl_timer:stopwatch;
+    init_timer.start();
+    while numPlaced <= numSol {
+        // generate random point within bounding square
+        var x = 2*rwall*randStream.next();
+        var y = 2*rwall*randStream.next();
+        // Check if the point is inside the epitrochoid
+        var dx = x - hxo2;
+        var dy = y - hyo2;
+        var epi_pt = epitrochoid_coords(atan2(dy,dx),R,r,d);
+        var rCylc = sqrt(epi_pt[0]*epi_pt[0] + epi_pt[1]*epi_pt[1]);
+        //var rCylc = 1.9*ca*(1+2*sin(t)/2); // somehow a circle? 2*ca?
+        //var rCylc = (0.5*(rwall/4 + 1)**2)*(5-3*cos(2*atan2(x,x)));//sqrt((cylc_x-x)**2 + (cylc_y-y)**2);
+        var r_pt = sqrt(dx*dx + dy*dy);
+        if r_pt <= 0.95*rCylc {
+            isInCycloid = true;
+        } else {
+            isInCycloid = false;
+        }
+        // check if the point is too close to other particles
+        tooClose = false;
+        for i in 1..numPlaced {
+            var dist = sqrt((solvent[i].x - x)**2 + (solvent[i].y - y)**2);
+            if dist < minDist {
+                tooClose = true;
+                break;
+            }
+        }
+        if isInCycloid && !tooClose {
+            writeln(numPlaced,"/",numSol," ",init_timer.elapsed());
+            numPlaced += 1;
+            if numPlaced > numSol {
+                break;
+            }
+            solvent[numPlaced].x = x;
+            solvent[numPlaced].y = y;
+            solvent[numPlaced].z = 0.0;
+            solvent[numPlaced].vx = 0.0;
+            solvent[numPlaced].vy = 0.0;
+            solvent[numPlaced].vz = 0.0;
+            solvent[numPlaced].fx = 0.0;
+            solvent[numPlaced].fy = 0.0;
+            solvent[numPlaced].fz = 0.0;
+            solvent[numPlaced].ptype = 2;
+            solvent[numPlaced].m = 1.0;
+        }
+        if init_timer.elapsed() > (2*720*60) {
+            writeln("FLUID INIT FAILED, CHECK minDist AND fluid_rho VALUES");
+            halt();
+        }
+    }
+    init_timer.stop();
+    writeln(init_timer.elapsed()," s for solvent init");
+    return solvent;
+}
+
+proc init_fluid_rsa3_old(ref solvent: [] Structs.Particle, ref numSol: int) {
+    var isInCycloid,tooClose:bool;
+    var minDist = 1.5;
+    var numPlaced = 0; //Counter for the number of particles placed
     var ca = (rwall/4)+1;
     var init_timer:stopwatch, pl_timer:stopwatch;
     init_timer.start();
@@ -1745,7 +1811,7 @@ proc init_fluid_rsa3(ref solvent: [] Structs.Particle, ref numSol: int) {
         // generate random point within bounding square
         var x = 2*rwall*randStream.next();
         var y = 2*rwall*randStream.next();
-        // Check if the point is inside the nephroid
+        // Check if the point is inside the epitrochoid
         var dx = x - hxo2 - 0.95*ca;
         var dy = y - hyo2;
         var rCylc = 1.9*ca*(1+2*sin(t)/2); // somehow a circle? 2*ca?
@@ -1783,7 +1849,7 @@ proc init_fluid_rsa3(ref solvent: [] Structs.Particle, ref numSol: int) {
             solvent[numPlaced].ptype = 2;
             solvent[numPlaced].m = 1.0;
         }
-        if init_timer.elapsed() > (720*60) {
+        if init_timer.elapsed() > (2*720*60) {
             writeln("FLUID INIT FAILED, CHECK minDist AND fluid_rho VALUES");
             halt();
         }
@@ -2059,9 +2125,15 @@ proc update_cells(istep:int) {
         }
     }
     for ib in 1..numPoints {
-        ibin=ceil(bound[ib].x/rcut):int;
-        jbin=ceil(bound[ib].y/rcut):int;
-        binid=(jbin-1)*numBins+ibin;
+        if (bound[ib].x == 0.0) && (bound[ib].y == 0.0) {
+            ibin=ceil((bound[ib].x+0.01)/rcut):int;
+            jbin=ceil((bound[ib].y+0.01)/rcut):int;
+            binid=(jbin-1)*numBins+ibin;
+        } else {
+            ibin=ceil(bound[ib].x/rcut):int;
+            jbin=ceil(bound[ib].y/rcut):int;
+            binid=(jbin-1)*numBins+ibin;
+        }
         //append i to particle_list for binid
         bins[binid].bcount += 1;
         bins[binid].ncount += 1;
