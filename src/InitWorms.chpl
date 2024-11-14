@@ -311,8 +311,8 @@ proc init_worms() {
         var r = 41.0;// outer circle
         var R = k*r; // inner circle 
         var xoffset1 = hxo2; //1.25
-        var yoffset1 = 0.675*hyo2; // lower lobe
-        var yoffset2 = 1.325*hyo2; // upper lobe
+        var yoffset1 = 0.55*hyo2;//0.675*hyo2; // lower lobe
+        var yoffset2 = 1.45*hyo2;//1.325*hyo2; // upper lobe
         writeln("outer circle ideal size: ",floor((2.0*rwall)/8.0)," ",r);
         writeln("epitrochoid arc length ",arc_length(0.0,2.0*pi,R,r,d));
         writeln("arc length/spacing ", arc_length(0.0,2.0*pi,R,r,d)/bdSpacing);
