@@ -1,5 +1,5 @@
 module BoundaryTypes {
-    enum BD_TYPE { CIRCLE, CARDIOID, EPICYCLOID1, EPICYCLOID2}
+    enum BD_TYPE { CIRCLE, CARDIOID, EPICYCLOID, EPITROCHOID}
 
     record Boundary{
         var t: BD_TYPE;
@@ -18,9 +18,9 @@ module BoundaryTypes {
         } else if (input == 2) {
             return new Boundary(t = BD_TYPE.CARDIOID);
         } else if (input == 3) {
-            return new Boundary(t = BD_TYPE.EPICYCLOID1);
+            return new Boundary(t = BD_TYPE.EPICYCLOID);
         } else if (input == 4) {
-            return new Boundary(t = BD_TYPE.EPICYCLOID2);
+            return new Boundary(t = BD_TYPE.EPITROCHOID);
         } else {
             writeln("invalid boundary type!");
             halt();

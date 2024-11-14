@@ -100,7 +100,10 @@ var worms: [wormsDomain] Structs.Particle;
 Structs.ptc_init_counter = 1;
 var bd = boundary_type_init(boundary);
 
+var randStream = new randomStream(real); // creating random number generator
+
 var numSol:int;
+var fluid_area:real;
 if random_init {
     if (bd.t == BD_TYPE.CARDIOID) {
         var ca = 1.5*(rwall/2);
@@ -109,18 +112,18 @@ if random_init {
         numSol = ceil(fluid_rho * (6 * pi * ca ** 2)):int; // Total number of particles to generate
     }
     if (bd.t == BD_TYPE.CIRCLE) {
-        writeln("disk area ",(pi*rwall*rwall));
-        numSol = ceil(fluid_rho * (pi*rwall**2)):int;
+        fluid_area = estimate_area(bd);
+        writeln("disk area ",fluid_area);
+        numSol = ceil(fluid_rho * fluid_area):int;
     }
-    if (bd.t == BD_TYPE.EPICYCLOID1) {
+    if (bd.t == BD_TYPE.EPICYCLOID) {
         var k = 2;
         var cylc_area = 12*pi*((rwall/4)+1)**2;
         writeln("epicycloid area ",cylc_area);
         numSol = ceil(fluid_rho * cylc_area):int;
     }
-    if (bd.t == BD_TYPE.EPICYCLOID2) {
-        var k = 2;
-        var cylc_area = 12*pi*((rwall/4)+1)**2;
+    if (bd.t == BD_TYPE.EPITROCHOID) {
+        var cylc_area = 12*pi*((rwall/4)+1)**2;//estimate_area(bd);
         writeln("epicycloid area ",cylc_area);
         numSol = ceil(fluid_rho * cylc_area):int;
     }
@@ -166,7 +169,6 @@ var binSpacejodd : [1..(numBins*numBins)/2] int;
 var binSpaceieven : [1..(numBins*numBins)/2] int;
 var binSpacejeven : [1..(numBins*numBins)/2] int;
 
-var randStream = new randomStream(real); // creating random number generator
 var restart_timestep = 0; // timestep read in from restart file
 var logfile:string = "amatter.log";
 var t = 0.0;
@@ -203,11 +205,11 @@ proc main() {
         if (bd.t == BD_TYPE.CIRCLE) {
             solvent = init_fluid_rsa1(solvent,numSol);
         }
-        if (bd.t == BD_TYPE.EPICYCLOID1) {
+        if (bd.t == BD_TYPE.EPICYCLOID) {
             solvent = init_fluid_rsa3(solvent,numSol);
         }
-        if (bd.t == BD_TYPE.EPICYCLOID2) { // epitrochoid
-            solvent = init_fluid_rsa3(solvent,numSol);
+        if (bd.t == BD_TYPE.EPITROCHOID) { // epitrochoid
+            solvent = init_fluid_rsa4(solvent,numSol);
         }
       } else {
         solvent = init_fluid(solvent, numSol);

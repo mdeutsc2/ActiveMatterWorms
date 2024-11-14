@@ -166,7 +166,7 @@ proc init_worms() {
                 thetanow += 2.0*dth;
             }
         }
-    } else if (bd.t == BD_TYPE.EPICYCLOID1) {
+    } else if (bd.t == BD_TYPE.EPICYCLOID) {
         // epicycloid boundary
         var k = 2; // Change the value of k here
         var xoffset1 = 1.25*hxo2;
@@ -304,7 +304,7 @@ proc init_worms() {
         // }
         writeln("Nworms failed ",nfailed);
         //halt();
-    } else if (bd.t == BD_TYPE.EPICYCLOID2) {
+    } else if (bd.t == BD_TYPE.EPITROCHOID) {
         // epitrochoid
         var d = 0.8;//0.99; // change smoothing parameter here
         var k = 2.0; // Change the value of k here
