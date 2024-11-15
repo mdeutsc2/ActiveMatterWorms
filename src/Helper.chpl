@@ -23,4 +23,15 @@ proc sudden_halt(istep:int) {
     //restart_write(istep);
     //write_macro(nsteps);
 }
+
+proc convertSeconds(seconds: int): string {
+    var days = seconds / (24 * 3600);
+    var hours = (seconds % (24 * 3600)) / 3600;
+    var minutes = (seconds % 3600) / 60;
+    var remainingSeconds = seconds % 60;
+    
+    return days:string + "d:" + hours:string + "h:" + minutes:string + "m:" + remainingSeconds:string + "s";
+}
+
+
 }

@@ -247,7 +247,7 @@ proc main() {
                       (io_interval/xt.elapsed()):string+"iter/s\tCalc:"+
                       ((ct.elapsed()/total_time)*100):string+"%\tElapsed:"+
                       total_time:string+" s\t Est:"+
-                      ((nsteps-itime)*(total_time/itime)):string+" s";
+                      convertSeconds(((nsteps-itime)*(total_time/itime)):int)+" s";
             write_log(logfile,out_str);
             //writeln((+ reduce solvent.vx),"\t",(+ reduce solvent.vy));
             //writeln((+ reduce solvent.x),"\t",(+ reduce solvent.y));
