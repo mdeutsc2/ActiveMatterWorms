@@ -630,7 +630,7 @@ inline proc dogic_wall(iw:int,ip:int,ib:int){
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0) + fdepwall/r;
         //ffor = -48.0*r2**(-7.0) + 24.0*r2**(-4.0);
         //ffor = (1/r)*6.0 + fdepwall/r; //TODO raise this to a higher power to get the worms closer to the wall? try ^6 or ^8
-        ffor = (1/r)**6.0 - fdepwall/r;
+        ffor = (1/r)**6.0 + fdepwall/r;
         worms[iw,ip].fx += ffor*dx;
         worms[iw,ip].fy += ffor*dy;
         if (walldrive) {
