@@ -17,7 +17,7 @@ module InitFluid {
             area = 12*pi*((rwall/4)+1)**2; //FIXME to use MC method of area estimation
         } else if (bd.t == BD_TYPE.EPITROCHOID) {
             // area =  (# of points inside / total # of points) * area of bounding box
-            var d = 0.8;//0.99; // change smoothing parameter here
+            var d = 0.9;//0.99; // change smoothing parameter here
             var k = 2.0; // Change the value of k here
             var r = 41.0;// outer circle
             var R = k*r; // inner circle 
@@ -474,7 +474,7 @@ module InitFluid {
         var minDist = 1.5;
         var numPlaced = 0; //Counter for the number of particles placed
         // epitrochoid
-        var d = 0.8;//0.99; // change smoothing parameter here
+        var d = 0.9;//0.99; // change smoothing parameter here
         var k = 2.0; // Change the value of k here
         var r = 41.0;// outer circle
         var R = k*r; // inner circle

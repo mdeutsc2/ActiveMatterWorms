@@ -306,7 +306,7 @@ proc init_worms() {
         //halt();
     } else if (bd.t == BD_TYPE.EPITROCHOID) {
         // epitrochoid
-        var d = 0.8;//0.99; // change smoothing parameter here
+        var d = 0.9;//0.99; // change smoothing parameter here
         var k = 2.0; // Change the value of k here
         var r = 41.0;// outer circle
         var R = k*r; // inner circle 
